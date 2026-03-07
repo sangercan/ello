@@ -1,59 +1,7 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle, Loader, Zap, Users, Sparkles, TrendingUp, ArrowRight, Github, Twitter, Linkedin } from 'lucide-react'
-import { apiService, RESOLVED_API_BASE_URL, type HealthResponse, type AppInfoResponse } from '@services/api'
-import { Capacitor } from '@capacitor/core'
+import { Zap, Users, Sparkles, TrendingUp, ArrowRight, Github, Twitter, Linkedin } from 'lucide-react'
 
 export default function LandingPage() {
-  const [apiStatus, setApiStatus] = useState<HealthResponse | null>(null)
-  const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const showDiagnostics = !import.meta.env.PROD || import.meta.env.VITE_SHOW_DIAGNOSTICS === 'true'
-
-  useEffect(() => {
-    fetchBackendData()
-    const handleScroll = () => {
-      // Smooth scroll effect for animations
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  const fetchBackendData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const [healthResult, infoResult] = await Promise.allSettled([
-        apiService.getHealth(),
-        apiService.getAppInfo(),
-      ])
-
-      if (healthResult.status === 'fulfilled') {
-        setApiStatus(healthResult.value)
-      } else {
-        throw healthResult.reason
-      }
-
-      if (infoResult.status === 'fulfilled') {
-        setAppInfo(infoResult.value)
-      } else {
-        setAppInfo({
-          message: 'ℯ𝓁𝓁ℴ Social Backend Running',
-          version: '1.0.0',
-          environment: 'production',
-        })
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to connect to backend'
-      setError(errorMsg)
-      console.error('API Error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       {/* Animated background elements */}
@@ -77,7 +25,6 @@ export default function LandingPage() {
             <div className="hidden md:flex gap-8">
               <a href="#features" className="hover:text-purple-400 transition">Features</a>
               <a href="#stats" className="hover:text-purple-400 transition">Stats</a>
-              <a href="#status" className="hover:text-purple-400 transition">Status</a>
             </div>
             <div className="flex gap-3">
               <Link
@@ -129,37 +76,6 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Status Badge */}
-            <div id="status" className="inline-block bg-black/40 border border-white/10 rounded-2xl p-1 backdrop-blur-sm hover:border-white/20 transition">
-              <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-6">
-                <p className="text-sm text-gray-400 mb-3">Backend Status</p>
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader className="w-5 h-5 text-purple-400 animate-spin" />
-                    <span>Connecting...</span>
-                  </div>
-                ) : error ? (
-                  <div className="flex items-center gap-2 text-red-400">
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                ) : apiStatus ? (
-                  <div className="flex items-center gap-2 text-green-400 font-semibold">
-                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                    <span>
-                      {showDiagnostics
-                        ? `${apiStatus.service}${appInfo?.version ? ` • ${appInfo.version}` : ''}`
-                        : 'Serviço online'}
-                    </span>
-                  </div>
-                ) : null}
-                {showDiagnostics ? (
-                  <p className="mt-2 text-xs text-gray-500">
-                    {Capacitor.getPlatform() !== 'web' ? 'Native' : 'Web'} API: {RESOLVED_API_BASE_URL}
-                  </p>
-                ) : null}
-              </div>
-            </div>
           </div>
         </section>
 

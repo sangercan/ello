@@ -1,12 +1,5 @@
 {
   "appId": "com.ellosocial.app",
   "appName": "ℯ𝓁𝓁ℴ Social",
-  "webDir": "dist",
-  "plugins": {
-    "StatusBar": {
-      "overlaysWebView": true,
-      "style": "DARK",
-      "backgroundColor": "#00000000"
-    }
-  }
+  "webDir": "dist"
 }
