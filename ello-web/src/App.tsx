@@ -30,11 +30,21 @@ function App() {
     const configured = (import.meta.env.VITE_API_URL || '').trim()
     const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
     const isNative = Capacitor.getPlatform() !== 'web'
-    const isAbsoluteHttpUrl = (value: string) => /^https?:\/\//i.test(value)
+    const isValidNativeApiUrl = (value: string) => {
+      if (!/^https:\/\//i.test(value)) return false
+      try {
+        const url = new URL(value)
+        const isIpHost = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname)
+        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || isIpHost) return false
+        return true
+      } catch {
+        return false
+      }
+    }
 
     if (isNative) {
-      if (isAbsoluteHttpUrl(mobileConfigured)) return mobileConfigured
-      if (isAbsoluteHttpUrl(configured)) return configured
+      if (isValidNativeApiUrl(mobileConfigured)) return mobileConfigured
+      if (isValidNativeApiUrl(configured)) return configured
       return 'https://ellosocial.com/api'
     }
 
