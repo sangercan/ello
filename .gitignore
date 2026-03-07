@@ -4,6 +4,8 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+.vs/
+**/.vs/
 
 # Logs
 *.log
