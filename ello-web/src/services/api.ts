@@ -308,9 +308,11 @@ api.register = async (data: RegisterRequest) => {
 
 // Login
 api.login = async (email: string, password: string) => {
+  const identifier = email.trim()
+  const isEmailIdentifier = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)
   const payload = {
-    identifier: email,
-    email: email,
+    identifier,
+    ...(isEmailIdentifier ? { email: identifier } : {}),
     password: password,
   }
 
