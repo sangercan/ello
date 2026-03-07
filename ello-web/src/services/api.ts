@@ -120,6 +120,68 @@ const nativeProbeGet = async <T>(path: string): Promise<T> => {
   throw new Error(`Native probe failed: ${errors.join(' | ')}`)
 }
 
+const runNativeFromAxiosConfig = async (config: any): Promise<any> => {
+  const method = String(config?.method || 'get').toLowerCase()
+  const base = String(config?.baseURL || API_BASE_URL || '').replace(/\/+$/, '')
+  const rawUrl = String(config?.url || '')
+  const url = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl
+    : `${base}${rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`}`
+
+  const state = useAuthStore.getState()
+  const token = state.token
+  const mergedHeaders: Record<string, string> = {
+    Accept: 'application/json',
+  }
+
+  const configHeaders = config?.headers || {}
+  for (const key of Object.keys(configHeaders)) {
+    const value = configHeaders[key]
+    if (typeof value === 'string') {
+      mergedHeaders[key] = value
+    }
+  }
+
+  if (token && !mergedHeaders.Authorization) {
+    mergedHeaders.Authorization = `Bearer ${token}`
+  }
+
+  // Keep multipart on axios only; native plugin expects different payload handling.
+  if (/multipart\/form-data/i.test(String(mergedHeaders['Content-Type'] || ''))) {
+    throw new Error('Native retry skipped for multipart request')
+  }
+
+  let requestData: any = config?.data
+  if (typeof requestData === 'string') {
+    try {
+      requestData = JSON.parse(requestData)
+    } catch {
+      // Keep raw string payload when not valid JSON.
+    }
+  }
+
+  const options = {
+    url,
+    headers: mergedHeaders,
+    data: requestData,
+  }
+
+  switch (method) {
+    case 'get':
+      return CapacitorHttp.get({ url, headers: mergedHeaders })
+    case 'post':
+      return CapacitorHttp.post(options)
+    case 'put':
+      return CapacitorHttp.put(options)
+    case 'patch':
+      return CapacitorHttp.patch(options)
+    case 'delete':
+      return CapacitorHttp.delete(options)
+    default:
+      throw new Error(`Unsupported native retry method: ${method}`)
+  }
+}
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -183,7 +245,26 @@ apiClient.interceptors.request.use(
 // Response interceptor: Handle 401 errors
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // Global native fallback for WebView/network failures across all pages.
+    if (Capacitor.getPlatform() !== 'web' && !error?.response && error?.config) {
+      try {
+        const nativeResponse = await runNativeFromAxiosConfig(error.config)
+        return {
+          data: nativeResponse.data,
+          status: nativeResponse.status,
+          statusText: '',
+          headers: nativeResponse.headers || {},
+          config: error.config,
+          request: null,
+        }
+      } catch (nativeRetryError) {
+        const originalMessage = error?.message || 'Network error'
+        const retryMessage = nativeRetryError instanceof Error ? nativeRetryError.message : String(nativeRetryError)
+        return Promise.reject(new Error(`${originalMessage} | Native retry failed: ${retryMessage}`))
+      }
+    }
+
     if (error.response?.status === 401) {
       const state = useAuthStore.getState()
       state.logout()
