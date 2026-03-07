@@ -54,22 +54,6 @@ const normalizeResponseData = <T>(value: any): T => {
   return value as T
 }
 
-const nativeFetchJson = async <T>(path: string): Promise<T> => {
-  const base = API_BASE_URL.replace(/\/+$/, '')
-  const response = await fetch(`${base}${path}`, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} on ${path}`)
-  }
-
-  return (await response.json()) as T
-}
-
 const nativeHttpRequest = async <T>(
   method: 'GET' | 'POST',
   path: string,
@@ -255,7 +239,7 @@ api.getHealth = async () => {
     return normalizeResponseData(response)
   } catch (error) {
     if (Capacitor.getPlatform() !== 'web') {
-      return nativeFetchJson('/health')
+      return nativeHttpRequest('GET', '/health')
     }
     throw error
   }
@@ -269,7 +253,7 @@ api.getAppInfo = async () => {
     return normalizeResponseData(response)
   } catch (error) {
     if (Capacitor.getPlatform() !== 'web') {
-      return nativeFetchJson('')
+      return nativeHttpRequest('GET', '')
     }
     throw error
   }
