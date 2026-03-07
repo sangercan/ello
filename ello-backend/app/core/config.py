@@ -42,7 +42,26 @@ DEBUG = ENVIRONMENT == "development"
 # CORS CONFIGURATION
 # ----------------------------------------------------------
 
-if DEBUG:
+_env_allowed_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+_native_app_origins = [
+    "capacitor://localhost",
+    "ionic://localhost",
+    "http://localhost",
+    "http://localhost:80",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
+]
+
+if _env_allowed_origins:
+    # Allows comma-separated origins from environment (docker/.env) when provided.
+    env_origins = [
+        origin.strip()
+        for origin in _env_allowed_origins.split(",")
+        if origin.strip()
+    ]
+    ALLOWED_ORIGINS = list(dict.fromkeys(env_origins + _native_app_origins))
+
+elif DEBUG:
     # Development: Allow all origins
     ALLOWED_ORIGINS = [
         "http://localhost:3000",
@@ -67,6 +86,7 @@ else:
         "https://www.ello.com",
         "https://app.ello.com",
         "https://mobile.ello.com",
+        *_native_app_origins,
     ]
 
 # Allowed HTTP methods for CORS
