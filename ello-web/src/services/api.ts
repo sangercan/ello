@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 
 const resolveApiBaseUrl = () => {
@@ -68,6 +68,38 @@ const nativeFetchJson = async <T>(path: string): Promise<T> => {
   }
 
   return (await response.json()) as T
+}
+
+const nativeHttpRequest = async <T>(
+  method: 'GET' | 'POST',
+  path: string,
+  data?: any
+): Promise<T> => {
+  const base = API_BASE_URL.replace(/\/+$/, '')
+  const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''
+  const url = `${base}${normalizedPath}`
+
+  const response = method === 'GET'
+    ? await CapacitorHttp.get({
+        url,
+        headers: {
+          Accept: 'application/json',
+        },
+      })
+    : await CapacitorHttp.post({
+        url,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        data,
+      })
+
+  if (response.status >= 400) {
+    throw new Error(`HTTP ${response.status} on ${path || '/'}`)
+  }
+
+  return response.data as T
 }
 
 const apiClient = axios.create({
@@ -245,21 +277,47 @@ api.getAppInfo = async () => {
 
 // Register
 api.register = async (data: RegisterRequest) => {
-  return apiClient.post('/auth/register', data)
+  try {
+    const response = await apiClient.post('/auth/register', data)
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeHttpRequest('POST', '/auth/register', data)
+    }
+    throw error
+  }
 }
 
 // Login
 api.login = async (email: string, password: string) => {
-  return apiClient.post('/auth/login', {
+  const payload = {
     identifier: email,
     email: email,
     password: password,
-  })
+  }
+
+  try {
+    const response = await apiClient.post('/auth/login', payload)
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeHttpRequest('POST', '/auth/login', payload)
+    }
+    throw error
+  }
 }
 
 // Get current user
 api.getCurrentUser = async () => {
-  return apiClient.get('/users/me')
+  try {
+    const response = await apiClient.get('/users/me')
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeHttpRequest('GET', '/users/me')
+    }
+    throw error
+  }
 }
 
 // Logout
