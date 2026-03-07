@@ -385,7 +385,7 @@ export default function Navbar() {
     <nav className={`sticky top-0 z-50 bg-gradient-to-b from-slate-900/98 to-slate-900/95 backdrop-blur-xl border-b border-slate-700/50 shadow-2xl transition-transform duration-300 ${
       isNavVisible ? 'translate-y-0' : '-translate-y-full'
     }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo */}
           <Link to="/moments" className="text-2xl font-bold bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent hover:from-primary hover:via-purple-300 hover:to-pink-300 transition-all duration-300 transform hover:scale-105">

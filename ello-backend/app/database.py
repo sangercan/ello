@@ -2,6 +2,7 @@ import os
 import time
 import logging
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 logger = logging.getLogger(__name__)
@@ -20,45 +21,53 @@ def _ensure_postgres_db_exists():
     """
     if not DATABASE_URL.startswith("postgresql"):
         return
-    
+
     try:
-        # Parse connection parameters
-        from urllib.parse import urlparse
-        parsed = urlparse(DATABASE_URL)
-        
-        db_name = parsed.path.lstrip("/")
+        parsed = make_url(DATABASE_URL)
+
+        db_name = parsed.database or "ello_db"
         db_user = parsed.username or "ello"
-        db_password = parsed.password or "ello123"
-        db_host = parsed.hostname or "db"
+        db_password = parsed.password or ""
+        db_host = parsed.host or "db"
         db_port = parsed.port or 5432
-        
-        # Connect to 'postgres' database (maintenance database)
-        postgres_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/postgres"
-        
+
+        # Preserve query args like sslmode while targeting maintenance DB.
+        postgres_url = URL.create(
+            drivername=parsed.drivername,
+            username=db_user,
+            password=db_password,
+            host=db_host,
+            port=db_port,
+            database="postgres",
+            query=dict(parsed.query) if parsed.query else None,
+        )
+
         # Wait for PostgreSQL to be ready (retry up to 30 seconds)
         max_retries = 6
         retry_delay = 5
-        
+
         for attempt in range(max_retries):
             try:
                 temp_engine = create_engine(postgres_url, isolation_level="AUTOCOMMIT")
                 with temp_engine.connect() as conn:
                     # Check if database exists
                     result = conn.execute(
-                        text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+                        text("SELECT 1 FROM pg_database WHERE datname = :db_name"),
+                        {"db_name": db_name},
                     )
-                    
+
                     if result.fetchone() is None:
                         # Create database if it doesn't exist
                         logger.info(f"Creating database '{db_name}'...")
-                        conn.execute(text(f"CREATE DATABASE {db_name}"))
+                        safe_db_name = db_name.replace('"', '""')
+                        conn.execute(text(f'CREATE DATABASE "{safe_db_name}"'))
                         logger.info(f"✅ Database '{db_name}' created successfully")
                     else:
                         logger.info(f"✅ Database '{db_name}' already exists")
-                
+
                 temp_engine.dispose()
                 return
-                
+
             except Exception as e:
                 if attempt < max_retries - 1:
                     logger.warning(
@@ -71,7 +80,7 @@ def _ensure_postgres_db_exists():
                         f"❌ Could not connect to PostgreSQL after {max_retries} attempts"
                     )
                     raise
-                    
+
     except Exception as e:
         logger.error(f"❌ Error ensuring PostgreSQL database exists: {str(e)}")
         raise

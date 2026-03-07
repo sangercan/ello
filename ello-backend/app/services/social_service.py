@@ -248,6 +248,14 @@ def delete_comment(db: Session, current_user, comment_id: int):
     if comment.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    # Snapshot required fields before deleting rows to avoid accessing a deleted ORM instance.
+    comment_snapshot = {
+        "id": comment.id,
+        "content_type": comment.content_type,
+        "content_id": comment.content_id,
+        "parent_comment_id": comment.parent_comment_id,
+    }
+
     ids_to_delete = [comment.id]
     cursor = 0
     while cursor < len(ids_to_delete):
@@ -261,10 +269,10 @@ def delete_comment(db: Session, current_user, comment_id: int):
 
     return {
         "message": "Comment deleted",
-        "id": comment.id,
-        "content_type": comment.content_type,
-        "content_id": comment.content_id,
-        "parent_comment_id": comment.parent_comment_id,
+        "id": comment_snapshot["id"],
+        "content_type": comment_snapshot["content_type"],
+        "content_id": comment_snapshot["content_id"],
+        "parent_comment_id": comment_snapshot["parent_comment_id"],
         "deleted_ids": ids_to_delete,
     }
 
