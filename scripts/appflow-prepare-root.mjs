@@ -6,6 +6,7 @@ const root = process.cwd();
 const tasks = [
   { from: resolve(root, 'ello-web', 'android'), to: resolve(root, 'android') },
   { from: resolve(root, 'ello-web', 'ios'), to: resolve(root, 'ios') },
+  { from: resolve(root, 'ello-web', 'dist'), to: resolve(root, 'dist') },
   { from: resolve(root, 'ello-web', 'capacitor.config.json'), to: resolve(root, 'capacitor.config.json') },
 ];
 
