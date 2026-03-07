@@ -1,6 +1,6 @@
 {
   "appId": "com.ellosocial.app",
-  "appName": "ELLO Social",
+  "appName": "Ello Social",
   "webDir": "dist",
   "plugins": {
     "StatusBar": {

@@ -45,6 +45,30 @@ const resolveApiBaseUrl = () => {
 }
 
 const API_BASE_URL = resolveApiBaseUrl()
+export const RESOLVED_API_BASE_URL = API_BASE_URL
+
+const normalizeResponseData = <T>(value: any): T => {
+  if (value && typeof value === 'object' && 'data' in value) {
+    return (value as { data: T }).data
+  }
+  return value as T
+}
+
+const nativeFetchJson = async <T>(path: string): Promise<T> => {
+  const base = API_BASE_URL.replace(/\/+$/, '')
+  const response = await fetch(`${base}${path}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} on ${path}`)
+  }
+
+  return (await response.json()) as T
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -194,13 +218,29 @@ const api = apiClient as AxiosInstance & {
 
 // Health check
 api.getHealth = async () => {
-  return apiClient.get('/health')
+  try {
+    const response = await apiClient.get('/health')
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeFetchJson('/health')
+    }
+    throw error
+  }
 }
 
 // App info
 api.getAppInfo = async () => {
-  // Use API base path instead of domain root to keep CORS headers in native apps.
-  return apiClient.get('')
+  try {
+    // Use API base path instead of domain root to keep CORS headers in native apps.
+    const response = await apiClient.get('')
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeFetchJson('')
+    }
+    throw error
+  }
 }
 
 // Register

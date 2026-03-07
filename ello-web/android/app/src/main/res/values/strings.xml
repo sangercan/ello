@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ELLO Social</string>
-    <string name="title_activity_main">ELLO Social</string>
+    <string name="app_name">Ello Social</string>
+    <string name="title_activity_main">Ello Social</string>
     <string name="package_name">com.ellosocial.app</string>
     <string name="custom_url_scheme">com.ellosocial.app</string>
 </resources>

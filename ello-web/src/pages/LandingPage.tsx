@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle, Loader, Zap, Users, Sparkles, TrendingUp, ArrowRight, Github, Twitter, Linkedin } from 'lucide-react'
-import { apiService, type HealthResponse, type AppInfoResponse } from '@services/api'
+import { apiService, RESOLVED_API_BASE_URL, type HealthResponse, type AppInfoResponse } from '@services/api'
+import { Capacitor } from '@capacitor/core'
 
 export default function LandingPage() {
   const [apiStatus, setApiStatus] = useState<HealthResponse | null>(null)
@@ -147,6 +148,9 @@ export default function LandingPage() {
                     <span>{apiStatus.service}{appInfo?.version ? ` • ${appInfo.version}` : ''}</span>
                   </div>
                 ) : null}
+                <p className="mt-2 text-xs text-gray-500">
+                  {Capacitor.getPlatform() !== 'web' ? 'Native' : 'Web'} API: {RESOLVED_API_BASE_URL}
+                </p>
               </div>
             </div>
           </div>
