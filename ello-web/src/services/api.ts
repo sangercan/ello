@@ -6,9 +6,13 @@ const resolveApiBaseUrl = () => {
   const configured = (import.meta.env.VITE_API_URL || '').trim()
   const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
   const isNative = Capacitor.getPlatform() !== 'web'
+  const isAbsoluteHttpUrl = (value: string) => /^https?:\/\//i.test(value)
 
   if (isNative) {
-    return mobileConfigured || configured || 'https://ellosocial.com/api'
+    // Native apps cannot rely on relative paths like '/api'.
+    if (isAbsoluteHttpUrl(mobileConfigured)) return mobileConfigured
+    if (isAbsoluteHttpUrl(configured)) return configured
+    return 'https://ellosocial.com/api'
   }
 
   // In browser-based local/dev usage, always force same-origin proxy

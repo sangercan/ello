@@ -30,9 +30,12 @@ function App() {
     const configured = (import.meta.env.VITE_API_URL || '').trim()
     const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
     const isNative = Capacitor.getPlatform() !== 'web'
+    const isAbsoluteHttpUrl = (value: string) => /^https?:\/\//i.test(value)
 
     if (isNative) {
-      return mobileConfigured || configured || 'https://ellosocial.com/api'
+      if (isAbsoluteHttpUrl(mobileConfigured)) return mobileConfigured
+      if (isAbsoluteHttpUrl(configured)) return configured
+      return 'https://ellosocial.com/api'
     }
 
     if (!configured) return '/api'
