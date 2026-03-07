@@ -1,0 +1,7 @@
+{
+  "name": "ello-social",
+  "type": "custom",
+  "integrations": {
+    "capacitor": {}
+  }
+}

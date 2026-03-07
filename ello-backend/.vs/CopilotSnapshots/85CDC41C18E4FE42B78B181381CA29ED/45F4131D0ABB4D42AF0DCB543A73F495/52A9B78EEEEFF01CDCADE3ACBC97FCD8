@@ -1,0 +1,52 @@
+﻿# ==========================================================
+# FILE: app/schemas/user.py
+# MODULE: USER SCHEMAS
+# ==========================================================
+
+from pydantic import BaseModel, EmailStr
+from datetime import datetime
+from typing import Optional
+
+
+# ----------------------------------------------------------
+# CREATE USER
+# ----------------------------------------------------------
+
+class UserCreate(BaseModel):
+    full_name: str
+    username: str
+    email: EmailStr
+    password: str
+
+
+# ----------------------------------------------------------
+# LOGIN USER
+# ----------------------------------------------------------
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+# ----------------------------------------------------------
+# USER RESPONSE
+# ----------------------------------------------------------
+
+class UserResponse(BaseModel):
+    id: int
+    full_name: str
+    username: str
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    created_at: datetime
+
+    followers_count: Optional[int] = 0
+    following_count: Optional[int] = 0
+    moments_count: Optional[int] = 0
+
+    is_following: Optional[bool] = False
+    is_me: Optional[bool] = False
+
+    class Config:
+        orm_mode = True

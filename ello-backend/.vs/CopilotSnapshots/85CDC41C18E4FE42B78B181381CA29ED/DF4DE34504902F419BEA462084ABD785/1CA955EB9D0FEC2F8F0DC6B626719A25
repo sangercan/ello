@@ -1,0 +1,78 @@
+﻿# ==========================================================
+# FILE: app/routes/moments.py
+# MODULE: MOMENTS ROUTES
+# RESPONSIBILITY:
+# - Create Moment
+# - Moments Intelligence Timeline
+# - Delete Moment
+# ==========================================================
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.core.dependencies import get_current_user
+from app.models.user import User
+from app.schemas.moment import MomentCreate
+
+from app.services.moment_service import (
+    create_moment,
+    delete_moment,
+    get_moments_intelligence
+)
+
+# ==========================================================
+# ROUTER CONFIG
+# ==========================================================
+
+router = APIRouter(
+    prefix="/moments",
+    tags=["Moments"]
+)
+
+# ==========================================================
+# CREATE MOMENT
+# POST /moments/
+# ==========================================================
+
+@router.post("/")
+def create(
+    data: MomentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return create_moment(db, current_user, data)
+
+
+# ==========================================================
+# MOMENTS INTELLIGENCE TIMELINE
+# GET /moments/
+# ==========================================================
+
+@router.get("/")
+def list_moments(
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return get_moments_intelligence(
+        db=db,
+        current_user=current_user,
+        page=page,
+        limit=limit
+    )
+
+
+# ==========================================================
+# DELETE MOMENT
+# DELETE /moments/{moment_id}
+# ==========================================================
+
+@router.delete("/{moment_id}")
+def delete(
+    moment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return delete_moment(db, current_user, moment_id)

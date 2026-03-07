@@ -1,0 +1,144 @@
+﻿# ==========================================================
+# FILE: app/services/moment_service.py
+# MODULE: MOMENTS ENGINE (ELL0 INTELLIGENCE 1.0)
+# RESPONSIBILITY:
+# - Create Moment
+# - Delete Moment
+# - Personalized Moments Timeline
+# ==========================================================
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timedelta
+from fastapi import HTTPException
+
+from app.models.moment import Moment
+from app.models.like import Like
+from app.models.comment import Comment
+from app.models.follow import Follow
+
+
+# ==========================================================
+# CREATE MOMENT
+# ==========================================================
+
+def create_moment(db: Session, current_user, data):
+
+    moment = Moment(
+        content=data.content,
+        media_url=data.media_url,
+        user_id=current_user.id
+    )
+
+    db.add(moment)
+    db.commit()
+    db.refresh(moment)
+
+    return moment
+
+
+# ==========================================================
+# DELETE MOMENT
+# ==========================================================
+
+def delete_moment(db: Session, current_user, moment_id: int):
+
+    moment = db.query(Moment).filter(
+        Moment.id == moment_id
+    ).first()
+
+    if not moment:
+        raise HTTPException(status_code=404, detail="Moment not found")
+
+    if moment.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db.delete(moment)
+    db.commit()
+
+    return {"message": "Moment deleted"}
+
+
+# ==========================================================
+# MOMENTS INTELLIGENCE TIMELINE
+# ==========================================================
+
+def get_moments_intelligence(
+    db: Session,
+    current_user,
+    page: int = 1,
+    limit: int = 20
+):
+
+    offset = (page - 1) * limit
+
+    # USERS I FOLLOW
+    following_ids = db.query(
+        Follow.following_id
+    ).filter(
+        Follow.follower_id == current_user.id
+    ).all()
+
+    following_ids = [f[0] for f in following_ids]
+
+    # BASE MOMENTS QUERY
+    moments = db.query(Moment).all()
+
+    ranked = []
+
+    for moment in moments:
+
+        # COUNT LIKES (POLYMORPHIC)
+        likes_count = db.query(func.count(Like.id)).filter(
+            Like.content_type == "moment",
+            Like.content_id == moment.id
+        ).scalar()
+
+        # COUNT COMMENTS (POLYMORPHIC)
+        comments_count = db.query(func.count(Comment.id)).filter(
+            Comment.content_type == "moment",
+            Comment.content_id == moment.id
+        ).scalar()
+
+        score = 0
+
+        # Own priority
+        if moment.user_id == current_user.id:
+            score += 100
+
+        # Following priority
+        if moment.user_id in following_ids:
+            score += 50
+
+        # Engagement
+        score += (likes_count or 0) * 2
+        score += (comments_count or 0) * 3
+
+        # Recency boost
+        if moment.created_at >= datetime.utcnow() - timedelta(hours=24):
+            score += 30
+
+        ranked.append(
+            (moment, score, likes_count or 0, comments_count or 0)
+        )
+
+    ranked.sort(key=lambda x: x[1], reverse=True)
+
+    paginated = ranked[offset:offset + limit]
+
+    result = []
+
+    for moment, score, likes_count, comments_count in paginated:
+
+        result.append({
+            "id": moment.id,
+            "content": moment.content,
+            "media_url": moment.media_url,
+            "created_at": moment.created_at,
+            "likes_count": likes_count,
+            "comments_count": comments_count,
+            "intelligence_score": score,
+            "user_id": moment.user_id
+        })
+
+    return result

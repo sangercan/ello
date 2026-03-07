@@ -1,0 +1,70 @@
+﻿# ==========================================================
+# FILE: app/routes/auth.py
+# ==========================================================
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from datetime import timedelta
+
+from app.database import get_db
+from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.services.auth_service import (
+    create_user,
+    authenticate_user
+)
+from app.core.security import create_access_token
+from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
+
+router = APIRouter(
+    prefix="/auth",
+    tags=["Auth"]
+)
+
+# ==========================================================
+# REGISTER
+# ==========================================================
+
+@router.post("/register", response_model=TokenResponse)
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
+
+    user = create_user(db, data)
+
+    access_token = create_access_token(
+        data={"user_id": user.id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+
+# ==========================================================
+# LOGIN
+# ==========================================================
+
+@router.post("/login", response_model=TokenResponse)
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+
+    user = authenticate_user(
+        db,
+        data.identifier,
+        data.password
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials"
+        )
+
+    access_token = create_access_token(
+        data={"user_id": user.id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }

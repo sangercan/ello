@@ -1,0 +1,111 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: ello_postgres
+    environment:
+      POSTGRES_USER: ello
+      POSTGRES_PASSWORD: ello123
+      POSTGRES_DB: ello_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ello -d ello_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ello_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ello_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ello_network
+
+  # Backend FastAPI
+  backend:
+    build:
+      context: .
+      dockerfile: ./ello-backend/Dockerfile
+    container_name: ello_backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ello:ello123@db:5432/ello_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ENVIRONMENT: development
+      DEBUG: "true"
+      SECRET_KEY: ello_super_secret_key_change_in_production_12345
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
+      ALLOWED_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ello-backend:/app
+      - audio_uploads:/app/uploads/audio
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - ello_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend React + Vite
+  frontend:
+    build:
+      context: .
+      dockerfile: ./ello-web/Dockerfile
+      args:
+        VITE_API_URL: "/api"
+    container_name: ello_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: "/api"
+      NODE_ENV: development
+    volumes:
+      - ./ello-web:/app
+      - /app/node_modules
+    networks:
+      - ello_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  ello_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  audio_uploads:
+    driver: local

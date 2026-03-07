@@ -1,0 +1,65 @@
+﻿version: "3.9"
+
+services:
+
+  db:
+    image: postgres:15
+    container_name: ello_db
+    restart: always
+    environment:
+      POSTGRES_USER: ello
+      POSTGRES_PASSWORD: ello123
+      POSTGRES_DB: ello
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ello"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: ello_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_init:
+    image: postgres:15
+    container_name: ello_db_init
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ello123
+    command: ["sh", "-c", "until pg_isready -h db -p 5432 -U ello; do sleep 1; done; psql -h db -U ello -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname='ello'\" | grep -q 1 || psql -h db -U ello -d postgres -c \"CREATE DATABASE \"ello\";\""]
+
+  backend:
+    build: .
+    container_name: ello_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://ello:ello123@db:5432/ello
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+volumes:
+  postgres_data:

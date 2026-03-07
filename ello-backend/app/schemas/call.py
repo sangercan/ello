@@ -1,0 +1,44 @@
+# ==========================================================
+# FILE: app/schemas/call.py
+# MODULE: CALL SCHEMAS
+# RESPONSIBILITY:
+# - Handle voice/video call payloads
+# ==========================================================
+
+from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from typing import Optional
+
+
+# ----------------------------------------------------------
+# START CALL
+# ----------------------------------------------------------
+
+class CallStart(BaseModel):
+    receiver_id: int
+    call_type: str  # "voice" or "video"
+
+
+# ----------------------------------------------------------
+# END CALL
+# ----------------------------------------------------------
+
+class CallEnd(BaseModel):
+    call_id: int
+    duration_seconds: int
+
+
+# ----------------------------------------------------------
+# CALL RESPONSE
+# ----------------------------------------------------------
+
+class CallResponse(BaseModel):
+    id: int
+    caller_id: int
+    receiver_id: int
+    call_type: str
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)

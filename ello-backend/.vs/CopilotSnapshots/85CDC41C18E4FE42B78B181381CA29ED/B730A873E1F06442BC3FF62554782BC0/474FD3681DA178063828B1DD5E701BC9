@@ -1,0 +1,28 @@
+﻿# ==========================================================
+# FILE: app/schemas/music.py
+# MODULE: MUSIC SCHEMAS
+# RESPONSIBILITY:
+# - Upload music
+# - Music feed response
+# ==========================================================
+
+from pydantic import BaseModel
+from datetime import datetime
+
+
+class MusicCreate(BaseModel):
+    title: str
+    artist: str
+    audio_url: str
+
+
+class MusicResponse(BaseModel):
+    id: int
+    title: str
+    artist: str
+    audio_url: str
+    uploaded_by: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True

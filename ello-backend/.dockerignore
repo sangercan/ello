@@ -1,0 +1,15 @@
+__pycache__
+.pytest_cache
+.venv
+.env.local
+.env.*.local
+*.pyc
+*.pyo
+.git
+.gitignore
+.vs
+.vscode
+*.db
+*.sqlite
+.DS_Store
+.env.production

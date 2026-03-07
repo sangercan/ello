@@ -1,0 +1,42 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.eslintcache
+
+# Build / temp
+build/
+.tmp/
+.temp/
+
+# Local uploads/runtime data
+uploads/
+ello-backend/uploads/
+
+# Docker local overrides
+*.local
