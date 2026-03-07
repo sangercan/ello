@@ -9,6 +9,7 @@ export default function LandingPage() {
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const showDiagnostics = !import.meta.env.PROD || import.meta.env.VITE_SHOW_DIAGNOSTICS === 'true'
 
   useEffect(() => {
     fetchBackendData()
@@ -145,12 +146,18 @@ export default function LandingPage() {
                 ) : apiStatus ? (
                   <div className="flex items-center gap-2 text-green-400 font-semibold">
                     <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                    <span>{apiStatus.service}{appInfo?.version ? ` • ${appInfo.version}` : ''}</span>
+                    <span>
+                      {showDiagnostics
+                        ? `${apiStatus.service}${appInfo?.version ? ` • ${appInfo.version}` : ''}`
+                        : 'Serviço online'}
+                    </span>
                   </div>
                 ) : null}
-                <p className="mt-2 text-xs text-gray-500">
-                  {Capacitor.getPlatform() !== 'web' ? 'Native' : 'Web'} API: {RESOLVED_API_BASE_URL}
-                </p>
+                {showDiagnostics ? (
+                  <p className="mt-2 text-xs text-gray-500">
+                    {Capacitor.getPlatform() !== 'web' ? 'Native' : 'Web'} API: {RESOLVED_API_BASE_URL}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
