@@ -47,6 +47,14 @@ const resolveApiBaseUrl = () => {
 const API_BASE_URL = resolveApiBaseUrl()
 export const RESOLVED_API_BASE_URL = API_BASE_URL
 
+const NATIVE_BASE_CANDIDATES = Array.from(
+  new Set([
+    API_BASE_URL,
+    'https://ellosocial.com/api',
+    'https://www.ellosocial.com/api',
+  ])
+)
+
 const normalizeResponseData = <T>(value: any): T => {
   if (value && typeof value === 'object' && 'data' in value) {
     return (value as { data: T }).data
@@ -57,9 +65,10 @@ const normalizeResponseData = <T>(value: any): T => {
 const nativeHttpRequest = async <T>(
   method: 'GET' | 'POST',
   path: string,
-  data?: any
+  data?: any,
+  baseOverride?: string
 ): Promise<T> => {
-  const base = API_BASE_URL.replace(/\/+$/, '')
+  const base = (baseOverride || API_BASE_URL).replace(/\/+$/, '')
   const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''
   const url = `${base}${normalizedPath}`
 
@@ -84,6 +93,21 @@ const nativeHttpRequest = async <T>(
   }
 
   return response.data as T
+}
+
+const nativeProbeGet = async <T>(path: string): Promise<T> => {
+  const errors: string[] = []
+
+  for (const base of NATIVE_BASE_CANDIDATES) {
+    try {
+      return await nativeHttpRequest<T>('GET', path, undefined, base)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      errors.push(`${base}${path || '/'} -> ${msg}`)
+    }
+  }
+
+  throw new Error(`Native probe failed: ${errors.join(' | ')}`)
 }
 
 const apiClient = axios.create({
@@ -239,7 +263,7 @@ api.getHealth = async () => {
     return normalizeResponseData(response)
   } catch (error) {
     if (Capacitor.getPlatform() !== 'web') {
-      return nativeHttpRequest('GET', '/health')
+      return nativeProbeGet('/health')
     }
     throw error
   }
@@ -253,7 +277,7 @@ api.getAppInfo = async () => {
     return normalizeResponseData(response)
   } catch (error) {
     if (Capacitor.getPlatform() !== 'web') {
-      return nativeHttpRequest('GET', '')
+      return nativeProbeGet('')
     }
     throw error
   }
