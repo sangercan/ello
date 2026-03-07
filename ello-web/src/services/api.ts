@@ -199,7 +199,8 @@ api.getHealth = async () => {
 
 // App info
 api.getAppInfo = async () => {
-  return apiClient.get('/')
+  // Use API base path instead of domain root to keep CORS headers in native apps.
+  return apiClient.get('')
 }
 
 // Register
