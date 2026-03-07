@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
@@ -47,6 +48,13 @@ interface ForwardTarget {
 export default function ChatPage() {
   const resolvedApiBase = (() => {
     const configured = (import.meta.env.VITE_API_URL || '').trim()
+    const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
+    const isNative = Capacitor.getPlatform() !== 'web'
+
+    if (isNative) {
+      return mobileConfigured || configured || 'https://ellosocial.com/api'
+    }
+
     if (!configured) return '/api'
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '/api'
     return configured

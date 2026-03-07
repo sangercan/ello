@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 
@@ -27,6 +28,13 @@ import MusicDockPlayer from './components/MusicDockPlayer'
 function App() {
   const resolvedApiBase = (() => {
     const configured = (import.meta.env.VITE_API_URL || '').trim()
+    const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
+    const isNative = Capacitor.getPlatform() !== 'web'
+
+    if (isNative) {
+      return mobileConfigured || configured || 'https://ellosocial.com/api'
+    }
+
     if (!configured) return '/api'
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '/api'
     return configured
