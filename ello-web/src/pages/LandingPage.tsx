@@ -39,7 +39,7 @@ export default function LandingPage() {
         setAppInfo(infoResult.value)
       } else {
         setAppInfo({
-          message: 'Ello Social Backend Running',
+          message: 'ℯ𝓁𝓁ℴ Social Backend Running',
           version: '1.0.0',
           environment: 'production',
         })
@@ -71,7 +71,7 @@ export default function LandingPage() {
               <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center font-bold">
                 E
               </div>
-              <span className="text-xl font-bold">ELLO</span>
+              <span className="text-xl font-bold">ℯ𝓁𝓁ℴ</span>
             </div>
             <div className="hidden md:flex gap-8">
               <a href="#features" className="hover:text-purple-400 transition">Features</a>
@@ -254,7 +254,7 @@ export default function LandingPage() {
                   <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center font-bold">
                     E
                   </div>
-                  <span className="text-lg font-bold">ELLO</span>
+                  <span className="text-lg font-bold">ℯ𝓁𝓁ℴ</span>
                 </div>
                 <p className="text-gray-400">The modern social platform for everyone.</p>
               </div>
@@ -291,7 +291,7 @@ export default function LandingPage() {
             </div>
 
             <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center text-gray-400">
-              <p>&copy; 2026 ELLO. All rights reserved.</p>
+              <p>&copy; 2026 ℯ𝓁𝓁ℴ. All rights reserved.</p>
               <div className="flex gap-6 mt-4 md:mt-0">
                 <a href="#" className="hover:text-purple-400 transition">Privacy</a>
                 <a href="#" className="hover:text-purple-400 transition">Terms</a>

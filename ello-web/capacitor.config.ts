@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ellosocial.app',
-  appName: 'Ello Social',
+  appName: 'ℯ𝓁𝓁ℴ Social',
   webDir: 'dist',
   plugins: {
     StatusBar: {

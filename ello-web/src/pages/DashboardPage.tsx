@@ -415,7 +415,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-slate-400">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
               <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-white">
-                {greetingByHour()}, {user?.full_name?.split(' ')[0] || 'ELLO'}
+                {greetingByHour()}, {user?.full_name?.split(' ')[0] || 'ℯ𝓁𝓁ℴ'}
               </h1>
               <p className="mt-2 text-sm text-slate-300 max-w-2xl">
                 {weather ? `${weather.weatherLabel} em ${weather.city}, ${Math.round(weather.temperature)}°C. ` : ''}

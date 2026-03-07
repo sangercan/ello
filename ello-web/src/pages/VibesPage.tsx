@@ -623,7 +623,7 @@ export default function VibesPage() {
       ? `Compartilhado de @${sourceAuthor.username}`
       : sourceAuthor?.fullName
         ? `Compartilhado de ${sourceAuthor.fullName}`
-        : 'Compartilhado via ELLO'
+        : 'Compartilhado via ℯ𝓁𝓁ℴ'
 
     const trimmed = caption.trim()
     return trimmed ? `${trimmed}\n\n${creditSource}` : creditSource
@@ -767,8 +767,8 @@ export default function VibesPage() {
 
     try {
       await navigator.share({
-        title: 'ELLO',
-        text: shareCaptionDraft.trim() || 'Confira esta publicacao no ELLO',
+        title: 'ℯ𝓁𝓁ℴ',
+        text: shareCaptionDraft.trim() || 'Confira esta publicacao no ℯ𝓁𝓁ℴ',
         url: shareDraft.mediaUrl,
       })
     } catch {

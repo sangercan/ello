@@ -451,7 +451,7 @@ export default function MusicPage() {
 
     try {
       await navigator.share({
-        title: 'ELLO Music',
+        title: 'ℯ𝓁𝓁ℴ Music',
         text: `${shareTrack.title} - ${shareTrack.artist}`,
         url: getShareLink(),
       })
@@ -505,7 +505,7 @@ export default function MusicPage() {
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white">Publique sua música e ganhe visibilidade</h1>
               <p className="text-sm text-gray-300 mt-2 max-w-2xl">
-                Espaço oficial da ELLO para cantores independentes divulgarem faixas autorais e alcançarem novos ouvintes.
+                Espaço oficial da ℯ𝓁𝓁ℴ para cantores independentes divulgarem faixas autorais e alcançarem novos ouvintes.
               </p>
               <div className="mt-4">
                 <button

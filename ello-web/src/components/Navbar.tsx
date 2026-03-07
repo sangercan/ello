@@ -389,7 +389,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo */}
           <Link to="/moments" className="text-2xl font-bold bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent hover:from-primary hover:via-purple-300 hover:to-pink-300 transition-all duration-300 transform hover:scale-105">
-            ELLO
+            ℯ𝓁𝓁ℴ
           </Link>
 
           {/* Desktop Menu - Modern Icon Based */}
