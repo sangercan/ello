@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { Moment, Story } from '@/types'
 import { Heart, MessageCircle, Share2, X, ChevronLeft, ChevronRight, Send, Search, Link2, PlusCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@store/authStore'
 import { useNavigate } from 'react-router-dom'
+import { resolveMediaUrl } from '@/utils/mediaUrl'
 
 const PAGE_SIZE = 10
 const STORY_SEEN_STORAGE_KEY = 'ello:stories-seen-by-user'
@@ -223,22 +224,6 @@ export default function MomentsPage() {
     }))
   }
 
-  const toMediaUrl = (url?: string) => {
-    if (!url) return ''
-    if (url.startsWith('data:')) return url
-
-    if (typeof window !== 'undefined') {
-      const uploadsIndex = url.indexOf('/uploads/')
-      if (uploadsIndex >= 0) {
-        return url.slice(uploadsIndex)
-      }
-    }
-
-    if (url.startsWith('http://') || url.startsWith('https://')) return url
-    if (url.startsWith('uploads/')) return `/${url}`
-    return url
-  }
-
   const groupedStories = stories.reduce<Array<{ userId: number; author?: Story['author']; items: Story[] }>>((acc, story) => {
     const index = acc.findIndex((g) => g.userId === story.user_id)
     if (index === -1) {
@@ -272,7 +257,7 @@ export default function MomentsPage() {
   const momentMediaItems = moments
     .filter((moment) => Boolean(moment.media_url))
     .map((moment) => {
-      const mediaUrl = toMediaUrl(moment.media_url)
+      const mediaUrl = resolveMediaUrl(moment.media_url)
       return {
         momentId: moment.id,
         url: mediaUrl,
@@ -419,14 +404,14 @@ export default function MomentsPage() {
       ))))
       setEditingMomentId(null)
       setEditingMomentText('')
-      toast.success('Publicação atualizada')
+      toast.success('PublicaÃ§Ã£o atualizada')
     } catch {
-      toast.error('Erro ao editar publicação')
+      toast.error('Erro ao editar publicaÃ§Ã£o')
     }
   }
 
   const handleDeleteMoment = async (momentId: number) => {
-    if (!window.confirm('Deseja excluir esta publicação?')) return
+    if (!window.confirm('Deseja excluir esta publicaÃ§Ã£o?')) return
     try {
       await apiClient.deleteMoment(momentId)
       setMoments((prev) => prev.filter((item) => item.id !== momentId))
@@ -434,9 +419,9 @@ export default function MomentsPage() {
       if (selectedMomentForComments?.id === momentId) {
         closeMomentCommentsModal()
       }
-      toast.success('Publicação excluída')
+      toast.success('PublicaÃ§Ã£o excluÃ­da')
     } catch {
-      toast.error('Erro ao excluir publicação')
+      toast.error('Erro ao excluir publicaÃ§Ã£o')
     }
   }
 
@@ -454,7 +439,7 @@ export default function MomentsPage() {
       setMomentComments(list)
     } catch (error) {
       setMomentComments([])
-      toast.error('Erro ao carregar comentários')
+      toast.error('Erro ao carregar comentÃ¡rios')
     } finally {
       setMomentCommentsLoading(false)
     }
@@ -517,7 +502,7 @@ export default function MomentsPage() {
       setNewMomentCommentText('')
       setReplyToMomentCommentId(null)
     } catch (error) {
-      toast.error('Erro ao responder comentário')
+      toast.error('Erro ao responder comentÃ¡rio')
     }
   }
 
@@ -544,7 +529,7 @@ export default function MomentsPage() {
           ? { ...comment, is_liked: target.is_liked, likes_count: target.likes_count }
           : comment
       ))
-      toast.error('Erro ao curtir comentário')
+      toast.error('Erro ao curtir comentÃ¡rio')
     }
   }
 
@@ -561,7 +546,7 @@ export default function MomentsPage() {
   const handleSaveEditedComment = async (commentId: number) => {
     const nextText = editingCommentText.trim()
     if (!nextText) {
-      toast.error('Comentário não pode ficar vazio')
+      toast.error('ComentÃ¡rio nÃ£o pode ficar vazio')
       return
     }
 
@@ -572,14 +557,14 @@ export default function MomentsPage() {
       )))
       setEditingCommentId(null)
       setEditingCommentText('')
-      toast.success('Comentário atualizado')
+      toast.success('ComentÃ¡rio atualizado')
     } catch {
-      toast.error('Erro ao atualizar comentário')
+      toast.error('Erro ao atualizar comentÃ¡rio')
     }
   }
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!window.confirm('Deseja excluir este comentário?')) return
+    if (!window.confirm('Deseja excluir este comentÃ¡rio?')) return
     try {
       await apiClient.deleteComment(commentId)
       const idsToRemove = new Set<number>()
@@ -607,9 +592,9 @@ export default function MomentsPage() {
         setEditingCommentId(null)
         setEditingCommentText('')
       }
-      toast.success('Comentário excluído')
+      toast.success('ComentÃ¡rio excluÃ­do')
     } catch {
-      toast.error('Erro ao excluir comentário')
+      toast.error('Erro ao excluir comentÃ¡rio')
     }
   }
 
@@ -657,14 +642,14 @@ export default function MomentsPage() {
   const handleShareMoment = async (momentId: number) => {
     const target = moments.find((item) => item.id === momentId)
     if (!target?.media_url) {
-      toast.error('Esta publicação não possui mídia para compartilhar')
+      toast.error('Esta publicaÃ§Ã£o nÃ£o possui mÃ­dia para compartilhar')
       return
     }
-    openShareDecision(toMediaUrl(target.media_url), target.content || '', {
+    openShareDecision(resolveMediaUrl(target.media_url), target.content || '', {
       id: target.author?.id,
       username: target.author?.username,
       fullName: target.author?.full_name,
-      avatarUrl: toMediaUrl(target.author?.avatar_url),
+      avatarUrl: resolveMediaUrl(target.author?.avatar_url),
     })
   }
 
@@ -677,8 +662,8 @@ export default function MomentsPage() {
           id: Number(item.id),
           userId: Number(item.other_user?.id),
           username: String(item.other_user?.username || ''),
-          fullName: String(item.other_user?.full_name || 'Usuário'),
-          avatarUrl: toMediaUrl(item.other_user?.avatar_url),
+          fullName: String(item.other_user?.full_name || 'UsuÃ¡rio'),
+          avatarUrl: resolveMediaUrl(item.other_user?.avatar_url),
         }))
         .filter((item: ConversationOption) => Number.isFinite(item.userId) && item.userId > 0)
 
@@ -709,7 +694,7 @@ export default function MomentsPage() {
       ? `Compartilhado de @${sourceAuthor.username}`
       : sourceAuthor?.fullName
         ? `Compartilhado de ${sourceAuthor.fullName}`
-        : 'Compartilhado via ℯ𝓁𝓁ℴ'
+        : 'Compartilhado via â„¯ð“ð“â„´'
 
     const trimmed = caption.trim()
     return trimmed ? `${trimmed}\n\n${creditSource}` : creditSource
@@ -719,20 +704,20 @@ export default function MomentsPage() {
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result || ''))
-      reader.onerror = () => reject(new Error('Falha ao converter mídia para base64'))
+      reader.onerror = () => reject(new Error('Falha ao converter mÃ­dia para base64'))
       reader.readAsDataURL(blob)
     })
   }
 
   const prepareShareMedia = async (context?: 'moment' | 'vibe' | 'story') => {
     if (!shareDraft) {
-      throw new Error('Compartilhamento inválido')
+      throw new Error('Compartilhamento invÃ¡lido')
     }
 
-    const sourceUrl = toMediaUrl(shareDraft.mediaUrl)
+    const sourceUrl = resolveMediaUrl(shareDraft.mediaUrl)
     const response = await fetch(sourceUrl)
     if (!response.ok) {
-      throw new Error(`Falha ao obter mídia de origem (${response.status})`)
+      throw new Error(`Falha ao obter mÃ­dia de origem (${response.status})`)
     }
 
     const blob = await response.blob()
@@ -744,9 +729,9 @@ export default function MomentsPage() {
       : `${filename}.${mediaType === 'video' ? 'mp4' : 'jpg'}`
     const file = new File([blob], uploadFileName, { type: mime })
     const uploadResponse = await apiClient.uploadFile(file, context)
-    const uploadedUrl = toMediaUrl(uploadResponse?.data?.url)
+    const uploadedUrl = resolveMediaUrl(uploadResponse?.data?.url)
     if (!uploadedUrl) {
-      throw new Error('Falha ao salvar mídia para compartilhamento')
+      throw new Error('Falha ao salvar mÃ­dia para compartilhamento')
     }
 
     return { uploadedUrl, blob, mediaType, filename: uploadFileName }
@@ -783,7 +768,7 @@ export default function MomentsPage() {
 
       if (shareDestination === 'vibe') {
         if (!shareDraft.isVideo) {
-          toast.error('Apenas vídeos podem ser compartilhados no vibes')
+          toast.error('Apenas vÃ­deos podem ser compartilhados no vibes')
           return
         }
 
@@ -821,7 +806,7 @@ export default function MomentsPage() {
 
       closeShareDecision()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao compartilhar publicação')
+      toast.error(error instanceof Error ? error.message : 'Erro ao compartilhar publicaÃ§Ã£o')
     } finally {
       setShareBusy(false)
     }
@@ -858,8 +843,8 @@ export default function MomentsPage() {
 
     try {
       await navigator.share({
-        title: 'ℯ𝓁𝓁ℴ',
-        text: shareCaptionDraft.trim() || 'Confira esta publicacao no ℯ𝓁𝓁ℴ',
+        title: 'â„¯ð“ð“â„´',
+        text: shareCaptionDraft.trim() || 'Confira esta publicacao no â„¯ð“ð“â„´',
         url: shareDraft.mediaUrl,
       })
     } catch {
@@ -1168,14 +1153,14 @@ export default function MomentsPage() {
   const fetchMediaAsDataUrl = async (mediaUrl: string) => {
     const response = await fetch(mediaUrl)
     if (!response.ok) {
-      throw new Error(`Falha ao obter mídia: ${response.status}`)
+      throw new Error(`Falha ao obter mÃ­dia: ${response.status}`)
     }
 
     const blob = await response.blob()
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result || ''))
-      reader.onerror = () => reject(new Error('Falha ao converter mídia para base64'))
+      reader.onerror = () => reject(new Error('Falha ao converter mÃ­dia para base64'))
       reader.readAsDataURL(blob)
     })
 
@@ -1207,13 +1192,13 @@ export default function MomentsPage() {
 
     const targetUserId = selectedStoryGroup.userId
     if (targetUserId === user.id) {
-      toast('Esse story é seu')
+      toast('Esse story Ã© seu')
       return
     }
 
     try {
       setProcessingStoryAction(true)
-      const mediaUrl = toMediaUrl(selectedStory.media_url)
+      const mediaUrl = resolveMediaUrl(selectedStory.media_url)
       const { dataUrl, mime } = await fetchMediaAsDataUrl(mediaUrl)
       const mediaType = inferMediaType(mime, mediaUrl)
       const filename = inferMediaFilename(mediaUrl, mediaType)
@@ -1228,9 +1213,9 @@ export default function MomentsPage() {
 
       setStoryCommentDraft('')
       setShowStoryCommentComposer(false)
-      toast.success('Comentário enviado no chat com o story espelhado')
+      toast.success('ComentÃ¡rio enviado no chat com o story espelhado')
     } catch (error) {
-      toast.error('Erro ao enviar comentário do story')
+      toast.error('Erro ao enviar comentÃ¡rio do story')
     } finally {
       setProcessingStoryAction(false)
     }
@@ -1265,7 +1250,7 @@ export default function MomentsPage() {
     try {
       await apiClient.deleteStory(selectedStory.id)
       setStories((prev) => prev.filter((story) => story.id !== selectedStory.id))
-      toast.success('Story excluído')
+      toast.success('Story excluÃ­do')
       closeStoryViewer()
     } catch {
       toast.error('Erro ao excluir story')
@@ -1291,7 +1276,7 @@ export default function MomentsPage() {
                   className="w-full h-full rounded-full bg-slate-900 p-[2px]"
                 >
                   <img
-                    src={toMediaUrl(user?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'me'}`}
+                    src={resolveMediaUrl(user?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'me'}`}
                     alt={user?.username || 'me'}
                     className="w-full h-full rounded-full object-cover"
                   />
@@ -1325,7 +1310,7 @@ export default function MomentsPage() {
                 >
                   <div className="w-full h-full rounded-full bg-slate-900 p-[2px]">
                     <img
-                      src={toMediaUrl(group.author?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.author?.username || `story-user-${group.userId}`}`}
+                      src={resolveMediaUrl(group.author?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.author?.username || `story-user-${group.userId}`}`}
                       alt={group.author?.username || 'story'}
                       className="w-full h-full rounded-full object-cover"
                     />
@@ -1458,12 +1443,12 @@ export default function MomentsPage() {
                         openMediaFullscreen(moment.id)
                       }
                     }}
-                    aria-label="Abrir mídia em tela cheia"
+                    aria-label="Abrir mÃ­dia em tela cheia"
                   >
                     {isVideoUrl(moment.media_url) ? (
                       <div className="aspect-[4/5] sm:aspect-[1/1] w-full bg-black">
                         <video
-                          src={toMediaUrl(moment.media_url)}
+                          src={resolveMediaUrl(moment.media_url)}
                           autoPlay
                           muted
                           loop
@@ -1474,7 +1459,7 @@ export default function MomentsPage() {
                     ) : (
                       <div className="aspect-[4/5] sm:aspect-[1/1] w-full bg-black">
                         <img
-                          src={toMediaUrl(moment.media_url)}
+                          src={resolveMediaUrl(moment.media_url)}
                           alt="moment"
                           className="w-full h-full object-contain bg-black"
                         />
@@ -1586,7 +1571,7 @@ export default function MomentsPage() {
           <div className="relative w-full h-full overflow-hidden z-10">
             {isVideoUrl(selectedStory.media_url) ? (
               <video
-                src={toMediaUrl(selectedStory.media_url)}
+                src={resolveMediaUrl(selectedStory.media_url)}
                 autoPlay
                 muted
                 loop
@@ -1596,7 +1581,7 @@ export default function MomentsPage() {
               />
             ) : (
               <img
-                src={toMediaUrl(selectedStory.media_url)}
+                src={resolveMediaUrl(selectedStory.media_url)}
                 alt="story background"
                 aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-55"
@@ -1606,14 +1591,14 @@ export default function MomentsPage() {
             <div className="absolute inset-0 flex items-center justify-center px-2 sm:px-4">
               {isVideoUrl(selectedStory.media_url) ? (
                 <video
-                  src={toMediaUrl(selectedStory.media_url)}
+                  src={resolveMediaUrl(selectedStory.media_url)}
                   controls
                   autoPlay
                   className="max-w-full max-h-full object-contain"
                 />
               ) : (
                 <img
-                  src={toMediaUrl(selectedStory.media_url)}
+                  src={resolveMediaUrl(selectedStory.media_url)}
                   alt="story"
                   className="max-w-full max-h-full object-contain"
                 />
@@ -1685,11 +1670,11 @@ export default function MomentsPage() {
 
             <button
               onClick={() =>
-                openShareDecision(toMediaUrl(selectedStory.media_url), selectedStory.text || '', {
+                openShareDecision(resolveMediaUrl(selectedStory.media_url), selectedStory.text || '', {
                   id: selectedStory.author?.id,
                   username: selectedStory.author?.username,
                   fullName: selectedStory.author?.full_name,
-                  avatarUrl: toMediaUrl(selectedStory.author?.avatar_url),
+                  avatarUrl: resolveMediaUrl(selectedStory.author?.avatar_url),
                 })
               }
               disabled={processingStoryAction}
@@ -1705,13 +1690,13 @@ export default function MomentsPage() {
           {showStoryCommentComposer && (
             <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[min(92vw,560px)] z-20">
               <div className="rounded-2xl border border-white/15 bg-black/70 backdrop-blur-md p-3">
-                <label className="block text-xs text-gray-300 mb-2">Comentário do story (vai para o chat)</label>
+                <label className="block text-xs text-gray-300 mb-2">ComentÃ¡rio do story (vai para o chat)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={storyCommentDraft}
                     onChange={(event) => setStoryCommentDraft(event.target.value)}
-                    placeholder="Digite seu comentário ou emoji..."
+                    placeholder="Digite seu comentÃ¡rio ou emoji..."
                     className="flex-1 h-10 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-primary"
                   />
                   <button
@@ -1929,7 +1914,7 @@ export default function MomentsPage() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <div>
-                <h3 className="text-white font-semibold">Comentários</h3>
+                <h3 className="text-white font-semibold">ComentÃ¡rios</h3>
                 <p className="text-xs text-gray-400">@{selectedMomentForComments.author?.username || 'user'}</p>
               </div>
               <button
@@ -1946,7 +1931,7 @@ export default function MomentsPage() {
                   <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : momentComments.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
+                <p className="text-sm text-gray-400 text-center py-4">Nenhum comentÃ¡rio ainda.</p>
               ) : (
                 <>
                   {momentComments
@@ -1963,7 +1948,7 @@ export default function MomentsPage() {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-xs text-gray-300">
-                                <span className="text-white font-semibold mr-1">{comment.author?.full_name || 'Usuário'}</span>
+                                <span className="text-white font-semibold mr-1">{comment.author?.full_name || 'UsuÃ¡rio'}</span>
                                 <span>@{comment.author?.username || 'user'}</span>
                               </div>
                               <p className="text-sm text-gray-200 break-words">{comment.text}</p>
@@ -2030,7 +2015,7 @@ export default function MomentsPage() {
                                   />
                                   <div className="min-w-0">
                                     <div className="text-[11px] text-gray-400">
-                                      <span className="text-gray-200 font-semibold mr-1">{reply.author?.full_name || 'Usuário'}</span>
+                                      <span className="text-gray-200 font-semibold mr-1">{reply.author?.full_name || 'UsuÃ¡rio'}</span>
                                       <span>@{reply.author?.username || 'user'}</span>
                                     </div>
                                     {editingCommentId === reply.id ? (
@@ -2114,7 +2099,7 @@ export default function MomentsPage() {
                 <input
                   value={newMomentCommentText}
                   onChange={(event) => setNewMomentCommentText(event.target.value)}
-                  placeholder={replyToMomentCommentId ? 'Responder comentário... use @usuario' : 'Escreva um comentário... use @usuario'}
+                  placeholder={replyToMomentCommentId ? 'Responder comentÃ¡rio... use @usuario' : 'Escreva um comentÃ¡rio... use @usuario'}
                   className="w-full h-10 bg-transparent px-2 text-sm text-white placeholder-gray-500 focus:outline-none"
                 />
               </div>
@@ -2129,7 +2114,7 @@ export default function MomentsPage() {
               <button
                 onClick={replyToMomentCommentId ? submitReplyToMomentComment : submitMomentComment}
                 className="text-cyan-400 hover:text-cyan-300 transition"
-                title="Enviar comentário"
+                title="Enviar comentÃ¡rio"
               >
                 <Send size={18} />
               </button>
@@ -2140,3 +2125,4 @@ export default function MomentsPage() {
     </div>
   )
 }
+

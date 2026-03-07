@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Music2, Upload, Heart, RefreshCw, Search, MoreVertical, Pencil, Trash2, X, Play, Pause, Send, Link2, PlusCircle, MessageCircle, Share2 } from 'lucide-react'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import { PlayerTrack, useMusicPlayerStore } from '@store/musicPlayerStore'
+import { resolveMediaUrl } from '@/utils/mediaUrl'
 
 type MusicTrack = {
   id: number
@@ -75,13 +76,6 @@ export default function MusicPage() {
     }
   }, [coverPreviewUrl])
 
-  const toMediaUrl = (url?: string | null) => {
-    if (!url) return ''
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url
-    if (url.startsWith('/')) return url
-    return `/${url}`
-  }
-
   const normalizeTrack = (raw: any): MusicTrack => ({
     id: Number(raw.id),
     title: String(raw.title || ''),
@@ -111,7 +105,7 @@ export default function MusicPage() {
       setTracks(normalizedTracks)
       setFavoriteIds(normalizedFavoriteIds)
     } catch {
-      toast.error('Erro ao carregar músicas')
+      toast.error('Erro ao carregar mÃºsicas')
     } finally {
       setLoading(false)
     }
@@ -121,7 +115,7 @@ export default function MusicPage() {
     try {
       setRefreshing(true)
       await loadMusicPage()
-      toast.success('Feed de música atualizado')
+      toast.success('Feed de mÃºsica atualizado')
     } finally {
       setRefreshing(false)
     }
@@ -131,7 +125,7 @@ export default function MusicPage() {
     const file = event.target.files?.[0]
     if (!file) return
     if (!isAudioFile(file)) {
-      toast.error('Selecione um arquivo de áudio válido')
+      toast.error('Selecione um arquivo de Ã¡udio vÃ¡lido')
       return
     }
     setAudioFile(file)
@@ -170,12 +164,12 @@ export default function MusicPage() {
     const cleanArtist = artist.trim() || (user?.full_name || user?.username || 'Artista Independente')
 
     if (!cleanTitle) {
-      toast.error('Informe o título da música')
+      toast.error('Informe o tÃ­tulo da mÃºsica')
       return
     }
 
     if (!audioFile) {
-      toast.error('Selecione um áudio para publicar')
+      toast.error('Selecione um Ã¡udio para publicar')
       return
     }
 
@@ -183,15 +177,15 @@ export default function MusicPage() {
       setPublishing(true)
 
       const audioUploadRes = await apiClient.uploadFile(audioFile)
-      const audioUrl = toMediaUrl(audioUploadRes?.data?.url)
+      const audioUrl = resolveMediaUrl(audioUploadRes?.data?.url)
       if (!audioUrl) {
-        throw new Error('Falha ao enviar o áudio')
+        throw new Error('Falha ao enviar o Ã¡udio')
       }
 
       let coverUrl: string | null = null
       if (coverFile) {
         const coverUploadRes = await apiClient.uploadFile(coverFile)
-        coverUrl = toMediaUrl(coverUploadRes?.data?.url) || null
+        coverUrl = resolveMediaUrl(coverUploadRes?.data?.url) || null
       }
 
       await apiClient.uploadMusic({
@@ -203,9 +197,9 @@ export default function MusicPage() {
 
       await loadMusicPage()
       resetPublisher()
-      toast.success('Música publicada com sucesso')
+      toast.success('MÃºsica publicada com sucesso')
     } catch (error: any) {
-      toast.error(error?.message || 'Erro ao publicar música')
+      toast.error(error?.message || 'Erro ao publicar mÃºsica')
     } finally {
       setPublishing(false)
     }
@@ -228,7 +222,7 @@ export default function MusicPage() {
       }
     } catch {
       setFavoriteIds(new Set(favoriteIds))
-      toast.error('Não foi possível atualizar favorito')
+      toast.error('NÃ£o foi possÃ­vel atualizar favorito')
     }
   }
 
@@ -240,8 +234,8 @@ export default function MusicPage() {
     id: track.id,
     title: track.title,
     artist: track.artist,
-    audioUrl: toMediaUrl(track.audio_url),
-    coverUrl: track.album_cover ? toMediaUrl(track.album_cover) : null,
+    audioUrl: resolveMediaUrl(track.audio_url),
+    coverUrl: track.album_cover ? resolveMediaUrl(track.album_cover) : null,
   })
 
   const handleStartEdit = (track: MusicTrack) => {
@@ -256,7 +250,7 @@ export default function MusicPage() {
     const titleValue = editingTitle.trim()
     const artistValue = editingArtist.trim()
     if (!titleValue || !artistValue) {
-      toast.error('Título e artista são obrigatórios')
+      toast.error('TÃ­tulo e artista sÃ£o obrigatÃ³rios')
       return
     }
 
@@ -270,14 +264,14 @@ export default function MusicPage() {
       setEditingTrack(null)
       setEditingTitle('')
       setEditingArtist('')
-      toast.success('Música atualizada')
+      toast.success('MÃºsica atualizada')
     } catch {
-      toast.error('Erro ao atualizar música')
+      toast.error('Erro ao atualizar mÃºsica')
     }
   }
 
   const handleDeleteTrack = async (trackId: number) => {
-    if (!window.confirm('Deseja excluir esta música?')) return
+    if (!window.confirm('Deseja excluir esta mÃºsica?')) return
     try {
       await apiClient.deleteMusic(trackId)
       setTracks((prev) => prev.filter((item) => item.id !== trackId))
@@ -287,9 +281,9 @@ export default function MusicPage() {
         return next
       })
       setActionMenuTrackId(null)
-      toast.success('Música excluída')
+      toast.success('MÃºsica excluÃ­da')
     } catch {
-      toast.error('Erro ao excluir música')
+      toast.error('Erro ao excluir mÃºsica')
     }
   }
 
@@ -329,8 +323,8 @@ export default function MusicPage() {
           id: Number(item.id),
           userId: Number(item.other_user?.id),
           username: String(item.other_user?.username || ''),
-          fullName: String(item.other_user?.full_name || 'Usuário'),
-          avatarUrl: toMediaUrl(item.other_user?.avatar_url),
+          fullName: String(item.other_user?.full_name || 'UsuÃ¡rio'),
+          avatarUrl: resolveMediaUrl(item.other_user?.avatar_url),
         }))
         .filter((item: any) => Number.isFinite(item.userId) && item.userId > 0)
       setShareConversations(mapped)
@@ -363,21 +357,21 @@ export default function MusicPage() {
 
     if (shareDestination === 'story') {
       try {
-        const duration = await getAudioDurationSeconds(toMediaUrl(shareTrack.audio_url))
+        const duration = await getAudioDurationSeconds(resolveMediaUrl(shareTrack.audio_url))
         if (duration > 30) {
-          toast.error('Para stories, o áudio deve ter no máximo 30 segundos')
+          toast.error('Para stories, o Ã¡udio deve ter no mÃ¡ximo 30 segundos')
           setShareBusy(false)
           return
         }
 
         if (!shareTrack.album_cover) {
-          toast.error('Para compartilhar no story, adicione capa na música')
+          toast.error('Para compartilhar no story, adicione capa na mÃºsica')
           setShareBusy(false)
           return
         }
 
         await apiClient.createStory({
-          media_url: toMediaUrl(shareTrack.album_cover),
+          media_url: resolveMediaUrl(shareTrack.album_cover),
           text: `${shareTrack.title} - ${shareTrack.artist}`,
         })
         window.dispatchEvent(new CustomEvent('ello:story-created'))
@@ -400,7 +394,7 @@ export default function MusicPage() {
 
       try {
         await apiClient.shareMusicToChat(selectedRecipientId, shareTrack.id)
-        toast.success('Música compartilhada no chat')
+        toast.success('MÃºsica compartilhada no chat')
         closeShareMenu()
       } catch {
         toast.error('Erro ao compartilhar no chat')
@@ -451,7 +445,7 @@ export default function MusicPage() {
 
     try {
       await navigator.share({
-        title: 'ℯ𝓁𝓁ℴ Music',
+        title: 'â„¯ð“ð“â„´ Music',
         text: `${shareTrack.title} - ${shareTrack.artist}`,
         url: getShareLink(),
       })
@@ -503,9 +497,9 @@ export default function MusicPage() {
                 <Music2 size={14} />
                 Music para artistas independentes
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">Publique sua música e ganhe visibilidade</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">Publique sua mÃºsica e ganhe visibilidade</h1>
               <p className="text-sm text-gray-300 mt-2 max-w-2xl">
-                Espaço oficial da ℯ𝓁𝓁ℴ para cantores independentes divulgarem faixas autorais e alcançarem novos ouvintes.
+                EspaÃ§o oficial da â„¯ð“ð“â„´ para cantores independentes divulgarem faixas autorais e alcanÃ§arem novos ouvintes.
               </p>
               <div className="mt-4">
                 <button
@@ -513,7 +507,7 @@ export default function MusicPage() {
                   className="h-10 px-4 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/85 transition inline-flex items-center gap-2"
                 >
                   <Upload size={15} />
-                  {showPublisher ? 'Ocultar formulário' : 'Adicionar música'}
+                  {showPublisher ? 'Ocultar formulÃ¡rio' : 'Adicionar mÃºsica'}
                 </button>
               </div>
             </div>
@@ -521,27 +515,27 @@ export default function MusicPage() {
             {showPublisher && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                  <label className="block text-xs text-gray-400">Título da música</label>
+                  <label className="block text-xs text-gray-400">TÃ­tulo da mÃºsica</label>
                   <input
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
-                    placeholder="Ex.: Noites em São Paulo"
+                    placeholder="Ex.: Noites em SÃ£o Paulo"
                     className="w-full h-11 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                   />
 
-                  <label className="block text-xs text-gray-400">Nome artístico</label>
+                  <label className="block text-xs text-gray-400">Nome artÃ­stico</label>
                   <input
                     value={artist}
                     onChange={(event) => setArtist(event.target.value)}
-                    placeholder="Seu nome artístico"
+                    placeholder="Seu nome artÃ­stico"
                     className="w-full h-11 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-gray-200 cursor-pointer hover:border-primary/70 transition">
-                      <span className="inline-flex items-center gap-2"><Upload size={14} /> Áudio</span>
+                      <span className="inline-flex items-center gap-2"><Upload size={14} /> Ãudio</span>
                       <input type="file" accept="audio/*" className="hidden" onChange={handleAudioFileChange} />
-                      <p className="mt-1 text-xs text-gray-500 truncate">{audioPreviewName || 'Selecionar arquivo de áudio'}</p>
+                      <p className="mt-1 text-xs text-gray-500 truncate">{audioPreviewName || 'Selecionar arquivo de Ã¡udio'}</p>
                     </label>
 
                     <label className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-gray-200 cursor-pointer hover:border-primary/70 transition">
@@ -557,12 +551,12 @@ export default function MusicPage() {
                     className="h-11 px-5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/85 disabled:opacity-60 transition inline-flex items-center gap-2"
                   >
                     <Upload size={16} />
-                    {publishing ? 'Publicando...' : 'Publicar Música'}
+                    {publishing ? 'Publicando...' : 'Publicar MÃºsica'}
                   </button>
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                  <p className="text-xs text-gray-400 mb-3">Prévia da capa</p>
+                  <p className="text-xs text-gray-400 mb-3">PrÃ©via da capa</p>
                   <div className="aspect-square rounded-xl overflow-hidden border border-slate-700 bg-slate-950 flex items-center justify-center">
                     {coverPreviewUrl ? (
                       <img src={coverPreviewUrl} alt="preview capa" className="w-full h-full object-cover" />
@@ -581,7 +575,7 @@ export default function MusicPage() {
             <div className="flex items-center gap-2">
               {([
                 { id: 'all', label: 'Descobrir' },
-                { id: 'mine', label: 'Minhas Publicações' },
+                { id: 'mine', label: 'Minhas PublicaÃ§Ãµes' },
                 { id: 'favorites', label: 'Favoritas' },
               ] as Array<{ id: FeedFilter; label: string }>).map((item) => (
                 <button
@@ -600,7 +594,7 @@ export default function MusicPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar música ou artista"
+                  placeholder="Buscar mÃºsica ou artista"
                   className="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none"
                 />
               </div>
@@ -620,7 +614,7 @@ export default function MusicPage() {
               <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
             </div>
           ) : visibleTracks.length === 0 ? (
-            <div className="text-center py-12 text-sm text-gray-400">Nenhuma música encontrada para este filtro.</div>
+            <div className="text-center py-12 text-sm text-gray-400">Nenhuma mÃºsica encontrada para este filtro.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {visibleTracks.map((track) => {
@@ -633,7 +627,7 @@ export default function MusicPage() {
                   <article key={track.id} className="rounded-2xl border border-slate-800 bg-slate-950/80 overflow-hidden">
                     <div className="aspect-[16/9] bg-slate-900 relative">
                       {track.album_cover ? (
-                        <img src={toMediaUrl(track.album_cover)} alt={track.title} className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(track.album_cover)} alt={track.title} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
                           <Music2 size={30} className="text-slate-600" />
@@ -650,7 +644,7 @@ export default function MusicPage() {
                         <button
                           onClick={() => handleOpenActions(track.id)}
                           className="h-8 w-8 rounded-full border border-white/20 bg-black/40 text-gray-200 hover:text-white inline-flex items-center justify-center transition"
-                          title="Ações"
+                          title="AÃ§Ãµes"
                         >
                           <MoreVertical size={14} />
                         </button>
@@ -692,10 +686,10 @@ export default function MusicPage() {
           <div className="fixed inset-0 z-[160] bg-black/70 flex items-center justify-center p-4" onClick={() => setEditingTrack(null)}>
             <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-center justify-between">
-                <h3 className="text-white font-semibold">Editar música</h3>
+                <h3 className="text-white font-semibold">Editar mÃºsica</h3>
                 <button onClick={() => setEditingTrack(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
               </div>
-              <input value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} placeholder="Título" className="w-full h-10 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white focus:outline-none focus:border-primary" />
+              <input value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} placeholder="TÃ­tulo" className="w-full h-10 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white focus:outline-none focus:border-primary" />
               <input value={editingArtist} onChange={(event) => setEditingArtist(event.target.value)} placeholder="Artista" className="w-full h-10 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white focus:outline-none focus:border-primary" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setEditingTrack(null)} className="text-xs text-gray-400 hover:text-white">Cancelar</button>
@@ -802,3 +796,4 @@ export default function MusicPage() {
     </div>
   )
 }
+

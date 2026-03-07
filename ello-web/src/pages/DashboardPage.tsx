@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
+import { resolveMediaUrl } from '@/utils/mediaUrl'
 import {
   Bell,
   Compass,
@@ -73,13 +74,6 @@ type EventWidget = {
   title: string
   subtitle: string
   distanceKm?: number
-}
-
-const toMediaUrl = (url?: string | null) => {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url
-  if (url.startsWith('/')) return url
-  return `/${url}`
 }
 
 const extractList = (payload: any) => {
@@ -248,8 +242,8 @@ export default function DashboardPage() {
         id: Number(conv.id),
         userId: Number(conv.other_user?.id),
         username: String(conv.other_user?.username || ''),
-        fullName: String(conv.other_user?.full_name || conv.other_user?.username || 'Usuário'),
-        avatarUrl: toMediaUrl(conv.other_user?.avatar_url),
+        fullName: String(conv.other_user?.full_name || conv.other_user?.username || 'UsuÃ¡rio'),
+        avatarUrl: resolveMediaUrl(conv.other_user?.avatar_url),
         lastMessage: String(conv.last_message || ''),
         lastMessageTime: conv.last_message_time,
         unreadCount: Number(conv.unread_count || 0),
@@ -259,14 +253,14 @@ export default function DashboardPage() {
       const mappedNotifications: NotificationPreview[] = notificationsList.map((item: any) => ({
         id: Number(item.id),
         type: String(item.type || 'info'),
-        content: String(item.content || 'Notificação'),
+        content: String(item.content || 'NotificaÃ§Ã£o'),
         isRead: Boolean(item.is_read),
         createdAt: item.created_at,
       }))
 
       const mappedMusic: MusicPreview[] = musicList.slice(0, 6).map((item: any) => ({
         id: Number(item.id),
-        title: String(item.title || 'Sem título'),
+        title: String(item.title || 'Sem tÃ­tulo'),
         artist: String(item.artist || 'Artista Independente'),
         albumCover: item.album_cover || null,
         createdAt: item.created_at,
@@ -415,10 +409,10 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-slate-400">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
               <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-white">
-                {greetingByHour()}, {user?.full_name?.split(' ')[0] || 'ℯ𝓁𝓁ℴ'}
+                {greetingByHour()}, {user?.full_name?.split(' ')[0] || 'â„¯ð“ð“â„´'}
               </h1>
               <p className="mt-2 text-sm text-slate-300 max-w-2xl">
-                {weather ? `${weather.weatherLabel} em ${weather.city}, ${Math.round(weather.temperature)}°C. ` : ''}
+                {weather ? `${weather.weatherLabel} em ${weather.city}, ${Math.round(weather.temperature)}Â°C. ` : ''}
                 {weather ? `Aproveite o dia em ${weather.city} e compartilhe sua vibe.` : 'Seu centro de controle: acompanhe atividade, mensagens e atalhos em um unico lugar.'}
               </p>
             </div>
@@ -483,7 +477,7 @@ export default function DashboardPage() {
             {weather ? (
               <div className="mt-3">
                 <p className="text-lg font-semibold text-white">{weather.weatherLabel}</p>
-                <p className="text-sm text-slate-300">{weather.city} • {Math.round(weather.temperature)}°C</p>
+                <p className="text-sm text-slate-300">{weather.city} â€¢ {Math.round(weather.temperature)}Â°C</p>
                 <p className="mt-2 text-xs text-slate-400">Sugestao: dia ideal para registrar um moment com sua vibe atual.</p>
               </div>
             ) : (
@@ -610,7 +604,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-center gap-2">
                       {track.albumCover ? (
-                        <img src={toMediaUrl(track.albumCover)} alt={track.title} className="w-9 h-9 rounded-md object-cover" />
+                        <img src={resolveMediaUrl(track.albumCover)} alt={track.title} className="w-9 h-9 rounded-md object-cover" />
                       ) : (
                         <div className="w-9 h-9 rounded-md bg-slate-800 inline-flex items-center justify-center"><Music2 size={14} className="text-slate-500" /></div>
                       )}
@@ -689,3 +683,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

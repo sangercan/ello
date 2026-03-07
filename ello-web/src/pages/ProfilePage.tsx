@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { User, Moment } from '@/types'
 import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Edit3, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
+import { resolveMediaUrl } from '@/utils/mediaUrl'
 
 interface EditFormData {
   full_name: string
@@ -64,12 +65,6 @@ export default function ProfilePage() {
     return ['.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv', '.3gp', '.m3u8'].some((ext) => clean.endsWith(ext))
   }
 
-  const toMediaUrl = (url?: string) => {
-    if (!url) return ''
-    if (url.startsWith('http://') || url.startsWith('https://')) return url
-    return url
-  }
-
   const normalizeMoments = (raw: any[]): Moment[] => {
     return raw.map((m) => ({
       id: m.id,
@@ -101,8 +96,8 @@ export default function ProfilePage() {
       }
       let profileUser
       
-      // Se há um userId na URL, buscar esse usuário específico
-      // Senão, buscar o usuário logado
+      // Se hÃ¡ um userId na URL, buscar esse usuÃ¡rio especÃ­fico
+      // SenÃ£o, buscar o usuÃ¡rio logado
       if (userId && userId !== 'me') {
         const response = await apiClient.getUser(userId)
         profileUser = response.data
@@ -172,10 +167,10 @@ export default function ProfilePage() {
       } else {
         await apiClient.followUser(user.id)
         setIsFollowing(true)
-        toast.success('Agora você segue')
+        toast.success('Agora vocÃª segue')
       }
       
-      // Recarregar os dados de followers/following após a ação
+      // Recarregar os dados de followers/following apÃ³s a aÃ§Ã£o
       const followersResponse = await apiClient.getFollowers(user.id)
       setFollowers(followersResponse.data?.length || 0)
       
@@ -185,8 +180,8 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error('Erro ao seguir:', error)
-      toast.error('Erro ao seguir usuário')
-      // Recarregar status em caso de erro também
+      toast.error('Erro ao seguir usuÃ¡rio')
+      // Recarregar status em caso de erro tambÃ©m
       loadProfile()
     } finally {
       setIsFollowLoading(false)
@@ -236,7 +231,7 @@ export default function ProfilePage() {
         category: editFormData.category,
       }
 
-      // Se há novo avatar (usando data URL por enquanto)
+      // Se hÃ¡ novo avatar (usando data URL por enquanto)
       if (avatarFile && avatarPreview) {
         updateData.avatar_url = avatarPreview
       }
@@ -287,7 +282,7 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center">
-        <p className="text-gray-400">Perfil não encontrado</p>
+        <p className="text-gray-400">Perfil nÃ£o encontrado</p>
       </div>
     )
   }
@@ -470,7 +465,7 @@ export default function ProfilePage() {
               }`}
             >
               <Music size={18} />
-              Música
+              MÃºsica
             </button>
             <button
               onClick={() => setActiveTab('salvos')}
@@ -507,13 +502,13 @@ export default function ProfilePage() {
                   : activeTab === 'vibes'
                   ? 'Nenhum vibe ainda'
                   : activeTab === 'musica'
-                  ? 'Nenhuma música ainda'
-                  : 'Nenhum conteúdo salvo ainda'}
+                  ? 'Nenhuma mÃºsica ainda'
+                  : 'Nenhum conteÃºdo salvo ainda'}
               </p>
               <p className="text-gray-500 text-sm">
                 {isOwnProfile
                   ? 'Comece a compartilhar seus momentos!'
-                  : 'Este usuário ainda não compartilhou nada'}
+                  : 'Este usuÃ¡rio ainda nÃ£o compartilhou nada'}
               </p>
             </div>
           ) : (
@@ -528,7 +523,7 @@ export default function ProfilePage() {
                     isVideoUrl(moment.media_url) ? (
                       <div className="relative">
                         <video
-                          src={toMediaUrl(moment.media_url)}
+                          src={resolveMediaUrl(moment.media_url)}
                           className="w-full h-56 object-cover"
                           muted
                           playsInline
@@ -542,7 +537,7 @@ export default function ProfilePage() {
                       </div>
                     ) : (
                       <img
-                        src={toMediaUrl(moment.media_url)}
+                        src={resolveMediaUrl(moment.media_url)}
                         alt="moment"
                         loading="lazy"
                         className="w-full h-56 object-cover group-hover:scale-105 transition"
@@ -596,7 +591,7 @@ export default function ProfilePage() {
                 <div className="bg-black">
                   {isVideoUrl(selectedPost.media_url) ? (
                     <video
-                      src={toMediaUrl(selectedPost.media_url)}
+                      src={resolveMediaUrl(selectedPost.media_url)}
                       controls
                       playsInline
                       preload="metadata"
@@ -604,7 +599,7 @@ export default function ProfilePage() {
                     />
                   ) : (
                     <img
-                      src={toMediaUrl(selectedPost.media_url)}
+                      src={resolveMediaUrl(selectedPost.media_url)}
                       alt="post"
                       loading="lazy"
                       className="w-full max-h-[68vh] object-contain"
@@ -700,7 +695,7 @@ export default function ProfilePage() {
                 {/* Location */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Localização
+                    LocalizaÃ§Ã£o
                   </label>
                   <input
                     type="text"
@@ -730,7 +725,7 @@ export default function ProfilePage() {
                 {/* Category */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Categoria/Profissão
+                    Categoria/ProfissÃ£o
                   </label>
                   <input
                     type="text"
@@ -767,3 +762,4 @@ export default function ProfilePage() {
     </div>
   )
 }
+

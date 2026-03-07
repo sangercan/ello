@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, Heart, MessageCircle, Radio, UserPlus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import apiClient from '@services/api'
+import { resolveMediaUrl } from '@/utils/mediaUrl'
 
 type NotificationItem = {
   id: number
@@ -19,13 +20,6 @@ type NotificationItem = {
     full_name?: string
     avatar_url?: string
   } | null
-}
-
-const toMediaUrl = (url?: string | null) => {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url
-  if (url.startsWith('/')) return url
-  return `/${url}`
 }
 
 const formatWhen = (iso?: string) => {
@@ -177,7 +171,7 @@ export default function NotificationsPage() {
                         className="flex items-center gap-2 min-w-0 text-left"
                       >
                         <img
-                          src={toMediaUrl(item.actor?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.actor?.username || item.actor_id || item.id}`}
+                          src={resolveMediaUrl(item.actor?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.actor?.username || item.actor_id || item.id}`}
                           alt={item.actor?.username || 'ator'}
                           className="w-8 h-8 rounded-full border border-slate-700 object-cover"
                         />
@@ -210,3 +204,4 @@ export default function NotificationsPage() {
     </div>
   )
 }
+
