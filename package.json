@@ -3,8 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "npm --prefix ello-web ci && npm --prefix ello-web run mobile:build",
-    "mobile:build": "npm --prefix ello-web ci && npm --prefix ello-web run mobile:build",
+    "build": "npm --prefix ello-web ci && npm --prefix ello-web run mobile:build && node scripts/appflow-prepare-root.mjs",
+    "mobile:build": "npm --prefix ello-web ci && npm --prefix ello-web run mobile:build && node scripts/appflow-prepare-root.mjs",
     "mobile:sync": "npm --prefix ello-web run mobile:sync"
   }
 }
