@@ -38,8 +38,8 @@ export const useAuthStore = create<AuthStore>()(
           try {
             set({ isLoading: true })
             // Interceptor will automatically add token from Zustand state
-            const response = await apiClient.get('/users/me')
-            set({ user: response.data, isAuthenticated: true, isLoading: false })
+            const user = await apiClient.getCurrentUser()
+            set({ user, isAuthenticated: true, isLoading: false })
           } catch (error) {
             console.error('Initialize error:', error)
             set({ token: null, isAuthenticated: false, user: null, isLoading: false })
@@ -55,14 +55,11 @@ export const useAuthStore = create<AuthStore>()(
           console.log('🔐 Iniciando login com:', email)
           
           // Send only identifier, not email field to avoid validation issues
-          const response = await apiClient.post('/auth/login', {
-            identifier: email.trim(),
-            password: password,
-          })
+          const loginData = await apiClient.login(email.trim(), password)
           
-          console.log('✅ Resposta do login:', response.data)
+          console.log('✅ Resposta do login:', loginData)
           
-          const { access_token } = response.data
+          const { access_token } = loginData
           
           if (!access_token) {
             throw new Error('Nenhum token recebido do servidor')
@@ -81,12 +78,12 @@ export const useAuthStore = create<AuthStore>()(
           
           // Get user data - token is now available in interceptor
           console.log('👤 Buscando dados do usuário...')
-          const userResponse = await apiClient.get('/users/me')
+          const user = await apiClient.getCurrentUser()
           
-          console.log('✅ Dados do usuário:', userResponse.data)
+          console.log('✅ Dados do usuário:', user)
           
           set({
-            user: userResponse.data,
+            user,
             isAuthenticated: true,
             isLoading: false,
           })
@@ -103,11 +100,11 @@ export const useAuthStore = create<AuthStore>()(
         try {
           console.log('📝 Iniciando registro com:', data.email)
           
-          const response = await apiClient.post('/auth/register', data)
+          const registerData = await apiClient.register(data)
           
-          console.log('✅ Resposta do registro:', response.data)
+          console.log('✅ Resposta do registro:', registerData)
           
-          const { access_token } = response.data
+          const { access_token } = registerData
           
           if (!access_token) {
             throw new Error('Nenhum token recebido do servidor')
@@ -126,12 +123,12 @@ export const useAuthStore = create<AuthStore>()(
           
           // Get user data - token is now available in interceptor
           console.log('👤 Buscando dados do usuário...')
-          const userResponse = await apiClient.get('/users/me')
+          const user = await apiClient.getCurrentUser()
           
-          console.log('✅ Dados do usuário:', userResponse.data)
+          console.log('✅ Dados do usuário:', user)
           
           set({
-            user: userResponse.data,
+            user,
             isAuthenticated: true,
             isLoading: false,
           })

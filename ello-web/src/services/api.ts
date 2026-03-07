@@ -71,20 +71,30 @@ const nativeHttpRequest = async <T>(
   const base = (baseOverride || API_BASE_URL).replace(/\/+$/, '')
   const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''
   const url = `${base}${normalizedPath}`
+  const state = useAuthStore.getState()
+  const authToken = state.token
+  const getHeaders: Record<string, string> = {
+    Accept: 'application/json',
+  }
+  const postHeaders: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
+
+  if (authToken) {
+    const authValue = `Bearer ${authToken}`
+    getHeaders.Authorization = authValue
+    postHeaders.Authorization = authValue
+  }
 
   const response = method === 'GET'
     ? await CapacitorHttp.get({
         url,
-        headers: {
-          Accept: 'application/json',
-        },
+        headers: getHeaders,
       })
     : await CapacitorHttp.post({
         url,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: postHeaders,
         data,
       })
 
