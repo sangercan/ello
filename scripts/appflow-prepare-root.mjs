@@ -7,12 +7,17 @@ const tasks = [
   { from: resolve(root, 'ello-web', 'android'), to: resolve(root, 'android') },
   { from: resolve(root, 'ello-web', 'ios'), to: resolve(root, 'ios') },
   { from: resolve(root, 'ello-web', 'dist'), to: resolve(root, 'dist') },
-  { from: resolve(root, 'ello-web', 'capacitor.config.json'), to: resolve(root, 'capacitor.config.json') },
+  // Capacitor config can be generated from .ts after `npx cap sync`.
+  { from: resolve(root, 'ello-web', 'android', 'app', 'src', 'main', 'assets', 'capacitor.config.json'), to: resolve(root, 'capacitor.config.json') },
+  // Fallback for projects that still keep capacitor.config.json at web root.
+  { from: resolve(root, 'ello-web', 'capacitor.config.json'), to: resolve(root, 'capacitor.config.json'), optional: true },
 ];
 
-for (const { from, to } of tasks) {
+for (const { from, to, optional } of tasks) {
   if (!existsSync(from)) {
-    console.warn(`[appflow-prepare-root] missing: ${from}`);
+    if (!optional) {
+      console.warn(`[appflow-prepare-root] missing: ${from}`);
+    }
     continue;
   }
 

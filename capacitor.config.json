@@ -1,5 +1,18 @@
 {
-  "appId": "com.ellosocial.app",
-  "appName": "ℯ𝓁𝓁ℴ Social",
-  "webDir": "dist"
+	"appId": "com.ellosocial.app",
+	"appName": "Ello",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"server": {
+		"cleartext": true
+	},
+	"plugins": {
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		}
+	}
 }
