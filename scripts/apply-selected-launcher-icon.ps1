@@ -35,7 +35,11 @@ if (!(Test-Path $launcherDir)) {
   New-Item -ItemType Directory -Path $launcherDir | Out-Null
 }
 $canonicalSource = Join-Path $launcherDir 'ello-launcher-1024.png'
-Copy-Item -LiteralPath $SourceIconPath -Destination $canonicalSource -Force
+$sourceResolved = (Resolve-Path $SourceIconPath).Path
+$canonicalResolved = if (Test-Path $canonicalSource) { (Resolve-Path $canonicalSource).Path } else { $canonicalSource }
+if ($sourceResolved -ne $canonicalResolved) {
+  Copy-Item -LiteralPath $SourceIconPath -Destination $canonicalSource -Force
+}
 
 $androidRoots = @(
   (Join-Path $repoRoot 'ello-web\android'),
