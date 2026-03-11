@@ -1,9 +1,13 @@
 import axios, { AxiosInstance } from 'axios'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
+import type { CallType } from '@/types/call'
 
 const resolveApiBaseUrl = () => {
   const configured = (import.meta.env.VITE_API_URL || '').trim()
+  const isDev = import.meta.env.DEV
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1'
   const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
   const isNative = Capacitor.getPlatform() !== 'web'
   const isValidNativeApiUrl = (value: string) => {
@@ -25,20 +29,14 @@ const resolveApiBaseUrl = () => {
     return 'https://ellosocial.com/api'
   }
 
-  // In browser-based local/dev usage, always force same-origin proxy
-  // to avoid CORS drift like http://localhost/notifications.
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return '/api'
-    }
+  if (isDev && isLocalHost) {
+    return '/api'
   }
 
   if (!configured) return '/api'
 
-  // Guard against incomplete localhost values from env like http://localhost.
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(configured)) {
-    return '/api'
+    return isDev ? '/api' : configured
   }
 
   return configured
@@ -308,6 +306,21 @@ const api = apiClient as AxiosInstance & {
   unfollowUser: (userId: string | number) => Promise<any>
   getFollowers: (userId: string | number) => Promise<any>
   getFollowing: (userId: string | number) => Promise<any>
+  createGroup: (name: string, memberIds: Array<number | string>) => Promise<any>
+  getGroups: () => Promise<any>
+  getGroup: (groupId: string | number) => Promise<any>
+  getGroupMessages: (groupId: string | number, page?: number, limit?: number) => Promise<any>
+  sendGroupMessage: (
+    groupId: string | number,
+    payload: string | { content?: string | null; audio_url?: string | null; media_url?: string | null; latitude?: number | null; longitude?: number | null }
+  ) => Promise<any>
+  updateGroup: (groupId: string | number, data: { name?: string; image_url?: string | null }) => Promise<any>
+  deleteGroup: (groupId: string | number) => Promise<any>
+  addGroupMembers: (groupId: string | number, memberIds: Array<number | string>) => Promise<any>
+  listGroupMembers: (groupId: string | number) => Promise<any>
+  setGroupAdmin: (groupId: string | number, userId: number, isAdmin: boolean) => Promise<any>
+  removeGroupMember: (groupId: string | number, userId: number) => Promise<any>
+  leaveGroup: (groupId: string | number) => Promise<any>
   getNotifications: (page?: number, limit?: number) => Promise<any>
   markNotificationAsRead: (notificationId: string | number) => Promise<any>
   markAllNotificationsAsRead: () => Promise<any>
@@ -335,6 +348,30 @@ const api = apiClient as AxiosInstance & {
   markOnline: () => Promise<any>
   markOffline: () => Promise<any>
   markActivity: () => Promise<any>
+  registerPushDevice: (data: {
+    token: string
+    platform?: string
+    device_id?: string
+    app_version?: string
+    allow_messages?: boolean
+    allow_likes?: boolean
+    allow_calls?: boolean
+    allow_presence?: boolean
+    allow_general?: boolean
+  }) => Promise<any>
+  unregisterPushDevice: (data?: { token?: string; device_id?: string }) => Promise<any>
+  updatePushPreferences: (data: {
+    token?: string
+    device_id?: string
+    allow_messages?: boolean
+    allow_likes?: boolean
+    allow_calls?: boolean
+    allow_presence?: boolean
+    allow_general?: boolean
+  }) => Promise<any>
+  startCall: (receiverId: string | number, callType: CallType) => Promise<any>
+  acceptCall: (callId: string | number) => Promise<any>
+  endCall: (callId: string | number) => Promise<any>
   getMusicFeed: (page?: number, limit?: number) => Promise<any>
   uploadMusic: (data: { title: string; artist: string; audio_url: string; album_cover?: string | null }) => Promise<any>
   getMusicFavorites: (userId: string | number) => Promise<any>
@@ -516,7 +553,8 @@ api.updateProfile = async (data: any) => {
 }
 
 api.getUser = async (userId: string | number) => {
-  return apiClient.get(`/users/${userId}`)
+  const response = await apiClient.get(`/users/${userId}`)
+  return normalizeResponseData(response)
 }
 
 api.searchUsers = async (query: string) => {
@@ -537,6 +575,63 @@ api.getFollowers = async (userId: string | number) => {
 
 api.getFollowing = async (userId: string | number) => {
   return apiClient.get(`/users/${userId}/following`)
+}
+
+api.createGroup = async (name: string, memberIds: Array<number | string>) => {
+  return apiClient.post('/chat/groups/', {
+    name,
+    member_ids: memberIds.map((id) => Number(id)),
+  })
+}
+
+api.getGroups = async () => {
+  return apiClient.get('/chat/groups/')
+}
+
+api.getGroup = async (groupId: string | number) => {
+  return apiClient.get(`/chat/groups/${groupId}`)
+}
+
+api.getGroupMessages = async (groupId: string | number, page = 1, limit = 50) => {
+  return apiClient.get(`/chat/groups/${groupId}/messages?page=${page}&limit=${limit}`)
+}
+
+api.sendGroupMessage = async (
+  groupId: string | number,
+  payload: string | { content?: string | null; audio_url?: string | null; media_url?: string | null; latitude?: number | null; longitude?: number | null }
+) => {
+  const body = typeof payload === 'string' ? { content: payload } : payload
+  return apiClient.post(`/chat/groups/${groupId}/messages`, body)
+}
+
+api.updateGroup = async (groupId: string | number, data: { name?: string; image_url?: string | null }) => {
+  return apiClient.patch(`/chat/groups/${groupId}`, data)
+}
+
+api.deleteGroup = async (groupId: string | number) => {
+  return apiClient.delete(`/chat/groups/${groupId}`)
+}
+
+api.addGroupMembers = async (groupId: string | number, memberIds: Array<number | string>) => {
+  return apiClient.post(`/chat/groups/${groupId}/members`, {
+    member_ids: memberIds.map((id) => Number(id)),
+  })
+}
+
+api.listGroupMembers = async (groupId: string | number) => {
+  return apiClient.get(`/chat/groups/${groupId}/members`)
+}
+
+api.setGroupAdmin = async (groupId: string | number, userId: number, isAdmin: boolean) => {
+  return apiClient.post(`/chat/groups/${groupId}/admins`, { user_id: userId, is_admin: isAdmin })
+}
+
+api.removeGroupMember = async (groupId: string | number, userId: number) => {
+  return apiClient.delete(`/chat/groups/${groupId}/members/${userId}`)
+}
+
+api.leaveGroup = async (groupId: string | number) => {
+  return apiClient.post(`/chat/groups/${groupId}/leave`)
 }
 
 api.getNotifications = async (page = 1, limit = 20) => {
@@ -646,6 +741,51 @@ api.markOffline = async () => {
 
 api.markActivity = async () => {
   return apiClient.post('/users/activity')
+}
+
+api.registerPushDevice = async (data: {
+  token: string
+  platform?: string
+  device_id?: string
+  app_version?: string
+  allow_messages?: boolean
+  allow_likes?: boolean
+  allow_calls?: boolean
+  allow_presence?: boolean
+  allow_general?: boolean
+}) => {
+  return apiClient.post('/push/devices', data)
+}
+
+api.unregisterPushDevice = async (data?: { token?: string; device_id?: string }) => {
+  return apiClient.delete('/push/devices', { data: data || {} })
+}
+
+api.updatePushPreferences = async (data: {
+  token?: string
+  device_id?: string
+  allow_messages?: boolean
+  allow_likes?: boolean
+  allow_calls?: boolean
+  allow_presence?: boolean
+  allow_general?: boolean
+}) => {
+  return apiClient.put('/push/preferences', data)
+}
+
+api.startCall = async (receiverId: string | number, callType: CallType) => {
+  return apiClient.post('/calls/start', {
+    receiver_id: Number(receiverId),
+    call_type: callType,
+  })
+}
+
+api.endCall = async (callId: string | number) => {
+  return apiClient.post(`/calls/end/${callId}`)
+}
+
+api.acceptCall = async (callId: string | number) => {
+  return apiClient.post(`/calls/accept/${callId}`)
 }
 
 api.getMusicFeed = async (page = 1, limit = 20) => {

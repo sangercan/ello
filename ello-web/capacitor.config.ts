@@ -1,16 +1,18 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.ellosocial.app',
-  appName: 'ℯ𝓁𝓁ℴ Social',
+  appName: 'Ello',
   webDir: 'dist',
+  bundledWebRuntime: false,
+  server: {
+    cleartext: true,
+  },
   plugins: {
-    StatusBar: {
-      overlaysWebView: true,
-      style: 'DARK',
-      backgroundColor: '#00000000'
-    }
-  }
-};
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+  },
+}
 
-export default config;
+export default config

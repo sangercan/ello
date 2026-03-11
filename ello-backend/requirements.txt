@@ -35,6 +35,7 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 requests==2.31.0
 Pillow==10.4.0
+firebase-admin==6.6.0
 
 # ==========================================================
 # OPTIONAL (for background tasks)

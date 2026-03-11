@@ -1,7 +1,6 @@
 {
-  "id": "5d3207dc",
-  "name": "ello-social-sangercan",
-  "type": "custom",
+  "name": "ello",
+  "type": "react-vite",
   "integrations": {
     "capacitor": {}
   }

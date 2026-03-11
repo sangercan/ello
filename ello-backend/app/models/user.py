@@ -46,6 +46,8 @@ class User(Base):
 
     is_online = Column(Boolean, default=False)
     is_visible_nearby = Column(Boolean, default=False)
+    is_panel_admin = Column(Boolean, default=False)
+    is_panel_active = Column(Boolean, default=False)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
     last_activity_at = Column(DateTime(timezone=True), nullable=True)
 

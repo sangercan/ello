@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Share2, X, Send, Search, Link2, PlusCircle, MoreV
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+const VIBES_CACHE_KEY = 'ello:cache:vibes:v1'
 
 type ContentComment = {
   id: number
@@ -170,8 +171,32 @@ export default function VibesPage() {
   }
 
   useEffect(() => {
-    loadVibes()
+    let hasHydratedCache = false
+    try {
+      const rawCache = window.sessionStorage.getItem(VIBES_CACHE_KEY)
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        const cachedVibes = Array.isArray(parsed?.vibes) ? parsed.vibes : []
+        if (cachedVibes.length > 0) {
+          setVibes(cachedVibes)
+          setLoading(false)
+          hasHydratedCache = true
+        }
+      }
+    } catch {
+      // Ignore invalid cache.
+    }
+    void loadVibes(hasHydratedCache)
   }, [])
+
+  useEffect(() => {
+    if (vibes.length === 0) return
+    try {
+      window.sessionStorage.setItem(VIBES_CACHE_KEY, JSON.stringify({ vibes, ts: Date.now() }))
+    } catch {
+      // Ignore storage quota errors.
+    }
+  }, [vibes])
 
   useEffect(() => {
     if (vibes.length === 0) return
@@ -226,16 +251,20 @@ export default function VibesPage() {
     return () => observer.disconnect()
   }, [vibes])
 
-  const loadVibes = async () => {
+  const loadVibes = async (background = false) => {
     try {
-      setLoading(true)
-      const response = await apiClient.getVibes(1, 50)
+      if (!background && vibes.length === 0) {
+        setLoading(true)
+      }
+      const response = await apiClient.getVibes(1, 24)
       const list = Array.isArray(response.data) ? response.data : response.data?.data || []
       setVibes(normalizeVibes(list))
     } catch (error) {
       toast.error('Erro ao carregar vibes')
     } finally {
-      setLoading(false)
+      if (!background || vibes.length === 0) {
+        setLoading(false)
+      }
     }
   }
 
@@ -291,7 +320,7 @@ export default function VibesPage() {
       if (selectedVibeForComments?.id === vibeId) {
         closeVibeCommentsModal()
       }
-      toast.success('Vibe excluÃ­do')
+      toast.success('Vibe excluído')
     } catch {
       toast.error('Erro ao excluir vibe')
     }
@@ -311,7 +340,7 @@ export default function VibesPage() {
       setVibeComments(list)
     } catch (error) {
       setVibeComments([])
-      toast.error('Erro ao carregar comentÃ¡rios')
+      toast.error('Erro ao carregar comentários')
     } finally {
       setVibeCommentsLoading(false)
     }
@@ -373,7 +402,7 @@ export default function VibesPage() {
       setNewVibeCommentText('')
       setReplyToVibeCommentId(null)
     } catch (error) {
-      toast.error('Erro ao responder comentÃ¡rio')
+      toast.error('Erro ao responder comentário')
     }
   }
 
@@ -400,7 +429,7 @@ export default function VibesPage() {
           ? { ...comment, is_liked: target.is_liked, likes_count: target.likes_count }
           : comment
       ))
-      toast.error('Erro ao curtir comentÃ¡rio')
+      toast.error('Erro ao curtir comentário')
     }
   }
 
@@ -417,7 +446,7 @@ export default function VibesPage() {
   const handleSaveEditedComment = async (commentId: number) => {
     const nextText = editingCommentText.trim()
     if (!nextText) {
-      toast.error('ComentÃ¡rio nÃ£o pode ficar vazio')
+      toast.error('Comentário não pode ficar vazio')
       return
     }
     try {
@@ -427,14 +456,14 @@ export default function VibesPage() {
       )))
       setEditingCommentId(null)
       setEditingCommentText('')
-      toast.success('ComentÃ¡rio atualizado')
+      toast.success('Comentário atualizado')
     } catch {
-      toast.error('Erro ao atualizar comentÃ¡rio')
+      toast.error('Erro ao atualizar comentário')
     }
   }
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!window.confirm('Deseja excluir este comentÃ¡rio?')) return
+    if (!window.confirm('Deseja excluir este comentário?')) return
     try {
       await apiClient.deleteComment(commentId)
       const idsToRemove = new Set<number>()
@@ -462,9 +491,9 @@ export default function VibesPage() {
         setEditingCommentId(null)
         setEditingCommentText('')
       }
-      toast.success('ComentÃ¡rio excluÃ­do')
+      toast.success('Comentário excluído')
     } catch {
-      toast.error('Erro ao excluir comentÃ¡rio')
+      toast.error('Erro ao excluir comentário')
     }
   }
 
@@ -557,7 +586,7 @@ export default function VibesPage() {
           id: Number(item.id),
           userId: Number(item.other_user?.id),
           username: String(item.other_user?.username || ''),
-          fullName: String(item.other_user?.full_name || 'UsuÃ¡rio'),
+          fullName: String(item.other_user?.full_name || 'Usuário'),
           avatarUrl: resolveMediaUrl(item.other_user?.avatar_url),
         }))
         .filter((item: ConversationOption) => Number.isFinite(item.userId) && item.userId > 0)
@@ -608,7 +637,7 @@ export default function VibesPage() {
       ? `Compartilhado de @${sourceAuthor.username}`
       : sourceAuthor?.fullName
         ? `Compartilhado de ${sourceAuthor.fullName}`
-        : 'Compartilhado via â„¯ð“ð“â„´'
+        : 'Compartilhado via '
 
     const trimmed = caption.trim()
     return trimmed ? `${trimmed}\n\n${creditSource}` : creditSource
@@ -618,20 +647,20 @@ export default function VibesPage() {
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result || ''))
-      reader.onerror = () => reject(new Error('Falha ao converter mÃ­dia para base64'))
+      reader.onerror = () => reject(new Error('Falha ao converter mídia para base64'))
       reader.readAsDataURL(blob)
     })
   }
 
   const prepareShareMedia = async (context?: 'moment' | 'vibe' | 'story') => {
     if (!shareDraft) {
-      throw new Error('Compartilhamento invÃ¡lido')
+      throw new Error('Compartilhamento inválido')
     }
 
     const sourceUrl = resolveMediaUrl(shareDraft.mediaUrl)
     const response = await fetch(sourceUrl)
     if (!response.ok) {
-      throw new Error(`Falha ao obter mÃ­dia de origem (${response.status})`)
+      throw new Error(`Falha ao obter mídia de origem (${response.status})`)
     }
 
     const blob = await response.blob()
@@ -645,7 +674,7 @@ export default function VibesPage() {
     const uploadResponse = await apiClient.uploadFile(file, context)
     const uploadedUrl = resolveMediaUrl(uploadResponse?.data?.url)
     if (!uploadedUrl) {
-      throw new Error('Falha ao salvar mÃ­dia para compartilhamento')
+      throw new Error('Falha ao salvar mídia para compartilhamento')
     }
 
     return { uploadedUrl, blob, mediaType, filename: uploadFileName }
@@ -752,8 +781,8 @@ export default function VibesPage() {
 
     try {
       await navigator.share({
-        title: 'â„¯ð“ð“â„´',
-        text: shareCaptionDraft.trim() || 'Confira esta publicacao no â„¯ð“ð“â„´',
+        title: '',
+        text: shareCaptionDraft.trim() || 'Confira esta publicacao no ',
         url: shareDraft.mediaUrl,
       })
     } catch {
@@ -988,7 +1017,7 @@ export default function VibesPage() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <div>
-                <h3 className="text-white font-semibold">ComentÃ¡rios</h3>
+                <h3 className="text-white font-semibold">Comentários</h3>
                 <p className="text-xs text-gray-400">@{selectedVibeForComments.author?.username || 'user'}</p>
               </div>
               <button
@@ -1005,7 +1034,7 @@ export default function VibesPage() {
                   <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : vibeComments.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Nenhum comentÃ¡rio ainda.</p>
+                <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
               ) : (
                 <>
                   {vibeComments
@@ -1022,7 +1051,7 @@ export default function VibesPage() {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-xs text-gray-300">
-                                <span className="text-white font-semibold mr-1">{comment.author?.full_name || 'UsuÃ¡rio'}</span>
+                                <span className="text-white font-semibold mr-1">{comment.author?.full_name || 'Usuário'}</span>
                                 <span>@{comment.author?.username || 'user'}</span>
                               </div>
                               <p className="text-sm text-gray-200 break-words">{comment.text}</p>
@@ -1089,7 +1118,7 @@ export default function VibesPage() {
                                   />
                                   <div className="min-w-0">
                                     <div className="text-[11px] text-gray-400">
-                                      <span className="text-gray-200 font-semibold mr-1">{reply.author?.full_name || 'UsuÃ¡rio'}</span>
+                                      <span className="text-gray-200 font-semibold mr-1">{reply.author?.full_name || 'Usuário'}</span>
                                       <span>@{reply.author?.username || 'user'}</span>
                                     </div>
                                     {editingCommentId === reply.id ? (
@@ -1173,7 +1202,7 @@ export default function VibesPage() {
                 <input
                   value={newVibeCommentText}
                   onChange={(event) => setNewVibeCommentText(event.target.value)}
-                  placeholder={replyToVibeCommentId ? 'Responder comentÃ¡rio... use @usuario' : 'Escreva um comentÃ¡rio... use @usuario'}
+                  placeholder={replyToVibeCommentId ? 'Responder comentário... use @usuario' : 'Escreva um comentário... use @usuario'}
                   className="w-full h-10 bg-transparent px-2 text-sm text-white placeholder-gray-500 focus:outline-none"
                 />
               </div>
@@ -1188,7 +1217,7 @@ export default function VibesPage() {
               <button
                 onClick={replyToVibeCommentId ? submitReplyToVibeComment : submitVibeComment}
                 className="text-cyan-400 hover:text-cyan-300 transition"
-                title="Enviar comentÃ¡rio"
+                title="Enviar comentário"
               >
                 <Send size={18} />
               </button>

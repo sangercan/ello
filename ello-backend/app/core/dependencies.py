@@ -101,3 +101,15 @@ def get_optional_current_user(
         pass
 
     return db.query(User).filter(User.id == user_id).first()
+
+
+def get_current_panel_admin(
+    current_user: User = Depends(get_current_user),
+):
+    """Require an authenticated and active panel admin user."""
+    if not bool(current_user.is_panel_admin) or not bool(current_user.is_panel_active):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user

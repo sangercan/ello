@@ -442,7 +442,13 @@ def delete_conversation_for_user(db: Session, current_user_id: int, conversation
     if current_user_id not in [conversation.user1_id, conversation.user2_id]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db.query(Message).filter(Message.conversation_id == conversation.id).delete(synchronize_session=False)
+    message_ids = [
+        row.id for row in db.query(Message.id).filter(Message.conversation_id == conversation.id).all()
+    ]
+    if message_ids:
+        db.query(MessageReaction).filter(MessageReaction.message_id.in_(message_ids)).delete(synchronize_session=False)
+        db.query(Message).filter(Message.id.in_(message_ids)).delete(synchronize_session=False)
+
     db.delete(conversation)
     db.commit()
     return {"conversation_id": conversation_id}

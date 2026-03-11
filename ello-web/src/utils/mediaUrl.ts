@@ -62,5 +62,11 @@ export const resolveMediaUrl = (value?: string | null) => {
     return joinOriginAndPath(origin, raw)
   }
 
+  // If value looks like a bare filename (e.g. "stor.jpeg"), assume it lives under /uploads/
+  const bareFilenameMatch = /^([\w\-]+)\.([a-z0-9]{2,6})(\?.*)?$/i.exec(raw)
+  if (bareFilenameMatch) {
+    return joinOriginAndPath(origin, `/uploads/${raw}`)
+  }
+
   return joinOriginAndPath(origin, raw)
 }

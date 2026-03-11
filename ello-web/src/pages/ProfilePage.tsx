@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import type { User, Moment } from '@/types'
 import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Edit3, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+const PROFILE_CACHE_PREFIX = 'ello:cache:profile:v1:'
 
 interface EditFormData {
   full_name: string
@@ -40,9 +41,30 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isFollowLoading, setIsFollowLoading] = useState(false)
   const [selectedPost, setSelectedPost] = useState<Moment | null>(null)
+  const profileCacheKey = `${PROFILE_CACHE_PREFIX}${userId || 'me'}`
 
   useEffect(() => {
-    loadProfile()
+    let hasHydratedCache = false
+    try {
+      const rawCache = window.sessionStorage.getItem(profileCacheKey)
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        if (parsed?.user) {
+          setUser(parsed.user)
+          setFollowers(Number(parsed.followers || 0))
+          setFollowing(Number(parsed.following || 0))
+          setMoments(Array.isArray(parsed.moments) ? parsed.moments : [])
+          setVibes(Array.isArray(parsed.vibes) ? parsed.vibes : [])
+          setIsFollowing(Boolean(parsed.isFollowing))
+          setLoading(false)
+          hasHydratedCache = true
+        }
+      }
+    } catch {
+      // Ignore corrupted cache and keep network as source of truth.
+    }
+
+    void loadProfile({ background: hasHydratedCache })
   }, [userId, currentUser?.id])
 
   useEffect(() => {
@@ -96,23 +118,27 @@ export default function ProfilePage() {
       }
       let profileUser
       
-      // Se hÃ¡ um userId na URL, buscar esse usuÃ¡rio especÃ­fico
-      // SenÃ£o, buscar o usuÃ¡rio logado
+      // Se há um userId na URL, buscar esse usuário específico
+      // Senão, buscar o usuário logado
       if (userId && userId !== 'me') {
-        const response = await apiClient.getUser(userId)
-        profileUser = response.data
+        profileUser = await apiClient.getUser(userId)
       } else {
-        const response = await apiClient.getCurrentUser()
-        profileUser = response.data
+        profileUser = await apiClient.getCurrentUser()
       }
       
+      if (!profileUser) {
+        console.error('Perfil não encontrado para o ID solicitado:', userId ?? 'me')
+        toast.error('Usuário não encontrado')
+        return
+      }
+
       setUser(profileUser)
 
       // Load follower counts + user publications
       const [followersResponse, followingResponse, momentsResponse] = await Promise.all([
         apiClient.getFollowers(profileUser.id),
         apiClient.getFollowing(profileUser.id),
-        apiClient.getMoments(1, 200),
+        apiClient.getMoments(1, 80),
       ])
 
       setFollowers(followersResponse.data?.length || 0)
@@ -133,16 +159,35 @@ export default function ProfilePage() {
 
       // Check if current user is following this profile user
       if (userId && userId !== 'me' && currentUser && currentUser.id !== profileUser.id) {
-        try {
-          const currentUserFollowingResponse = await apiClient.getFollowing(currentUser.id)
-          const isFollowingThisUser = currentUserFollowingResponse.data?.some(
-            (user: any) => user.id === profileUser.id
-          )
-          setIsFollowing(isFollowingThisUser || false)
-        } catch (err) {
-          console.error('Erro ao verificar status de follow:', err)
-          setIsFollowing(false)
-        }
+        void (async () => {
+          try {
+            const currentUserFollowingResponse = await apiClient.getFollowing(currentUser.id)
+            const isFollowingThisUser = currentUserFollowingResponse.data?.some(
+              (user: any) => user.id === profileUser.id
+            )
+            setIsFollowing(isFollowingThisUser || false)
+          } catch (err) {
+            console.error('Erro ao verificar status de follow:', err)
+            setIsFollowing(false)
+          }
+        })()
+      }
+
+      try {
+        window.sessionStorage.setItem(
+          profileCacheKey,
+          JSON.stringify({
+            user: profileUser,
+            followers: followersResponse.data?.length || 0,
+            following: followingResponse.data?.length || 0,
+            moments: userPhotoMoments,
+            vibes: userVibes,
+            isFollowing,
+            ts: Date.now(),
+          })
+        )
+      } catch {
+        // Ignore storage quota errors.
       }
 
     } catch (error) {
@@ -167,10 +212,10 @@ export default function ProfilePage() {
       } else {
         await apiClient.followUser(user.id)
         setIsFollowing(true)
-        toast.success('Agora vocÃª segue')
+        toast.success('Agora você segue')
       }
       
-      // Recarregar os dados de followers/following apÃ³s a aÃ§Ã£o
+      // Recarregar os dados de followers/following após a ação
       const followersResponse = await apiClient.getFollowers(user.id)
       setFollowers(followersResponse.data?.length || 0)
       
@@ -180,8 +225,8 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error('Erro ao seguir:', error)
-      toast.error('Erro ao seguir usuÃ¡rio')
-      // Recarregar status em caso de erro tambÃ©m
+      toast.error('Erro ao seguir usuário')
+      // Recarregar status em caso de erro também
       loadProfile()
     } finally {
       setIsFollowLoading(false)
@@ -231,7 +276,7 @@ export default function ProfilePage() {
         category: editFormData.category,
       }
 
-      // Se hÃ¡ novo avatar (usando data URL por enquanto)
+      // Se há novo avatar (usando data URL por enquanto)
       if (avatarFile && avatarPreview) {
         updateData.avatar_url = avatarPreview
       }
@@ -282,12 +327,12 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center">
-        <p className="text-gray-400">Perfil nÃ£o encontrado</p>
+        <p className="text-gray-400">Perfil não encontrado</p>
       </div>
     )
   }
 
-  const isOwnProfile = currentUser?.id === user.id
+  const isOwnProfile = Boolean(user && currentUser?.id === user.id)
   const activeItems = activeTab === 'moments' ? moments : activeTab === 'vibes' ? vibes : []
 
   const closePostModal = () => setSelectedPost(null)
@@ -465,7 +510,7 @@ export default function ProfilePage() {
               }`}
             >
               <Music size={18} />
-              MÃºsica
+               Música
             </button>
             <button
               onClick={() => setActiveTab('salvos')}
@@ -502,13 +547,13 @@ export default function ProfilePage() {
                   : activeTab === 'vibes'
                   ? 'Nenhum vibe ainda'
                   : activeTab === 'musica'
-                  ? 'Nenhuma mÃºsica ainda'
-                  : 'Nenhum conteÃºdo salvo ainda'}
+                   ? 'Nenhuma música ainda'
+                   : 'Nenhum conteúdo salvo ainda'}
               </p>
               <p className="text-gray-500 text-sm">
                 {isOwnProfile
                   ? 'Comece a compartilhar seus momentos!'
-                  : 'Este usuÃ¡rio ainda nÃ£o compartilhou nada'}
+                   : 'Este usuário ainda não compartilhou nada'}
               </p>
             </div>
           ) : (
@@ -695,7 +740,7 @@ export default function ProfilePage() {
                 {/* Location */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    LocalizaÃ§Ã£o
+                    Localização
                   </label>
                   <input
                     type="text"
@@ -725,7 +770,7 @@ export default function ProfilePage() {
                 {/* Category */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Categoria/ProfissÃ£o
+                    Categoria/Profissão
                   </label>
                   <input
                     type="text"

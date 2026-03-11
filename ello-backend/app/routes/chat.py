@@ -352,9 +352,11 @@ async def send_audio(
 
         try:
             payload, extension = _compress_audio_bytes(audio_bytes)
-        except Exception:
-            payload = audio_bytes
-            extension = 'webm'
+        except Exception as compression_error:
+            return {
+                "error": f"Audio compression error: {str(compression_error)}",
+                "status": 422
+            }
 
         # Generate unique filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -674,9 +676,11 @@ async def send_media(
                 payload, extension = _compress_audio_bytes(media_bytes)
             else:
                 payload, extension = _compress_document_bytes(media_bytes, filename)
-        except Exception:
-            payload = media_bytes
-            extension = os.path.splitext(filename)[1].lstrip('.') or 'bin'
+        except Exception as compression_error:
+            return {
+                "error": f"Media compression error: {str(compression_error)}",
+                "status": 422
+            }
 
         # Create uploads directory based on media type
         folder_by_media_type = {

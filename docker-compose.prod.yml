@@ -33,6 +33,28 @@ services:
     networks:
       - ello_network
 
+  turn:
+    image: coturn/coturn:4.6.2
+    container_name: ello_turn
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "--log-file=stdout"
+      - "--simple-log"
+      - "--realm=${TURN_REALM:-ellosocial.com}"
+      - "--lt-cred-mech"
+      - "--user=${TURN_USER}:${TURN_PASS}"
+      - "--external-ip=${TURN_PUBLIC_IP}"
+      - "--relay-ip=${TURN_PUBLIC_IP}"
+      - "--listening-ip=0.0.0.0"
+      - "--fingerprint"
+      - "--no-cli"
+      - "--no-tls"
+      - "--no-dtls"
+      - "--listening-port=3478"
+      - "--min-port=49160"
+      - "--max-port=49200"
+
   backend:
     build:
       context: .
@@ -54,6 +76,9 @@ services:
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 1440
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      PUSH_NOTIFICATIONS_ENABLED: ${PUSH_NOTIFICATIONS_ENABLED:-true}
+      FIREBASE_CREDENTIALS_FILE: ${FIREBASE_CREDENTIALS_FILE:-}
+      FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -73,7 +98,12 @@ services:
       context: .
       dockerfile: ./ello-web/Dockerfile
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-}
+        VITE_STUN_URL: ${VITE_STUN_URL:-}
+        VITE_TURN_URL: ${VITE_TURN_URL:-}
+        VITE_TURN_USER: ${VITE_TURN_USER:-}
+        VITE_TURN_PASS: ${VITE_TURN_PASS:-}
     container_name: ello_frontend
     restart: unless-stopped
     depends_on:

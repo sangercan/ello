@@ -76,7 +76,7 @@ def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str
             f"{out_path}[Q={IMAGE_WEBP_QUALITY},strip]",
         ]
 
-        proc = subprocess.run(cmd, capture_output=True, check=False)
+        proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
         if proc.returncode != 0:
             stderr = proc.stderr.decode("utf-8", errors="ignore")
             raise RuntimeError(f"libvips thumbnail failed: {stderr[:500]}")
@@ -87,11 +87,7 @@ def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str
         if not compressed:
             raise RuntimeError("libvips produced empty output")
 
-        # Keep only if it is actually smaller.
-        if len(compressed) < len(file_bytes):
-            return compressed, "webp"
-
-        return file_bytes, os.path.splitext(in_path)[1].lstrip(".") or "bin"
+        return compressed, "webp"
     finally:
         for path in (in_path, out_path):
             try:
@@ -176,9 +172,6 @@ def _compress_video_bytes(file_bytes: bytes) -> tuple[bytes, str]:
         with open(out_path, "rb") as f:
             compressed = f.read()
 
-        if len(compressed) >= len(file_bytes):
-            return file_bytes, "mp4"
-
         return compressed, "mp4"
     finally:
         for path in (in_path, out_path):
@@ -262,9 +255,9 @@ def _normalize_video_to_canvas(file_bytes: bytes, target_width: int, target_heig
             "-c:v",
             "libx264",
             "-preset",
-            "medium",
+            "veryfast",
             "-crf",
-            "22",
+            "24",
             "-c:a",
             "aac",
             "-b:a",
@@ -274,7 +267,7 @@ def _normalize_video_to_canvas(file_bytes: bytes, target_width: int, target_heig
             out_path,
         ]
 
-        proc = subprocess.run(cmd, capture_output=True, check=False)
+        proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
         if proc.returncode != 0:
             stderr = proc.stderr.decode("utf-8", errors="ignore")
             raise RuntimeError(f"ffmpeg normalize failed: {stderr[:500]}")
@@ -303,9 +296,6 @@ def _compress_document_bytes(file_bytes: bytes, original_name: str) -> tuple[byt
         zf.writestr(entry_name, file_bytes)
 
     zipped = output.getvalue()
-    if len(zipped) >= len(file_bytes):
-        return file_bytes, os.path.splitext(entry_name)[1].lstrip(".") or "bin"
-
     return zipped, "zip"
 
 
@@ -350,10 +340,7 @@ def _compress_audio_bytes(file_bytes: bytes) -> tuple[bytes, str]:
         if not compressed:
             raise RuntimeError("ffmpeg audio transcode produced empty output")
 
-        if len(compressed) < len(file_bytes):
-            return compressed, "m4a"
-
-        return file_bytes, "m4a"
+        return compressed, "m4a"
     finally:
         for path in (in_path, out_path):
             try:
@@ -415,9 +402,8 @@ def upload_file(
             payload, extension = _compress_audio_bytes(file_bytes)
         else:
             payload, extension = _compress_document_bytes(file_bytes, file.filename)
-    except Exception:
-        payload = file_bytes
-        extension = os.path.splitext(file.filename)[1].lstrip(".") or "bin"
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Falha ao comprimir arquivo: {exc}") from exc
 
     unique_filename = os.path.splitext(unique_filename)[0] + f".{extension}"
 

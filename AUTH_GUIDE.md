@@ -1,60 +1,60 @@
-# 🔐 Guia de Autenticação - Ello Social
+# ???? Guia de Autentica????o - Ello Social
 
-## ✅ Problemas Resolvidos
+## ??? Problemas Resolvidos
 
 ### Erro: "Not authenticated"
 
-**Causa:** O token JWT não estava sendo enviado corretamente na requisição `/users/me`
+**Causa:** O token JWT n??o estava sendo enviado corretamente na requisi????o `/users/me`
 
-**Solução Implementada:**
-1. ✅ authStore agora gerencia tokens centralizadamente
-2. ✅ Token é armazenado em localStorage após registro/login
-3. ✅ Token é enviado em todos os requests no header `Authorization: Bearer <token>`
-4. ✅ Token é restaurado automaticamente ao recarregar a página
+**Solu????o Implementada:**
+1. ??? authStore agora gerencia tokens centralizadamente
+2. ??? Token ?? armazenado em localStorage ap??s registro/login
+3. ??? Token ?? enviado em todos os requests no header `Authorization: Bearer <token>`
+4. ??? Token ?? restaurado automaticamente ao recarregar a p??gina
 
-## 🔑 Fluxo de Autenticação
+## ???? Fluxo de Autentica????o
 
 ```
 1. REGISTRO (POST /auth/register)
-   ├─ Envia: { full_name, username, email, password }
-   ├─ Backend: Cria usuário, gera JWT
-   └─ Retorna: { access_token, token_type }
+   ?????? Envia: { full_name, username, email, password }
+   ?????? Backend: Cria usu??rio, gera JWT
+   ?????? Retorna: { access_token, token_type }
 
 2. ARMAZENAR TOKEN
-   ├─ Frontend: Salva token em localStorage (via Zustand persist)
-   ├─ Define header: Authorization: Bearer <token>
-   └─ Estado: { token, user, isAuthenticated: true }
+   ?????? Frontend: Salva token em localStorage (via Zustand persist)
+   ?????? Define header: Authorization: Bearer <token>
+   ?????? Estado: { token, user, isAuthenticated: true }
 
-3. OBTER DADOS DO USUÁRIO (GET /users/me)
-   ├─ Envia: Header { Authorization: Bearer <token> }
-   ├─ Backend: Valida token, busca usuário
-   └─ Retorna: { id, username, email, full_name, ... }
+3. OBTER DADOS DO USU??RIO (GET /users/me)
+   ?????? Envia: Header { Authorization: Bearer <token> }
+   ?????? Backend: Valida token, busca usu??rio
+   ?????? Retorna: { id, username, email, full_name, ... }
 
 4. REDIRECIONAR PARA DASHBOARD
-   └─ Se isAuthenticated === true → vai para /dashboard
+   ?????? Se isAuthenticated === true ??? vai para /dashboard
 ```
 
-## 🧪 Testando Autenticação
+## ???? Testando Autentica????o
 
-### 1. Registrar Novo Usuário
+### 1. Registrar Novo Usu??rio
 
 **Via Interface Web:**
 ```
 1. Acesse http://localhost:3000
 2. Clique "Get Started"
 3. Preencha:
-   - Nome: João Silva
-   - Usuário: joaosilva
+   - Nome: Jo??o Silva
+   - Usu??rio: joaosilva
    - Email: joao@example.com
    - Senha: senha123
 4. Clique "Cadastrar"
 ```
 
 **Resultado esperado:**
-- ✅ Usuário criado no PostgreSQL
-- ✅ JWT token retornado
-- ✅ Token armazenado em localStorage
-- ✅ Redireciona automaticamente para /dashboard
+- ??? Usu??rio criado no PostgreSQL
+- ??? JWT token retornado
+- ??? Token armazenado em localStorage
+- ??? Redireciona automaticamente para /dashboard
 
 ### 2. Verificar Token em localStorage
 
@@ -63,7 +63,7 @@
 // Abra o console (F12)
 JSON.parse(localStorage.getItem('auth-storage'))
 
-// Saída esperada:
+// Sa??da esperada:
 {
   "state": {
     "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
@@ -90,7 +90,7 @@ TOKEN=$(curl -s -X POST http://localhost:8000/auth/register \
 curl -X GET http://localhost:8000/users/me \
   -H "Authorization: Bearer $TOKEN"
 
-# Saída esperada:
+# Sa??da esperada:
 # {
 #   "id": 1,
 #   "username": "testuser",
@@ -100,12 +100,12 @@ curl -X GET http://localhost:8000/users/me \
 # }
 ```
 
-## 🔄 Token Refresh
+## ???? Token Refresh
 
-Quando o token expira (padrão: 1440 minutos = 24 horas):
+Quando o token expira (padr??o: 1440 minutos = 24 horas):
 
 ```javascript
-// Logout automático e pedido para re-autenticar
+// Logout autom??tico e pedido para re-autenticar
 const useAuthStore = create(...)
 
 // Catch 401 responses
@@ -121,7 +121,7 @@ api.interceptors.response.use(
 )
 ```
 
-## 🛡️ Segurança
+## ??????? Seguran??a
 
 ### Token JWT
 
@@ -130,7 +130,7 @@ api.interceptors.response.use(
 Header.Payload.Signature
 ```
 
-**Payload contém:**
+**Payload cont??m:**
 ```json
 {
   "user_id": 1,
@@ -139,11 +139,11 @@ Header.Payload.Signature
 }
 ```
 
-**Verificação:**
-- ✅ Assinado com `SECRET_KEY`
-- ✅ Validado em cada requisição
-- ✅ Expira após tempo configurado
-- ✅ Único por usuário
+**Verifica????o:**
+- ??? Assinado com `SECRET_KEY`
+- ??? Validado em cada requisi????o
+- ??? Expira ap??s tempo configurado
+- ??? ??nico por usu??rio
 
 ### Hashing de Senha
 
@@ -159,26 +159,26 @@ password_hash = hash_password(password)  # SHA256 + BCrypt
 verify_password("senha123", password_hash)  # True/False
 ```
 
-## 📋 Checklist de Autenticação
+## ???? Checklist de Autentica????o
 
 - [x] Endpoint POST /auth/register funcionando
 - [x] Endpoint POST /auth/login funcionando
 - [x] JWT token sendo gerado
 - [x] Token armazenado em localStorage
-- [x] Token enviado em requisições posteriores
+- [x] Token enviado em requisi????es posteriores
 - [x] Endpoint GET /users/me protegido
 - [x] Token validado no backend
-- [x] Usuário obtido do banco e retornado
+- [x] Usu??rio obtido do banco e retornado
 - [x] Logout remove token
-- [x] Page refresh restaura autenticação
+- [x] Page refresh restaura autentica????o
 
-## 🐛 Troubleshooting
+## ???? Troubleshooting
 
 ### Erro: "Invalid authentication credentials"
 
-**Causa:** Token inválido ou expirado
+**Causa:** Token inv??lido ou expirado
 
-**Solução:**
+**Solu????o:**
 ```javascript
 // Fazer novo login
 const { register } = useAuthStore()
@@ -192,27 +192,27 @@ await register({
 
 ### Erro: "User not found"
 
-**Causa:** Usuário foi deletado mas token ainda está no localStorage
+**Causa:** Usu??rio foi deletado mas token ainda est?? no localStorage
 
-**Solução:**
+**Solu????o:**
 ```javascript
 // Limpar localStorage
 localStorage.removeItem('auth-storage')
 // E fazer novo registro
 ```
 
-### Token não sendo enviado
+### Token n??o sendo enviado
 
-**Causa:** Header Authorization não está sendo adicionado
+**Causa:** Header Authorization n??o est?? sendo adicionado
 
-**Verificação:**
+**Verifica????o:**
 ```javascript
-// Abra DevTools → Network
-// Verifique se requests têm header:
+// Abra DevTools ??? Network
+// Verifique se requests t??m header:
 // Authorization: Bearer eyJ0eXAi...
 ```
 
-## 🔧 Configuração
+## ???? Configura????o
 
 ### Backend (.env)
 
@@ -235,10 +235,10 @@ server: {
 },
 ```
 
-## 📱 Exemplo de Fluxo Completo
+## ???? Exemplo de Fluxo Completo
 
 ```typescript
-// 1. Usuário preenche form e clica "Cadastrar"
+// 1. Usu??rio preenche form e clica "Cadastrar"
 const handleRegister = async (formData) => {
   const { register } = useAuthStore()
   await register({
@@ -247,7 +247,7 @@ const handleRegister = async (formData) => {
     email: formData.email,
     password: formData.password,
   })
-  // authStore automáticamente:
+  // authStore autom??ticamente:
   // - POST /auth/register
   // - Armazena token
   // - GET /users/me com token
@@ -255,7 +255,7 @@ const handleRegister = async (formData) => {
   // - Redireciona para /dashboard
 }
 
-// 2. Dashboard acessa dados do usuário
+// 2. Dashboard acessa dados do usu??rio
 function Dashboard() {
   const { user, isAuthenticated } = useAuthStore()
   
@@ -266,15 +266,15 @@ function Dashboard() {
   return <h1>Bem-vindo, {user?.full_name}!</h1>
 }
 
-// 3. Fazer requisição protegida
+// 3. Fazer requisi????o protegida
 async function fetchMoments() {
-  // Token é automaticamente adicionado ao header
+  // Token ?? automaticamente adicionado ao header
   const response = await api.get('/moments')
   return response.data
 }
 ```
 
-## 📞 Logs para Debug
+## ???? Logs para Debug
 
 ### Backend
 
@@ -288,16 +288,4 @@ docker compose logs backend -f | grep -E "auth|login|register|user"
 // Adicione logs ao authStore
 console.log('Register:', response.data)
 console.log('Token:', state.token)
-console.log('User:', state.user)
-```
-
-## ✨ Próximas Melhorias
-
-1. [ ] Implementar refresh token
-2. [ ] Email verification
-3. [ ] Two-factor authentication
-4. [ ] Social login (Google, GitHub)
-5. [ ] Password reset flow
-6. [ ] Session management
-7. [ ] Logout em todos os dispositivos
-8. [ ] Histórico de login
+console.log('User:', sta

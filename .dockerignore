@@ -1,0 +1,20 @@
+.git
+.gitignore
+.DS_Store
+.vs/
+.npm-cache/
+backups/
+ello_deploy.tar.gz
+
+# Frontend artifacts and local deps
+ello-web/node_modules/
+ello-web/dist/
+ello-web/.vite/
+ello-web/coverage/
+ello-web/.vscode/
+
+# Backend local/runtime artifacts that should not be in image build context
+ello-backend/uploads/
+ello-backend/.venv/
+ello-backend/.pytest_cache/
+ello-backend/.vs/

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-		<string>ℯ𝓁𝓁ℴ Social</string>
+        <string>Ello</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,15 +47,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Precisamos da camera para capturar fotos e videos no chat, moments e vibes.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Precisamos do microfone para gravar audio e enviar mensagens de voz.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Precisamos acessar sua galeria para selecionar imagens e videos para envio.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Precisamos salvar midias geradas pelo app na sua galeria quando solicitado.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Precisamos da sua localizacao para recursos de Nearby e compartilhamento de local.</string>
 </dict>
 </plist>

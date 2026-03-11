@@ -12,6 +12,8 @@ from app.core.middleware import AddDefaultOriginMiddleware
 from app.core.config import ALLOWED_ORIGINS, ALLOWED_METHODS, ALLOWED_HEADERS, DEBUG
 
 from app.database import Base, engine
+from app.database import SessionLocal
+from app.services.admin_service import ensure_default_panel_admin
 
 # Import models so SQLAlchemy knows about all table mappings before
 # calling create_all(). If models are not imported, metadata will be
@@ -74,7 +76,67 @@ def _ensure_geotag_columns_exist():
                 conn.execute(text("ALTER TABLE comments ADD COLUMN parent_comment_id INTEGER"))
 
 
+def _ensure_panel_admin_columns_exist():
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_panel_admin BOOLEAN DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_panel_active BOOLEAN DEFAULT FALSE"))
+            return
+
+        if dialect == "sqlite":
+            cols = {
+                row[1]
+                for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+            }
+            if "is_panel_admin" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_panel_admin BOOLEAN DEFAULT 0"))
+            if "is_panel_active" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_panel_active BOOLEAN DEFAULT 0"))
+
+
+def _ensure_group_columns():
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE groups ADD COLUMN IF NOT EXISTS creator_id INTEGER"))
+            conn.execute(text("ALTER TABLE groups ADD COLUMN IF NOT EXISTS image_url VARCHAR"))
+            conn.execute(text("ALTER TABLE group_members ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE"))
+        elif dialect == "sqlite":
+            cols_g = {row[1] for row in conn.execute(text("PRAGMA table_info(groups)")).fetchall()}
+            if "creator_id" not in cols_g:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN creator_id INTEGER"))
+            if "image_url" not in cols_g:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN image_url TEXT"))
+            cols_m = {row[1] for row in conn.execute(text("PRAGMA table_info(group_members)")).fetchall()}
+            if "is_admin" not in cols_m:
+                conn.execute(text("ALTER TABLE group_members ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+
+
+def _ensure_message_conversation_nullable():
+    """Allow group messages without mandatory conversation_id."""
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE messages ALTER COLUMN conversation_id DROP NOT NULL"))
+        # SQLite: alteração DROP NOT NULL é limitada; em dev assumimos tabela compatível.
+
+
 _ensure_geotag_columns_exist()
+_ensure_panel_admin_columns_exist()
+_ensure_message_conversation_nullable()
+try:
+    _ensure_group_columns()
+except NameError:
+    # hot-reload guard
+    pass
+
+try:
+    db = SessionLocal()
+    ensure_default_panel_admin(db)
+finally:
+    db.close()
 
 # ----------------------------------------------------------
 # CREATE APP
@@ -126,7 +188,10 @@ from app.routes.nearby import router as nearby_router
 from app.routes.calls import router as calls_router
 from app.routes.ws import router as ws_router
 from app.routes.upload import router as upload_router
+from app.routes.push import router as push_router
+from app.routes.groups import router as groups_router
 from app.routes import online
+from app.routes.admin import router as admin_router
 
 # ----------------------------------------------------------
 # STATIC FILES / UPLOADS
@@ -161,9 +226,12 @@ app.include_router(chat_router)
 app.include_router(notifications_router)
 app.include_router(nearby_router)
 app.include_router(calls_router)
+app.include_router(groups_router)
 app.include_router(ws_router)
 app.include_router(upload_router)
+app.include_router(push_router)
 app.include_router(online.router)
+app.include_router(admin_router)
 
 # ----------------------------------------------------------
 # ROOT / HEALTH CHECK

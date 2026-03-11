@@ -124,6 +124,25 @@ export default function NotificationsPage() {
     navigate(`/profile/${actorId}`)
   }
 
+  const handleNotificationClick = async (item: NotificationItem) => {
+    if (!item.is_read) {
+      await markAsRead(item.id)
+    }
+
+    if (item.type === 'message') {
+      const actorId = item.actor?.id || item.actor_id
+      if (actorId) {
+        navigate(`/chat/${actorId}`)
+      }
+      return
+    }
+
+    const actorId = item.actor?.id || item.actor_id
+    if (actorId) {
+      navigate(`/profile/${actorId}`)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="max-w-4xl mx-auto px-4 py-6">
@@ -158,7 +177,8 @@ export default function NotificationsPage() {
                     item.is_read
                       ? 'border-slate-800 bg-slate-900/35'
                       : 'border-primary/30 bg-primary/10'
-                  }`}
+                  } cursor-pointer`}
+                  onClick={() => handleNotificationClick(item)}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 shrink-0">
@@ -169,6 +189,7 @@ export default function NotificationsPage() {
                       <button
                         onClick={() => openActor(item)}
                         className="flex items-center gap-2 min-w-0 text-left"
+                        onClickCapture={(event) => event.stopPropagation()}
                       >
                         <img
                           src={resolveMediaUrl(item.actor?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.actor?.username || item.actor_id || item.id}`}

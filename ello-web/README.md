@@ -137,14 +137,29 @@ O projeto usa tema escuro (dark theme) com Tailwind CSS:
 
 ## 🔌 Variáveis de Ambiente
 
-Crie `.env.local`:
+Crie `.env.local` ou use variáveis de build no Docker.
+
+Exemplo mínimo para desenvolvimento (Vite já faz proxy de `/api` e `/ws` para `localhost:8000`):
 
 ```
-VITE_API_URL=http://localhost:8000
-VITE_MOBILE_API_URL=https://ellosocial.com/api
+# Base da API (em dev, usar "/api" mantém o proxy do Vite)
+VITE_API_URL=/api
+
+# Opcional: URL explícita de WebSocket (se precisar sobrescrever)
+# VITE_WS_URL=https://ellosocial.com/api
+
+# STUN/TURN (recomendado em produção para maior taxa de conexão P2P)
+# Múltiplos valores separados por vírgula
+# Ex.: VITE_STUN_URL=stun:stun.l.google.com:19302,stun:global.stun.twilio.com:3478
+VITE_STUN_URL=stun:stun.l.google.com:19302,stun:global.stun.twilio.com:3478
+
+# TURN (obrigatório para NATs restritivas)
+# VITE_TURN_URL=turns:turn.example.com:5349
+# VITE_TURN_USER=seu_usuario
+# VITE_TURN_PASS=sua_senha
 ```
 
-`VITE_MOBILE_API_URL` e obrigatoria para builds nativos (Android/iOS), pois no app mobile nao existe proxy `/api`.
+No Dockerfile de produção, estes `ARG/ENV` já estão suportados: `VITE_API_URL`, `VITE_WS_URL`, `VITE_STUN_URL`, `VITE_TURN_URL`, `VITE_TURN_USER`, `VITE_TURN_PASS`.
 
 ## 📦 Scripts Disponíveis
 
@@ -153,51 +168,7 @@ npm run dev       # Iniciar servidor de desenvolvimento
 npm run build     # Build para produção
 npm run preview   # Preview do build
 npm run lint      # Verificar linting
-npm run mobile:build  # Build + sync para Android/iOS (Capacitor)
-npm run mobile:sync   # Re-sincronizar projetos nativos
-npm run android:open  # Abrir projeto Android no Android Studio
-npm run ios:open      # Abrir projeto iOS no Xcode (macOS)
 ```
-
-## 📱 Publicação Mobile (Play Store / App Store)
-
-### Setup inicial
-
-```bash
-npm install
-npm run mobile:build
-```
-
-### Android (Windows/macOS/Linux)
-
-1. Instale Android Studio + SDK + JDK 17.
-2. Execute `npm run android:open`.
-3. No Android Studio, gere `Build > Generate Signed Bundle / APK`.
-4. Publique o `.aab` no Google Play Console.
-
-### iOS (apenas macOS)
-
-1. Em um Mac com Xcode, execute `npm run ios:open`.
-2. Configure Signing & Capabilities (Team/Bundle ID).
-3. Gere archive via `Product > Archive`.
-4. Envie para App Store Connect com o Organizer.
-
-## ☁️ Ionic Appflow
-
-Com sua conta Appflow ja criada, use este fluxo para CI/CD mobile:
-
-1. Conecte o repositorio no Appflow (GitHub/GitLab/Bitbucket).
-2. Defina variaveis de ambiente no Appflow:
-	- `VITE_MOBILE_API_URL=https://ellosocial.com/api`
-	- `VITE_API_URL=https://ellosocial.com/api` (opcional)
-3. Configure o comando de build web no Appflow:
-	- `npm ci && npm run mobile:build`
-4. Crie um build Android (AAB) no Appflow e publique no Play Console.
-5. Para iOS, rode build no Appflow com certificado/provisioning e publique no App Store Connect.
-
-Observacoes:
-- O projeto usa Capacitor (`android/` e `ios/` no repositorio).
-- Nao usar `VITE_API_URL=/api` para build mobile em nuvem; apps nativos precisam URL absoluta.
 
 ## 🐛 Debug
 

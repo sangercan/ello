@@ -131,6 +131,8 @@ def get_full_profile(db: Session, user_id: int, current_user_id: int = None):
         "category": user.category,
         "is_online": is_online_now,
         "is_visible_nearby": user.is_visible_nearby,
+        "is_panel_admin": bool(user.is_panel_admin),
+        "is_panel_active": bool(user.is_panel_active),
         "last_seen_at": None if is_online_now else last_seen_value,
         "last_activity_at": user.last_activity_at,
         "created_at": user.created_at,

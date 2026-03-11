@@ -19,6 +19,7 @@ import {
   Users,
   Waves,
 } from 'lucide-react'
+const DASHBOARD_CACHE_KEY = 'ello:cache:dashboard:v1'
 
 type ConversationPreview = {
   id: number
@@ -204,7 +205,28 @@ export default function DashboardPage() {
   }, [breathingRunning])
 
   useEffect(() => {
-    void loadDashboard()
+    let hasHydratedCache = false
+    try {
+      const rawCache = window.sessionStorage.getItem(DASHBOARD_CACHE_KEY)
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        if (parsed?.stats) {
+          setStats(parsed.stats)
+          setConversations(Array.isArray(parsed.conversations) ? parsed.conversations : [])
+          setNotifications(Array.isArray(parsed.notifications) ? parsed.notifications : [])
+          setMusicItems(Array.isArray(parsed.musicItems) ? parsed.musicItems : [])
+          if (parsed.weather) setWeather(parsed.weather)
+          if (parsed.insights) setInsights(parsed.insights)
+          if (Array.isArray(parsed.events)) setEvents(parsed.events)
+          setLoading(false)
+          hasHydratedCache = true
+        }
+      }
+    } catch {
+      // Ignore corrupted cache.
+    }
+
+    void loadDashboard(hasHydratedCache)
     void loadWeatherWidget()
     void loadEventsWidget()
     const realtimeTimer = window.setInterval(() => {
@@ -219,8 +241,8 @@ export default function DashboardPage() {
       if (!background) setLoading(true)
 
       const [momentsRes, vibesRes, conversationsRes, notificationsRes, musicRes] = await Promise.allSettled([
-        apiClient.getMoments(1, 50),
-        apiClient.getVibes(1, 50),
+        apiClient.getMoments(1, 12),
+        apiClient.getVibes(1, 12),
         apiClient.getConversations(1, 20),
         apiClient.getNotifications(1, 20),
         apiClient.getMusicFeed(1, 20),
@@ -242,7 +264,7 @@ export default function DashboardPage() {
         id: Number(conv.id),
         userId: Number(conv.other_user?.id),
         username: String(conv.other_user?.username || ''),
-        fullName: String(conv.other_user?.full_name || conv.other_user?.username || 'UsuÃ¡rio'),
+        fullName: String(conv.other_user?.full_name || conv.other_user?.username || 'Usuário'),
         avatarUrl: resolveMediaUrl(conv.other_user?.avatar_url),
         lastMessage: String(conv.last_message || ''),
         lastMessageTime: conv.last_message_time,
@@ -253,14 +275,14 @@ export default function DashboardPage() {
       const mappedNotifications: NotificationPreview[] = notificationsList.map((item: any) => ({
         id: Number(item.id),
         type: String(item.type || 'info'),
-        content: String(item.content || 'NotificaÃ§Ã£o'),
+        content: String(item.content || 'Notificação'),
         isRead: Boolean(item.is_read),
         createdAt: item.created_at,
       }))
 
       const mappedMusic: MusicPreview[] = musicList.slice(0, 6).map((item: any) => ({
         id: Number(item.id),
-        title: String(item.title || 'Sem tÃ­tulo'),
+        title: String(item.title || 'Sem título'),
         artist: String(item.artist || 'Artista Independente'),
         albumCover: item.album_cover || null,
         createdAt: item.created_at,
@@ -284,7 +306,31 @@ export default function DashboardPage() {
       const views = Number(latest?.views_count || (Number(latest?.likes_count || 0) + Number(latest?.comments_count || 0)))
       setInsights((prev) => ({ ...prev, lastPostViews: Number.isFinite(views) ? views : 0 }))
 
-      await loadRealtimeInsights()
+      void loadRealtimeInsights()
+
+      try {
+        window.sessionStorage.setItem(
+          DASHBOARD_CACHE_KEY,
+          JSON.stringify({
+            stats: {
+              momentsCount: extractTotal(momentsPayload, momentsList.length),
+              vibesCount: extractTotal(vibesPayload, vibesList.length),
+              unreadMessages: mappedConversations.reduce((acc, item) => acc + Number(item.unreadCount || 0), 0),
+              unreadNotifications: mappedNotifications.filter((item) => !item.isRead).length,
+              musicCount: extractTotal(musicPayload, musicList.length),
+            },
+            conversations: mappedConversations.slice(0, 6),
+            notifications: mappedNotifications.slice(0, 6),
+            musicItems: mappedMusic,
+            weather,
+            insights,
+            events,
+            ts: Date.now(),
+          })
+        )
+      } catch {
+        // Ignore storage quota errors.
+      }
 
       if (notificationsRes.status === 'rejected') {
         console.warn('[Dashboard] notificacoes indisponiveis neste momento')
@@ -409,7 +455,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-slate-400">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
               <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-white">
-                {greetingByHour()}, {user?.full_name?.split(' ')[0] || 'â„¯ð“ð“â„´'}
+                {greetingByHour()}, {user?.full_name?.split(' ')[0] || ''}
               </h1>
               <p className="mt-2 text-sm text-slate-300 max-w-2xl">
                 {weather ? `${weather.weatherLabel} em ${weather.city}, ${Math.round(weather.temperature)}Â°C. ` : ''}
@@ -477,7 +523,7 @@ export default function DashboardPage() {
             {weather ? (
               <div className="mt-3">
                 <p className="text-lg font-semibold text-white">{weather.weatherLabel}</p>
-                <p className="text-sm text-slate-300">{weather.city} â€¢ {Math.round(weather.temperature)}Â°C</p>
+                <p className="text-sm text-slate-300">{weather.city}  {Math.round(weather.temperature)}°C</p>
                 <p className="mt-2 text-xs text-slate-400">Sugestao: dia ideal para registrar um moment com sua vibe atual.</p>
               </div>
             ) : (

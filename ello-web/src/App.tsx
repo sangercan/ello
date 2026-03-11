@@ -1,61 +1,76 @@
-import { useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
-import apiClient from '@services/api'
-
-// Pages
-import LandingPage from './pages/LandingPage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import MomentsPage from './pages/MomentsPage'
-import VibesPage from './pages/VibesPage'
-import MusicPage from './pages/MusicPage'
-import ProfilePage from './pages/ProfilePage'
-import SettingsPage from './pages/SettingsPage'
-import NearbyPage from './pages/NearbyPage'
-import ChatPage from './pages/ChatPage'
-import ConversationsPage from './pages/ConversationsPage'
-import NotificationsPage from './pages/NotificationsPage'
+import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
+import api from '@services/api'
+import { registerNativePushDevice } from '@services/pushNotifications'
+import CallScreen from './components/CallScreen'
+import { useCallStore } from '@store/callStore'
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminProtectedRoute from './components/AdminProtectedRoute'
 import Navbar from './components/Navbar'
 import MusicDockPlayer from './components/MusicDockPlayer'
 
+type ImportFactory<T extends ComponentType<any>> = () => Promise<{ default: T }>
+type LazyWithPreload<T extends ComponentType<any>> = ReturnType<typeof lazy<T>> & {
+  preload: () => Promise<{ default: T }>
+}
+
+const lazyWithPreload = <T extends ComponentType<any>>(factory: ImportFactory<T>): LazyWithPreload<T> => {
+  const Component = lazy(factory) as LazyWithPreload<T>
+  Component.preload = factory
+  return Component
+}
+
+const LandingPage = lazyWithPreload(() => import('./pages/LandingPage'))
+const LoginPage = lazyWithPreload(() => import('./pages/LoginPage'))
+const RegisterPage = lazyWithPreload(() => import('./pages/RegisterPage'))
+const DashboardPage = lazyWithPreload(() => import('./pages/DashboardPage'))
+const MomentsPage = lazyWithPreload(() => import('./pages/MomentsPage'))
+const VibesPage = lazyWithPreload(() => import('./pages/VibesPage'))
+const MusicPage = lazyWithPreload(() => import('./pages/MusicPage'))
+const ProfilePage = lazyWithPreload(() => import('./pages/ProfilePage'))
+const SettingsPage = lazyWithPreload(() => import('./pages/SettingsPage'))
+const NearbyPage = lazyWithPreload(() => import('./pages/NearbyPage'))
+const ChatPage = lazyWithPreload(() => import('./pages/ChatPage'))
+const ConversationsPage = lazyWithPreload(() => import('./pages/ConversationsPage'))
+const GroupChatPage = lazyWithPreload(() => import('./pages/GroupChatPage'))
+const NotificationsPage = lazyWithPreload(() => import('./pages/NotificationsPage'))
+const AdminLoginPage = lazyWithPreload(() => import('./pages/AdminLoginPage'))
+const AdminPanelPage = lazyWithPreload(() => import('./pages/AdminPanelPage'))
+
+const preloadablePages = [
+  LandingPage,
+  LoginPage,
+  RegisterPage,
+  DashboardPage,
+  MomentsPage,
+  VibesPage,
+  MusicPage,
+  ProfilePage,
+  SettingsPage,
+  NearbyPage,
+  ChatPage,
+  ConversationsPage,
+  GroupChatPage,
+  NotificationsPage,
+  AdminLoginPage,
+  AdminPanelPage,
+]
+
 function App() {
-  const resolvedApiBase = (() => {
-    const configured = (import.meta.env.VITE_API_URL || '').trim()
-    const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
-    const isNative = Capacitor.getPlatform() !== 'web'
-    const isValidNativeApiUrl = (value: string) => {
-      if (!/^https:\/\//i.test(value)) return false
-      try {
-        const url = new URL(value)
-        const isIpHost = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname)
-        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || isIpHost) return false
-        return true
-      } catch {
-        return false
-      }
-    }
+  const resolvedApiBase = RESOLVED_API_BASE_URL
+  const configuredWsUrl = (import.meta.env.VITE_WS_URL || '').trim()
+  const wsOriginCandidate = configuredWsUrl || resolvedApiBase
 
-    if (isNative) {
-      if (isValidNativeApiUrl(mobileConfigured)) return mobileConfigured
-      if (isValidNativeApiUrl(configured)) return configured
-      return 'https://ellosocial.com/api'
-    }
-
-    if (!configured) return '/api'
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '/api'
-    return configured
-  })()
-
-  const { initialize, isAuthenticated, logout, user } = useAuthStore()
+  const { initialize, isAuthenticated, user } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const appWsRef = useRef<WebSocket | null>(null)
+  const chunksPreloadedRef = useRef(false)
+  const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall)
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -88,30 +103,14 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [isAuthenticated])
 
-  // Auto-disconnect after 20 minutes without interaction.
+  // Keep activity pings, but do not auto-hide/auto-logout on inactivity.
   useEffect(() => {
     if (!isAuthenticated || loading) return
 
-    const IDLE_LIMIT_MS = 20 * 60 * 1000
-    let idleTimer: ReturnType<typeof setTimeout> | null = null
     let lastActivityPing = 0
-
-    const resetIdleTimer = () => {
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = setTimeout(async () => {
-        try {
-          await apiClient.markOffline()
-        } catch (err) {
-          console.error('[App] Erro ao marcar offline por inatividade:', err)
-        } finally {
-          logout()
-        }
-      }, IDLE_LIMIT_MS)
-    }
 
     const onActivity = () => {
       const now = Date.now()
-      resetIdleTimer()
 
       // Throttle activity ping to backend to at most 1 call/minute.
       if (now - lastActivityPing > 60_000) {
@@ -127,15 +126,20 @@ function App() {
     document.addEventListener('visibilitychange', onActivity)
     window.addEventListener('focus', onActivity)
 
-    onActivity()
-
     return () => {
-      if (idleTimer) clearTimeout(idleTimer)
       events.forEach((evt) => window.removeEventListener(evt, onActivity))
       document.removeEventListener('visibilitychange', onActivity)
       window.removeEventListener('focus', onActivity)
     }
-  }, [isAuthenticated, loading, logout])
+  }, [isAuthenticated, loading])
+
+  useEffect(() => {
+    if (!isAuthenticated || loading) return
+
+    registerNativePushDevice().catch((error) => {
+      console.error('[App] Erro ao registrar push notifications:', error)
+    })
+  }, [isAuthenticated, loading])
 
   // Global WebSocket for realtime events across pages (moments/stories/chat/presence).
   useEffect(() => {
@@ -146,8 +150,8 @@ function App() {
     let shouldReconnect = true
 
     const buildWsUrl = (userId: number) => {
-      const base = resolvedApiBase
-      if (base.startsWith('http://') || base.startsWith('https://')) {
+      const base = (wsOriginCandidate || '').trim().replace(/\/+$/, '')
+      if (/^https?:\/\//i.test(base)) {
         const parsed = new URL(base)
         const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
         return `${wsProtocol}//${parsed.host}/ws/${userId}`
@@ -177,6 +181,14 @@ function App() {
           if (data.type === 'moment_created') {
             window.dispatchEvent(new CustomEvent('ello:ws:moment-created', { detail: data }))
             window.dispatchEvent(new CustomEvent('ello:moment-created'))
+          }
+
+          if (data.type === 'incoming_call') {
+            window.dispatchEvent(new CustomEvent('ello:ws:incoming-call', { detail: data }))
+          }
+
+          if (data.type === 'call_signal') {
+            window.dispatchEvent(new CustomEvent('ello:ws:call-signal', { detail: data }))
           }
 
           if (data.type === 'story_created') {
@@ -295,13 +307,55 @@ function App() {
       appWsRef.current = null
       ;(window as any).__elloAppWs = null
     }
-  }, [isAuthenticated, loading, user?.id, resolvedApiBase])
+  }, [isAuthenticated, loading, user?.id, wsOriginCandidate])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const handleIncomingCall = async (event: Event) => {
+      const custom = event as CustomEvent<any>
+      const data = custom.detail
+      if (!data) return
+
+      try {
+        const user = await api.getUser(data.from_user_id)
+      receiveIncomingCall({
+        callId: data.call_id,
+        callType: data.call_type,
+        user,
+      })
+      } catch (error) {
+        console.error('Erro ao carregar dados da chamada recebida:', error)
+      }
+    }
+
+    window.addEventListener('ello:ws:incoming-call', handleIncomingCall)
+    return () => window.removeEventListener('ello:ws:incoming-call', handleIncomingCall)
+  }, [isAuthenticated, receiveIncomingCall])
+
+  useEffect(() => {
+    if (loading || chunksPreloadedRef.current) return
+    chunksPreloadedRef.current = true
+
+    const preload = () => {
+      preloadablePages.forEach((page) => {
+        page.preload().catch(() => {})
+      })
+    }
+
+    if ('requestIdleCallback' in window) {
+      ;(window as any).requestIdleCallback(preload, { timeout: 2500 })
+    } else {
+      setTimeout(preload, 400)
+    }
+  }, [loading])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-primary mb-4">ℯ𝓁𝓁ℴ</h1>
+          <p className="text-xs text-slate-400 mb-3">Carregando...</p>
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
@@ -311,10 +365,12 @@ function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
+      {isAuthenticated && <CallScreen />}
       
       {isAuthenticated && <Navbar />}
       
-      <Routes>
+      <Suspense fallback={null}>
+        <Routes>
         {/* Landing Page - Multiple Routes */}
         <Route path="/" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
         <Route path="/home" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
@@ -324,6 +380,11 @@ function App() {
         <Route path="/login" element={isAuthenticated ? <Navigate to="/moments" /> : <LoginPage />} />
         <Route path="/register" element={isAuthenticated ? <Navigate to="/moments" /> : <RegisterPage />} />
 
+        {/* Admin Panel Routes */}
+        <Route path="/painel/login" element={<AdminLoginPage />} />
+        <Route path="/painel" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
+        <Route path="/painel/usuarios" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
+
         {/* Protected Routes */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/moments" element={<ProtectedRoute><MomentsPage /></ProtectedRoute>} />
@@ -332,6 +393,7 @@ function App() {
         <Route path="/nearby" element={<ProtectedRoute><NearbyPage /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
         <Route path="/chat/:recipientId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+        <Route path="/chat-group/:groupId" element={<ProtectedRoute><GroupChatPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/profile/:userId" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -339,7 +401,8 @@ function App() {
 
         {/* Redirect 404 */}
         <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+        </Routes>
+      </Suspense>
 
       {isAuthenticated && <MusicDockPlayer />}
     </BrowserRouter>

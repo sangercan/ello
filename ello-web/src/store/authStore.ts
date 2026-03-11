@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types'
 import apiClient from '@services/api'
+import { unregisterNativePushDevice } from '@services/pushNotifications'
 
 interface AuthStore {
   user: User | null
@@ -143,6 +144,9 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         // Mark user as offline and hide from nearby before logout
         console.log('[AuthStore] 👋 Logout - marcando como oculto e offline...')
+        unregisterNativePushDevice().catch(err => {
+          console.warn('[AuthStore] Erro ao remover push token:', err)
+        })
         apiClient.markOffline().catch(err => {
           console.error('[AuthStore] Erro ao marcar como offline:', err)
         })

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.notification import Notification
 from app.models.follow import Follow
 from app.models.user_block import UserBlock
+from app.services.push_service import send_push_for_notification
 
 
 DEFAULT_NOTIFICATION_MESSAGES = {
@@ -89,6 +90,17 @@ def create_notification(
     db.add(payload)
     db.commit()
     db.refresh(payload)
+    try:
+        send_push_for_notification(
+            db,
+            user_id=payload.user_id,
+            actor_id=payload.actor_id,
+            notif_type=payload.type,
+            message=payload.message,
+            reference_id=payload.reference_id,
+        )
+    except Exception:
+        pass
     return payload
 
 
@@ -155,6 +167,20 @@ def create_notifications_for_followers(
 
     db.add_all(to_create)
     db.commit()
+
+    for row in to_create:
+        try:
+            send_push_for_notification(
+                db,
+                user_id=row.user_id,
+                actor_id=row.actor_id,
+                notif_type=row.type,
+                message=row.message,
+                reference_id=row.reference_id,
+            )
+        except Exception:
+            pass
+
     return to_create
 
 

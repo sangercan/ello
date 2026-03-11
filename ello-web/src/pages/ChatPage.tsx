@@ -1,11 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
+import { resolveMediaUrl } from '@utils/mediaUrl'
+import { useCallStore } from '@store/callStore'
 import { toast } from 'react-hot-toast'
 // 🔒 ICON PATTERN LOCKED - Do not change Icon imports (Mic, FileText, Image, Video, MapPin, Smile, Send, Camera)
 import { Send, ArrowLeft, Phone, Video, MoreVertical, Paperclip, MapPin, Mic, Image, Smile, X, FileText, PlayCircle, Camera, Pencil, Trash2 } from 'lucide-react'
+import type { CallType } from '@/types/call'
+import type { User as AppUser } from '@/types'
+
+type ChatUser = AppUser & {
+  last_seen_at?: string
+}
 
 interface Message {
   id: number
@@ -29,15 +36,6 @@ interface Message {
   }
 }
 
-interface User {
-  id: number
-  username: string
-  avatar_url?: string
-  is_online?: boolean
-  last_seen_at?: string
-  full_name?: string
-}
-
 interface ForwardTarget {
   id: number
   username: string
@@ -46,41 +44,6 @@ interface ForwardTarget {
 }
 
 export default function ChatPage() {
-  const resolvedApiBase = (() => {
-    const configured = (import.meta.env.VITE_API_URL || '').trim()
-    const mobileConfigured = (import.meta.env.VITE_MOBILE_API_URL || '').trim()
-    const isNative = Capacitor.getPlatform() !== 'web'
-    const isValidNativeApiUrl = (value: string) => {
-      if (!/^https:\/\//i.test(value)) return false
-      try {
-        const url = new URL(value)
-        const isIpHost = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname)
-        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || isIpHost) return false
-        return true
-      } catch {
-        return false
-      }
-    }
-
-    if (isNative) {
-      if (isValidNativeApiUrl(mobileConfigured)) return mobileConfigured
-      if (isValidNativeApiUrl(configured)) return configured
-      return 'https://ellosocial.com/api'
-    }
-
-    if (!configured) return '/api'
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '/api'
-    return configured
-  })()
-
-  const apiBaseUrl = resolvedApiBase.replace(/\/$/, '')
-
-  const toApiUrl = (path?: string) => {
-    if (!path) return ''
-    if (path.startsWith('http://') || path.startsWith('https://')) return path
-    return `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
-  }
-
   const buildLocationPreviewUrl = (lat: number, lng: number) => {
     // Use embeddable map URL that does not require API keys.
     return `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`
@@ -93,7 +56,8 @@ export default function ChatPage() {
   const { recipientId } = useParams<{ recipientId: string }>()
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
-  const [recipientUser, setRecipientUser] = useState<User | null>(null)
+  const startOutgoingCall = useCallStore((state) => state.startOutgoingCall)
+  const [recipientUser, setRecipientUser] = useState<ChatUser | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -116,16 +80,22 @@ export default function ChatPage() {
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
   const [messageActionMenuId, setMessageActionMenuId] = useState<number | null>(null)
+  const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [editingMessageText, setEditingMessageText] = useState('')
-  const [forwardMessageId, setForwardMessageId] = useState<number | null>(null)
+  const [forwardMessageIds, setForwardMessageIds] = useState<number[]>([])
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<number>>(new Set())
   const [forwardTargets, setForwardTargets] = useState<ForwardTarget[]>([])
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false)
+  const [callLoading, setCallLoading] = useState<CallType | null>(null)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
+  const [isHeaderActionLoading, setIsHeaderActionLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const mediaInputRef = useRef<HTMLInputElement | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -136,6 +106,70 @@ export default function ChatPage() {
   const videoCameraRef = useRef<HTMLVideoElement | null>(null)
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!headerMenuOpen) return
+    const onDocClick = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (headerMenuRef.current?.contains(target)) return
+      setHeaderMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [headerMenuOpen])
+  const getMessageTimestamp = (message: Message) => {
+    if (!message?.created_at) return 0
+    const parsed = Date.parse(message.created_at)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  const sortMessagesChronologically = (messagesList: Message[]) => {
+    return [...messagesList].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b))
+  }
+  const dedupeMessages = (messagesList: Message[]) => {
+    const mapping = new Map<number, Message>()
+    for (const msg of messagesList) {
+      if (!msg || msg.id == null) continue
+      const key = Number(msg.id)
+      if (!Number.isFinite(key)) continue
+      mapping.set(key, msg)
+    }
+    return sortMessagesChronologically(Array.from(mapping.values()))
+  }
+  const appendUniqueMessages = (existing: Message[], incoming: Message[]) => {
+    if (incoming.length === 0) return sortMessagesChronologically(existing)
+    return dedupeMessages([...existing, ...incoming])
+  }
+  const prependUniqueMessages = (existing: Message[], incoming: Message[]) => {
+    if (incoming.length === 0) return sortMessagesChronologically(existing)
+    return dedupeMessages([...incoming, ...existing])
+  }
+  const appendMessageIfUnique = (message: Message) => {
+    const normalizedMessage: Message = {
+      ...message,
+      id: Number.isFinite(Number(message.id)) ? Number(message.id) : Date.now(),
+    }
+    setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
+  }
+
+  const resolveApiMessage = (responseData: any): Message => {
+    const payload = responseData?.message || responseData || {}
+    const canonicalId = Number.isFinite(Number(payload.id)) ? Number(payload.id) : Date.now()
+
+    return {
+      id: canonicalId,
+      sender_id: payload.sender_id ?? currentUser?.id ?? 0,
+      receiver_id: payload.receiver_id ?? parseInt(recipientId || '0', 10),
+      content: payload.content ?? messageInput,
+      created_at: payload.created_at ?? new Date().toISOString(),
+      is_read: Boolean(payload.is_read),
+      is_delivered: Boolean(payload.is_delivered),
+      media_url: payload.media_url,
+      audio_url: payload.audio_url,
+    }
+  }
+
+  void resolveApiMessage
 
   const formatLastSeen = (lastSeen?: string) => {
     if (!lastSeen) return 'Visto por ultimo recentemente'
@@ -189,9 +223,8 @@ export default function ChatPage() {
   const markMessagesAsRead = async (messageIds: number[]) => {
     if (messageIds.length === 0) return
     try {
-      for (const msgId of messageIds) {
-        await apiClient.markMessageAsRead(msgId)
-      }
+      const uniqueIds = Array.from(new Set(messageIds)).filter((id) => Number.isFinite(Number(id)))
+      await Promise.allSettled(uniqueIds.map((msgId) => apiClient.markMessageAsRead(msgId)))
     } catch (error) {
       console.error('Erro ao marcar mensagens como lidas:', error)
     }
@@ -220,7 +253,9 @@ export default function ChatPage() {
     }
   }
 
-  const handleOpenForwardModal = async (messageId: number) => {
+  const handleOpenForwardModal = async (messageIds: number[]) => {
+    const normalizedIds = Array.from(new Set(messageIds.filter((id) => Number.isFinite(Number(id)))))
+    if (normalizedIds.length === 0) return
     try {
       const response = await apiClient.getConversations(1, 100)
       const targets = (response.data?.data || [])
@@ -228,24 +263,132 @@ export default function ChatPage() {
         .filter((user: any) => user && user.id !== currentUser?.id)
 
       setForwardTargets(targets)
-      setForwardMessageId(messageId)
+      setForwardMessageIds(normalizedIds)
       setIsForwardModalOpen(true)
+      setMessageActionMenuId(null)
     } catch (error) {
       console.error('Erro ao carregar conversas para encaminhar:', error)
       toast.error('Erro ao carregar usuarios')
     }
   }
 
+  const toggleMessageSelection = (messageId: number) => {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(messageId)) next.delete(messageId)
+      else next.add(messageId)
+      return next
+    })
+  }
+
+  const getReplyLabel = () => {
+    if (!replyTo) return ''
+    if (replyTo.sender_id === currentUser?.id) return 'Você'
+    return recipientUser?.full_name || recipientUser?.username || `Usuário ${replyTo.sender_id}`
+  }
+
+  const splitReplyContent = (text?: string) => {
+    const content = text || ''
+    if (!content.startsWith('>> ')) return { header: null as string | null, body: content }
+    const idx = content.indexOf('\n')
+    if (idx === -1) return { header: content.slice(3).trim(), body: '' }
+    const header = content.slice(3, idx).trim()
+    const body = content.slice(idx + 1)
+    return { header, body }
+  }
+
   const handleForwardToUser = async (targetUserId: number) => {
-    if (!forwardMessageId) return
+    if (forwardMessageIds.length === 0) return
     try {
-      await apiClient.forwardMessage(forwardMessageId, targetUserId)
-      toast.success('Mensagem encaminhada')
+      for (const messageId of forwardMessageIds) {
+        await apiClient.forwardMessage(messageId, targetUserId)
+      }
+      toast.success(
+        forwardMessageIds.length > 1
+          ? `${forwardMessageIds.length} mensagens encaminhadas`
+          : 'Mensagem encaminhada'
+      )
       setIsForwardModalOpen(false)
-      setForwardMessageId(null)
+      setForwardMessageIds([])
+      setSelectedMessageIds(new Set())
     } catch (error) {
       console.error('Erro ao encaminhar mensagem:', error)
       toast.error('Erro ao encaminhar mensagem')
+    }
+  }
+
+  const closeForwardModal = () => {
+    setIsForwardModalOpen(false)
+    setForwardMessageIds([])
+  }
+
+  const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
+
+  const resolveConversationId = async () => {
+    const response = await apiClient.getConversations(1, 200)
+    const list = response.data?.data || []
+    const match = list.find((conv: any) => Number(conv.other_user?.id) === recipientNumericId)
+    return Number(match?.id || 0)
+  }
+
+  const handleDeleteCurrentConversation = async () => {
+    if (!recipientNumericId || isHeaderActionLoading) return
+    if (!window.confirm('Excluir esta conversa?')) return
+    setIsHeaderActionLoading(true)
+    try {
+      const conversationId = await resolveConversationId()
+      if (!conversationId) {
+        toast.error('Conversa não encontrada')
+        return
+      }
+      await apiClient.deleteConversation(conversationId)
+      toast.success('Conversa excluída')
+      navigate('/chat')
+    } catch (error) {
+      console.error('Erro ao excluir conversa:', error)
+      toast.error('Erro ao excluir conversa')
+    } finally {
+      setIsHeaderActionLoading(false)
+      setHeaderMenuOpen(false)
+    }
+  }
+
+  const handleBlockCurrentUser = async () => {
+    if (!recipientNumericId || isHeaderActionLoading) return
+    if (!window.confirm(`Bloquear ${recipientUser?.full_name || recipientUser?.username || 'este usuário'}?`)) return
+    setIsHeaderActionLoading(true)
+    try {
+      await apiClient.blockUser(recipientNumericId)
+      toast.success('Usuário bloqueado')
+      navigate('/chat')
+    } catch (error) {
+      console.error('Erro ao bloquear usuário:', error)
+      toast.error('Erro ao bloquear usuário')
+    } finally {
+      setIsHeaderActionLoading(false)
+      setHeaderMenuOpen(false)
+    }
+  }
+
+  const handleStartCall = async (callType: CallType) => {
+    if (!recipientUser || callLoading) return
+    setCallLoading(callType)
+    try {
+      const response = await apiClient.startCall(recipientUser.id, callType)
+      const callId = response.data?.id || Date.now()
+      const label = callType === 'video' ? 'vídeo' : 'voz'
+      toast.success(`Chamada de ${label} iniciada`)
+      startOutgoingCall({
+        callId,
+        callType,
+        user: recipientUser,
+      })
+    } catch (error: any) {
+      console.error('Erro ao iniciar chamada:', error)
+      const detail = error?.response?.data?.detail || 'Erro ao iniciar chamada'
+      toast.error(detail)
+    } finally {
+      setCallLoading(null)
     }
   }
 
@@ -258,7 +401,6 @@ export default function ChatPage() {
   }
 
   const handleOpenMessageActions = (message: Message) => {
-    if (message.sender_id !== currentUser?.id) return
     setMessageActionMenuId(prev => (prev === message.id ? null : message.id))
   }
 
@@ -328,14 +470,13 @@ export default function ChatPage() {
           return
         }
 
-        // Load recipient user info
-        const userResponse = await apiClient.getUser(recipientId)
-        setRecipientUser(userResponse.data)
-
-        // Load message history
-        const messagesResponse = await apiClient.getMessages(recipientId, 1, 50)
+        const [userData, messagesResponse] = await Promise.all([
+          apiClient.getUser(recipientId),
+          apiClient.getMessages(recipientId, 1, 50),
+        ])
+        setRecipientUser(userData)
         const loadedMessages = messagesResponse.data?.data || messagesResponse.data || []
-        setMessages(loadedMessages)
+        setMessages(dedupeMessages(loadedMessages))
 
         // Scroll to bottom after messages load
         setTimeout(() => scrollToBottom(), 100)
@@ -346,7 +487,7 @@ export default function ChatPage() {
           .map((msg: Message) => msg.id)
         
         if (unreadMessageIds.length > 0) {
-          await markMessagesAsRead(unreadMessageIds)
+          void markMessagesAsRead(unreadMessageIds)
         }
       } catch (error) {
         console.error('Erro ao carregar chat:', error)
@@ -360,8 +501,6 @@ export default function ChatPage() {
   // Realtime updates from global websocket (created in App.tsx).
   useEffect(() => {
     if (!recipientId || !currentUser) return
-
-    const recipientNumericId = Number(recipientId)
 
     const handleRealtimeMessage = (event: Event) => {
       const custom = event as CustomEvent<any>
@@ -392,10 +531,7 @@ export default function ChatPage() {
         audio_url: message.audio_url,
       }
 
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === normalizedMessage.id)) return prev
-        return [...prev, normalizedMessage]
-      })
+      setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
 
       if (!isNearBottom) {
         setNewMessagesCount((prev) => prev + 1)
@@ -436,8 +572,8 @@ export default function ChatPage() {
 
       if (!isRecipientOnline) {
         try {
-          const userResponse = await apiClient.getUser(recipientId)
-          setRecipientUser(userResponse.data)
+          const userData = await apiClient.getUser(recipientId)
+          setRecipientUser(userData)
         } catch {
           // Ignore fallback fetch failure.
         }
@@ -501,7 +637,7 @@ export default function ChatPage() {
           
           if (olderMessages.length > 0) {
             // Add older messages to the beginning
-            setMessages(prev => [...olderMessages, ...prev])
+            setMessages(prev => prependUniqueMessages(prev, olderMessages))
             setCurrentPage(nextPage)
           }
         } catch (error) {
@@ -529,13 +665,16 @@ export default function ChatPage() {
   }, [expandedImage])
 
   const handleSendMessage = async () => {
+    const replyPrefix = replyTo ? `>> ${getReplyLabel()}: ${replyTo.content}\n` : ''
+
     // Se há mídia pendente, enviar junto com a legenda
     if (pendingMedia && pendingMedia.length > 0) {
       if (!recipientId || isSending) return
 
       try {
         setIsSending(true)
-        const caption = messageInput.trim()
+        const captionBase = messageInput.trim()
+        const caption = replyTo ? `${replyPrefix}${captionBase}`.trim() : captionBase
         
         // Enviar cada arquivo com a legenda
         for (const { file, type } of pendingMedia) {
@@ -569,7 +708,7 @@ export default function ChatPage() {
                     audio_url: response.data.message.audio_url
                   }
                   
-                  setMessages(prev => [...prev, mediaMessage])
+                  appendMessageIfUnique(mediaMessage)
                   
                 } else {
                   toast.error('Resposta inválida do servidor')
@@ -587,6 +726,7 @@ export default function ChatPage() {
 
         // Limpar estados após envio
         setMessageInput('')
+        setReplyTo(null)
         setMediaPreview(null)
         setPendingMedia(null)
         toast.success('Arquivo(s) enviado(s)!')
@@ -605,21 +745,27 @@ export default function ChatPage() {
 
     try {
       setIsSending(true)
-      const response = await apiClient.sendMessage(recipientId, messageInput)
+      const outgoingText = replyTo ? `${replyPrefix}${messageInput}` : messageInput
+      const response = await apiClient.sendMessage(recipientId, outgoingText)
 
-      // Add message to list
-      const newMessage: Message = {
-        id: response.data?.id || Date.now(),
-        sender_id: currentUser?.id || 0,
-        receiver_id: parseInt(recipientId),
-        content: messageInput,
-        created_at: response.data?.created_at || new Date().toISOString(),
-        is_read: false,
-        is_delivered: true
+      const serverMessage = response?.data
+      // Só faz render otimista se o servidor devolveu ID válido (evita duplicação com o WS).
+      if (serverMessage?.id) {
+        appendMessageIfUnique({
+          id: Number(serverMessage.id),
+          sender_id: currentUser?.id || 0,
+          receiver_id: parseInt(recipientId),
+          content: serverMessage.content ?? outgoingText,
+          created_at: serverMessage.created_at || new Date().toISOString(),
+          is_read: Boolean(serverMessage.is_read),
+          is_delivered: Boolean(serverMessage.is_delivered ?? true),
+          media_url: serverMessage.media_url,
+          audio_url: serverMessage.audio_url,
+        })
       }
 
-      setMessages(prev => [...prev, newMessage])
       setMessageInput('')
+      setReplyTo(null)
 
       toast.success('Mensagem enviada!')
     } catch (error) {
@@ -730,9 +876,9 @@ export default function ChatPage() {
                   is_delivered: true
                 }
                 
-                setMessages(prev => [...prev, audioMessage])
+                appendMessageIfUnique(audioMessage)
                 
-                toast.success('🎤 Áudio enviado!')
+                toast.success('Áudio enviado!')
               }
             } catch (error) {
               console.error('Erro ao enviar áudio:', error)
@@ -781,7 +927,7 @@ export default function ChatPage() {
       }
       
       analyzeAudio()
-      toast.success('🎤 Gravando...')
+      toast.success('Gravando áudio...')
     } catch (error: any) {
       console.error('Erro ao acessar microfone:', error)
       if (error.name === 'NotAllowedError') {
@@ -962,7 +1108,7 @@ export default function ChatPage() {
               is_delivered: true
             }
             
-            setMessages(prev => [...prev, locationMessage])
+            appendMessageIfUnique(locationMessage)
             toast.success('Localização compartilhada!')
           }
         } catch (error) {
@@ -991,8 +1137,8 @@ export default function ChatPage() {
       setIsCameraOpen(true)
       setShowMediaMenu(false)
     } catch (error) {
-      console.error('Erro ao acessar câmera:', error)
-      toast.error('❌ Não foi possível acessar a câmera')
+      console.error('Erro ao acessar cmera:', error)
+      toast.error(' No foi possvel acessar a cmera')
     }
   }
 
@@ -1098,15 +1244,59 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          <button className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200 hidden sm:block">
-            <Phone size={20} strokeWidth={1.5} />
+          <button
+            onClick={() => handleStartCall('voice')}
+            disabled={Boolean(callLoading)}
+            aria-label="Iniciar chamada de voz"
+            title="Chamada de voz"
+            className={`p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200 disabled:text-gray-500 disabled:hover:bg-slate-900 ${callLoading === 'voice' ? 'text-primary' : ''}`}
+          >
+            {callLoading === 'voice' ? (
+              <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-flex" />
+            ) : (
+              <Phone size={20} strokeWidth={1.5} />
+            )}
           </button>
-          <button className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200 hidden sm:block">
-            <Video size={20} strokeWidth={1.5} />
+          <button
+            onClick={() => handleStartCall('video')}
+            disabled={Boolean(callLoading)}
+            aria-label="Iniciar chamada de vídeo"
+            title="Chamada de vídeo"
+            className={`p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200 disabled:text-gray-500 disabled:hover:bg-slate-900 ${callLoading === 'video' ? 'text-primary' : ''}`}
+          >
+            {callLoading === 'video' ? (
+              <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-flex" />
+            ) : (
+              <Video size={20} strokeWidth={1.5} />
+            )}
           </button>
-          <button className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200">
-            <MoreVertical size={20} strokeWidth={1.5} />
-          </button>
+          <div ref={headerMenuRef} className="relative">
+            <button
+              onClick={() => setHeaderMenuOpen((prev) => !prev)}
+              className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200"
+            >
+              <MoreVertical size={20} strokeWidth={1.5} />
+            </button>
+            {headerMenuOpen && (
+              <div className="absolute right-0 mt-1 min-w-[180px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                <button
+                  onClick={handleDeleteCurrentConversation}
+                  disabled={isHeaderActionLoading}
+                  className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-2 disabled:opacity-60"
+                >
+                  <Trash2 size={13} />
+                  Excluir conversa
+                </button>
+                <button
+                  onClick={handleBlockCurrentUser}
+                  disabled={isHeaderActionLoading}
+                  className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition disabled:opacity-60"
+                >
+                  Bloquear usuário
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1128,22 +1318,27 @@ export default function ChatPage() {
 
         {messages.map((message) => {
           // Detectar tipo de conteúdo
-          const contentLower = message.content?.toLowerCase() || ''
+          const cleanContent = (message.content || '').trim()
+          const contentLower = cleanContent.toLowerCase()
           const mediaUrlRaw = message.media_url || ''
           const mediaUrlLower = mediaUrlRaw.toLowerCase().split('?')[0].split('#')[0]
-          const hasMedia = Boolean(message.media_url)
           const imageByExtension = /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/.test(mediaUrlLower)
           const videoByExtension = /\.(mp4|mov|avi|mkv|webm|m4v|3gp|m3u8)$/.test(mediaUrlLower)
           const documentByExtension = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip)$/.test(mediaUrlLower)
 
-          const isImage = Boolean(hasMedia && (imageByExtension || contentLower.includes('image:') || message.content?.startsWith('🖼️')))
-          const isVideo = Boolean(hasMedia && (videoByExtension || contentLower.includes('video:') || message.content?.startsWith('🎥')))
-          const isDocument = Boolean(hasMedia && !isImage && !isVideo && (documentByExtension || contentLower.includes('document:') || message.content?.startsWith('📄')))
+          const contentImageExt = /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/.test(contentLower)
+          const contentVideoExt = /\.(mp4|mov|avi|mkv|webm|m4v|3gp|m3u8)$/.test(contentLower)
+          const contentDocExt = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip)$/.test(contentLower)
+
+          const isImage = Boolean(imageByExtension || contentImageExt || contentLower.includes('image:') || message.content?.startsWith('🖼️'))
+          const isVideo = Boolean(videoByExtension || contentVideoExt || contentLower.includes('video:') || message.content?.startsWith('🎥'))
+          const isDocument = Boolean((documentByExtension || contentDocExt || contentLower.includes('document:') || message.content?.startsWith('📄')) && !isImage && !isVideo)
           const isAudio = message.audio_url && !isImage && !isVideo
           const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(message.content || '') || /Compartilhar Localiza[cç][aã]o/i.test(message.content || '')
           const isVisualMessage = isImage || isVideo || isLocation || Boolean(isAudio)
-          const looksLikeAutoMediaLabel = /^📎\s*(image|video|document):/i.test((message.content || '').trim())
-          const shouldRenderCaption = Boolean(message.content?.trim()) && !isLocation && !looksLikeAutoMediaLabel
+          const looksLikeAutoMediaLabel = /^📎\s*(image|video|document):/i.test(cleanContent)
+          const looksLikeAutoAudioLabel = /^🎤\s*Áudio/i.test(cleanContent)
+          const shouldRenderCaption = Boolean(cleanContent) && !isLocation && !looksLikeAutoMediaLabel && !looksLikeAutoAudioLabel
           const isOwnMessage = message.sender_id === currentUser?.id
           const canEditThisMessage = isOwnMessage && canEditMessage(message)
           const isEditingThisMessage = editingMessageId === message.id
@@ -1168,7 +1363,7 @@ export default function ChatPage() {
                   {/* 🔒 ICON LOCKED - Do not change */}
                   <Mic size={20} className="flex-shrink-0 text-purple-400" />
                   <audio
-                    src={toApiUrl(message.audio_url)}
+                    src={resolveMediaUrl(message.audio_url)}
                     controls
                     className="flex-1 h-8 accent-purple-600"
                   />
@@ -1176,21 +1371,21 @@ export default function ChatPage() {
               )}
 
               {/* Imagem */}
-              {isImage && message.media_url && (
+              {isImage && (
                 <img
-                  src={toApiUrl(message.media_url)}
+                  src={resolveMediaUrl(message.media_url || message.content)}
                   alt="imagem"
                   className="w-48 h-auto rounded-lg mb-2 cursor-pointer hover:opacity-80 transition"
                   onClick={() => {
-                    const imageUrl = toApiUrl(message.media_url)
+                    const imageUrl = resolveMediaUrl(message.media_url || message.content)
                     setExpandedImage(imageUrl)
                     // Extrair todas as imagens das mensagens para navegação
                     const allImageUrls = messages
                       .filter(msg => {
                         const contentLower = msg.content?.toLowerCase() || ''
-                        return msg.media_url && (contentLower.includes('image:') || msg.content?.startsWith('🖼️') || contentLower.includes('.jpg') || contentLower.includes('.jpeg') || contentLower.includes('.png') || contentLower.includes('.gif'))
+                        return (msg.media_url || contentLower.includes('.jpg') || contentLower.includes('.jpeg') || contentLower.includes('.png') || contentLower.includes('.gif'))
                       })
-                      .map(msg => toApiUrl(msg.media_url))
+                      .map(msg => resolveMediaUrl(msg.media_url || msg.content))
                     setAllImages(allImageUrls)
                     setExpandedImageIndex(allImageUrls.indexOf(imageUrl))
                   }}
@@ -1198,21 +1393,21 @@ export default function ChatPage() {
               )}
 
               {/* Vídeo */}
-              {isVideo && message.media_url && (
+              {isVideo && (
                 <video
-                  src={toApiUrl(message.media_url)}
+                  src={resolveMediaUrl(message.media_url || message.content)}
                   controls
                   className="w-48 h-auto rounded-lg mb-2"
                 />
               )}
 
               {/* Documento */}
-              {isDocument && message.media_url && (
+              {isDocument && (
                 <div className="mb-2 flex items-center gap-2 bg-white/10 p-3 rounded-lg border border-white/20">
                   {/* 🔒 ICON LOCKED - Do not change */}
                   <FileText size={20} className="flex-shrink-0 text-blue-400" />
-                  <a
-                    href={toApiUrl(message.media_url)}
+                    <a
+                    href={resolveMediaUrl(message.media_url || message.content)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:opacity-80 truncate flex-1 text-sm"
@@ -1306,7 +1501,19 @@ export default function ChatPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="break-words">{message.content}</p>
+                  (() => {
+                    const { header, body } = splitReplyContent(message.content)
+                    return (
+                      <>
+                        {header && (
+                          <div className={`mb-1 text-xs ${isOwnMessage ? 'text-blue-100' : 'text-gray-400'} font-semibold`}>
+                            {header}
+                          </div>
+                        )}
+                        <p className="break-words">{body || message.content}</p>
+                      </>
+                    )
+                  })()
                 )
               )}
 
@@ -1336,39 +1543,68 @@ export default function ChatPage() {
 
               {/* Acoes da mensagem */}
               <div className={`flex items-center gap-2 mt-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                <button
-                  onClick={() => setReactionPickerMessageId(
-                    reactionPickerMessageId === message.id ? null : message.id
-                  )}
-                  className="text-xs text-gray-300 hover:text-white transition"
-                >
-                  Reagir
-                </button>
-                <button
-                  onClick={() => handleOpenForwardModal(message.id)}
-                  className="text-xs text-gray-300 hover:text-white transition"
-                >
-                  Compartilhar
-                </button>
-                {isOwnMessage && (
-                  <div className="relative">
-                    <button
-                      onClick={() => handleOpenMessageActions(message)}
-                      className="text-xs text-gray-300 hover:text-white transition"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-                    {messageActionMenuId === message.id && (
-                      <div className="absolute right-0 mt-1 min-w-[130px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20">
-                        {canEditThisMessage && (
-                          <button
-                            onClick={() => handleStartEditMessage(message)}
-                            className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition inline-flex items-center gap-2"
-                          >
-                            <Pencil size={13} />
-                            Editar
-                          </button>
-                        )}
+                {selectedMessageIds.has(message.id) && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/25 border border-primary/40 text-primary">
+                    Selecionada
+                  </span>
+                )}
+                <div className="relative">
+                  <button
+                    onClick={() => handleOpenMessageActions(message)}
+                    className="text-xs text-gray-300 hover:text-white transition"
+                  >
+                    <MoreVertical size={14} />
+                  </button>
+                  {messageActionMenuId === message.id && (
+                    <div className={`absolute ${isOwnMessage ? 'right-0' : 'left-0'} mt-1 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20`}>
+                      <button
+                        onClick={() => {
+                          setReactionPickerMessageId(
+                            reactionPickerMessageId === message.id ? null : message.id
+                          )
+                          setMessageActionMenuId(null)
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition"
+                      >
+                        Reagir
+                      </button>
+                      <button
+                        onClick={() => {
+                          setReplyTo(message)
+                          setMessageActionMenuId(null)
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition"
+                      >
+                        Responder
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMessageActionMenuId(null)
+                          handleOpenForwardModal([message.id])
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition"
+                      >
+                        Compartilhar
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleMessageSelection(message.id)
+                          setMessageActionMenuId(null)
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition"
+                      >
+                        {selectedMessageIds.has(message.id) ? 'Remover seleção' : 'Selecionar'}
+                      </button>
+                      {isOwnMessage && canEditThisMessage && (
+                        <button
+                          onClick={() => handleStartEditMessage(message)}
+                          className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition inline-flex items-center gap-2"
+                        >
+                          <Pencil size={13} />
+                          Editar
+                        </button>
+                      )}
+                      {isOwnMessage && (
                         <button
                           onClick={() => handleDeleteMessage(message.id)}
                           className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-2"
@@ -1376,10 +1612,10 @@ export default function ChatPage() {
                           <Trash2 size={13} />
                           Excluir
                         </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {reactionPickerMessageId === message.id && (
@@ -1440,6 +1676,28 @@ export default function ChatPage() {
             >
               <span>↓ {newMessagesCount} mensagem{newMessagesCount > 1 ? 's' : ''} nova{newMessagesCount > 1 ? 's' : ''}</span>
             </button>
+          </div>
+        )}
+
+        {selectedMessageIds.size > 0 && (
+          <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-40">
+            <div className="bg-slate-900/95 border border-slate-700 rounded-full shadow-xl px-3 py-2 flex items-center gap-2">
+              <span className="text-xs text-gray-200">
+                {selectedMessageIds.size} selecionada{selectedMessageIds.size > 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={() => handleOpenForwardModal(Array.from(selectedMessageIds))}
+                className="text-xs px-3 py-1 rounded-full bg-primary text-white hover:bg-primary/85 transition"
+              >
+                Compartilhar
+              </button>
+              <button
+                onClick={() => setSelectedMessageIds(new Set())}
+                className="text-xs px-3 py-1 rounded-full bg-slate-700 text-gray-200 hover:bg-slate-600 transition"
+              >
+                Limpar
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1515,7 +1773,7 @@ export default function ChatPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-md w-full border border-slate-700/50 shadow-2xl">
             <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
-              <h2 className="text-white font-semibold">Câmera</h2>
+              <h2 className="text-white font-semibold">Cmera</h2>
               <button
                 onClick={handleCloseCamera}
                 className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-red-400"
@@ -1559,9 +1817,11 @@ export default function ChatPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-md max-h-[80vh] overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-              <h3 className="text-white font-semibold">Compartilhar mensagem</h3>
+              <h3 className="text-white font-semibold">
+                Compartilhar {forwardMessageIds.length > 1 ? `${forwardMessageIds.length} mensagens` : 'mensagem'}
+              </h3>
               <button
-                onClick={() => setIsForwardModalOpen(false)}
+                onClick={closeForwardModal}
                 className="text-gray-400 hover:text-white"
               >
                 <X size={18} />
@@ -1596,6 +1856,16 @@ export default function ChatPage() {
 
       {/* Message Input */}
       <div className="p-3 sm:p-4 bg-slate-900/50 border-t border-slate-700/50 flex-shrink-0">
+        {replyTo && (
+          <div className="mb-2 p-2 bg-slate-800/70 rounded-lg text-xs text-gray-300 flex items-center justify-between">
+            <span>
+              Respondendo a {getReplyLabel()}
+            </span>
+            <button onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-white">
+              <X size={14} />
+            </button>
+          </div>
+        )}
         {/* Inline Media Preview - Below Input */}
         {mediaPreview && mediaPreview.length > 0 && (
           <div className="mb-3 p-2 bg-slate-800/50 rounded-lg border border-slate-700 flex gap-2 overflow-x-auto">
@@ -1805,7 +2075,7 @@ export default function ChatPage() {
                     handleOpenCamera()
                   }}
                   className="px-4 py-3 text-left text-gray-300 hover:bg-slate-700 hover:text-white flex items-center justify-center gap-3 text-sm transition border-b border-slate-700/50 hover:scale-110 duration-200"
-                  title="Câmera"
+                  title="Cmera"
                 >
                   <Camera size={20} strokeWidth={1.5} />
                 </button>

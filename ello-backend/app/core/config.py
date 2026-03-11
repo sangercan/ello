@@ -32,6 +32,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(
 )
 
 # ----------------------------------------------------------
+# PUSH NOTIFICATIONS
+# ----------------------------------------------------------
+
+PUSH_NOTIFICATIONS_ENABLED = os.getenv("PUSH_NOTIFICATIONS_ENABLED", "true").lower() in {"1", "true", "yes"}
+FIREBASE_CREDENTIALS_FILE = os.getenv("FIREBASE_CREDENTIALS_FILE", "").strip()
+FIREBASE_CREDENTIALS_JSON = os.getenv("FIREBASE_CREDENTIALS_JSON", "").strip()
+
+# ----------------------------------------------------------
 # ENVIRONMENT
 # ----------------------------------------------------------
 

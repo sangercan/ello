@@ -14,12 +14,14 @@ from app.core.presence import set_user_offline
 from app.services.notification_service import create_notifications_for_followers
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 router = APIRouter()
 
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
 
+    logger.info("WebSocket handshake para o usuário %s iniciado (remote=%s)", user_id, websocket.client)
     # Connect user
     await manager.connect(user_id, websocket)
     set_user_online(user_id)
@@ -79,6 +81,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 db.commit()
 
             # --------------------------------------------------
+            # HEARTBEAT
+            # --------------------------------------------------
+
+            if event_type == "ping":
+                try:
+                    await websocket.send_json({"type": "pong"})
+                except Exception:
+                    pass
+
+            # --------------------------------------------------
             # GEO LOCATION UPDATE (REAL-TIME NEARBY)
             # --------------------------------------------------
 
@@ -135,22 +147,54 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             # --------------------------------------------------
 
             if event_type == "call_signal":
+                signal = data.get("signal") or {}
+                signal_type = signal.get("type")
+                call_id = signal.get("call_id")
+                to_user_id = data.get("to_user_id")
+
+                sdp = None
+                if signal_type == "offer":
+                    sdp = (signal.get("offer") or {}).get("sdp")
+                elif signal_type == "answer":
+                    sdp = (signal.get("answer") or {}).get("sdp")
+
+                if sdp:
+                    logger.info(
+                        "call_signal type=%s call_id=%s from=%s to=%s sdp_flags(sendrecv=%s recvonly=%s sendonly=%s inactive=%s)",
+                        signal_type,
+                        call_id,
+                        user_id,
+                        to_user_id,
+                        "a=sendrecv" in sdp,
+                        "a=recvonly" in sdp,
+                        "a=sendonly" in sdp,
+                        "a=inactive" in sdp,
+                    )
+                else:
+                    logger.info(
+                        "call_signal type=%s call_id=%s from=%s to=%s",
+                        signal_type,
+                        call_id,
+                        user_id,
+                        to_user_id,
+                    )
+
                 await manager.send_to_user(
-                    data["to_user_id"],
+                    to_user_id,
                     {
                         "type": "call_signal",
-                        "signal": data["signal"],
+                        "signal": signal,
                         "from_user_id": user_id
                     }
                 )
 
     except WebSocketDisconnect:
+        logger.info("WebSocket desconectado por WebSocketDisconnect (user %s)", user_id)
         await manager.disconnect(user_id)
         set_user_offline(user_id)
         user = db.query(User).filter(User.id == user_id).first()
         if user:
             user.is_online = False
-            user.is_visible_nearby = False
             user.last_seen_at = datetime.now(timezone.utc)
             user.last_activity_at = None
             db.commit()
@@ -161,7 +205,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         user = db.query(User).filter(User.id == user_id).first()
         if user:
             user.is_online = False
-            user.is_visible_nearby = False
             user.last_seen_at = datetime.now(timezone.utc)
             user.last_activity_at = None
             db.commit()

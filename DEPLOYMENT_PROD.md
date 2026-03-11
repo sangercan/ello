@@ -27,6 +27,14 @@ Valores obrigatorios:
 - `SECRET_KEY`
 - `ALLOWED_ORIGINS=https://ellosocial.com,https://www.ellosocial.com`
 
+Opcional (recomendado para chamadas de voz/vídeo):
+- `VITE_API_URL=/api` (default já aplicado)
+- `VITE_WS_URL` (somente se precisar forçar outra origem de WS)
+- `VITE_STUN_URL=stun:stun.l.google.com:19302,stun:global.stun.twilio.com:3478`
+- `VITE_TURN_URL=turns:turn.example.com:5349` (URL(s) separadas por vírgula)
+- `VITE_TURN_USER=usuario`
+- `VITE_TURN_PASS=senha`
+
 ## 3. Primeira subida (sem apagar dados)
 
 ```bash

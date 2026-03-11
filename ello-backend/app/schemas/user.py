@@ -61,6 +61,8 @@ class UserResponse(BaseModel):
 
     is_online: bool = False
     is_visible_nearby: bool = False
+    is_panel_admin: bool = False
+    is_panel_active: bool = False
     last_seen_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
     created_at: datetime

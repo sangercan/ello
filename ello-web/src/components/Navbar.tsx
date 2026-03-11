@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
+import { useI18n } from '@/i18n/i18n'
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
+  const { t, language } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -86,7 +88,7 @@ export default function Navbar() {
 
     const onNotificationCreated = (event: Event) => {
       const detail = (event as CustomEvent<any>).detail
-      const content = String(detail?.notification?.content || detail?.notification?.message || 'Nova notificacao')
+      const content = String(detail?.notification?.content || detail?.notification?.message || t('nav.notifications'))
       setUnreadNotifications((prev) => prev + 1)
       toast(content)
     }
@@ -102,20 +104,20 @@ export default function Navbar() {
       window.removeEventListener('ello:ws:notification-created', onNotificationCreated as EventListener)
       window.removeEventListener('ello:ws:notification-refresh', onNotificationRefresh)
     }
-  }, [])
+  }, [t])
 
   const navItems = [
-    { path: '/moments', icon: Grid3x3, label: 'Moments', title: 'Moments' },
-    { path: '/vibes', icon: Sparkles, label: 'Vibes', title: 'Vibes' },
-    { path: '/music', icon: Music, label: 'Music', title: 'Música' },
-    { path: '/nearby', icon: MapPin, label: 'Nearby', title: 'Próximo' },
-    { path: '/chat', icon: MessageCircle, label: 'Chat', title: 'Chat' },
-    { path: '/profile', icon: User, label: 'Profile', title: 'Perfil' },
+    { path: '/moments', icon: Grid3x3, label: t('nav.moments'), title: t('nav.moments') },
+    { path: '/vibes', icon: Sparkles, label: t('nav.vibes'), title: t('nav.vibes') },
+    { path: '/music', icon: Music, label: t('nav.music'), title: t('nav.music') },
+    { path: '/nearby', icon: MapPin, label: t('nav.nearby'), title: t('nav.nearby') },
+    { path: '/chat', icon: MessageCircle, label: t('nav.chat'), title: t('nav.chat') },
+    { path: '/profile', icon: User, label: t('nav.profile'), title: t('nav.profile') },
   ]
 
   const rightActionItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', title: 'Dashboard' },
-    { path: '/notifications', icon: Bell, label: 'Notifications', title: 'Notificações' },
+    { path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard'), title: t('nav.dashboard') },
+    { path: '/notifications', icon: Bell, label: t('nav.notifications'), title: t('nav.notifications') },
   ]
 
   const openPublisher = () => {
@@ -190,13 +192,13 @@ export default function Navbar() {
 
   const buildLocationLabel = (city: string, stateOrProvince: string, countryCode: string) => {
     const parts = [city, stateOrProvince, countryCode].filter(Boolean)
-    return parts.length > 0 ? parts.join(', ') : 'Minha localização'
+    return parts.length > 0 ? parts.join(', ') : 'My location'
   }
 
   const resolvePublishLocationLabel = async (latitude: number, longitude: number) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=pt-BR`,
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=${language}`,
         {
           headers: {
             Accept: 'application/json',
@@ -218,13 +220,13 @@ export default function Navbar() {
       setPublishLocationLabel(buildLocationLabel(city, stateAbbreviation, countryCode))
     } catch (error) {
       console.warn('[Navbar] Falha ao resolver rotulo de local para publicacao:', error)
-      setPublishLocationLabel('Minha localização')
+      setPublishLocationLabel('My location')
     }
   }
 
   const handleUseCurrentLocationForPost = async () => {
     if (!navigator.geolocation) {
-      toast.error('Geolocalização não suportada neste dispositivo')
+      toast.error(t('toast.locationNotSupported'))
       return
     }
 
@@ -239,11 +241,11 @@ export default function Navbar() {
         await resolvePublishLocationLabel(latitude, longitude)
 
         setLoadingPublishLocation(false)
-        toast.success('Localização adicionada à publicação')
+        toast.success(t('toast.locationAddSuccess'))
       },
       () => {
         setLoadingPublishLocation(false)
-        toast.error('Não foi possível obter sua localização')
+        toast.error(t('toast.locationReadError'))
       },
       { enableHighAccuracy: true, timeout: 12000 }
     )
@@ -276,12 +278,12 @@ export default function Navbar() {
     try {
       const duration = await getVideoDurationSeconds(file)
       if (duration > 30) {
-        toast.error('Videos de story podem ter no maximo 30 segundos')
+        toast.error(t('toast.storyVideoTooLong'))
         return false
       }
       return true
     } catch {
-      toast.error('Nao foi possivel validar a duracao do video')
+      toast.error(t('toast.genericError'))
       return false
     }
   }
@@ -291,12 +293,12 @@ export default function Navbar() {
     const fileIsVideo = publishFile ? publishFile.type.startsWith('video/') : false
 
     if (publishMode === 'vibe' && !fileIsVideo) {
-      toast.error('Para vibe, selecione um arquivo de video')
+      toast.error(t('toast.vibeNeedsVideo'))
       return
     }
 
     if (publishMode === 'story' && !publishFile) {
-      toast.error('Story precisa de foto ou video')
+      toast.error(t('toast.storyNeedsMedia'))
       return
     }
 
@@ -306,12 +308,12 @@ export default function Navbar() {
     }
 
     if (publishMode !== 'story' && !text && !publishFile) {
-      toast.error('Adicione texto, foto ou video para publicar')
+      toast.error(t('toast.mediaRequired'))
       return
     }
 
     if (publishMode !== 'story' && attachLocationToPost && (publishLatitude === null || publishLongitude === null)) {
-      toast.error('Ative sua localização para marcar o local da publicação')
+      toast.error(t('toast.postLocationRequired'))
       return
     }
 
@@ -329,17 +331,17 @@ export default function Navbar() {
 
       if (publishMode === 'story') {
         await apiClient.createStory({ media_url: uploadedUrl })
-        toast.success('Story publicado!')
+        toast.success(t('nav.story') + ' ' + t('nav.publish'))
         window.dispatchEvent(new CustomEvent('ello:story-created'))
       } else if (publishMode === 'vibe') {
         await apiClient.createVibe({
           video_url: uploadedUrl,
-          caption: text || 'Novo vibe',
+          caption: text || t('nav.vibeVideo'),
           latitude: attachLocationToPost ? publishLatitude : null,
           longitude: attachLocationToPost ? publishLongitude : null,
-          location_label: attachLocationToPost ? (publishLocationLabel.trim() || 'Minha localização') : null,
+          location_label: attachLocationToPost ? (publishLocationLabel.trim() || 'My location') : null,
         })
-        toast.success('Vibe publicado no feed!')
+        toast.success(t('nav.vibes') + ' ' + t('nav.publish'))
         window.dispatchEvent(new CustomEvent('ello:vibe-created'))
       } else {
         await apiClient.createMoment({
@@ -347,9 +349,9 @@ export default function Navbar() {
           media_url: uploadedUrl,
           latitude: attachLocationToPost ? publishLatitude : null,
           longitude: attachLocationToPost ? publishLongitude : null,
-          location_label: attachLocationToPost ? (publishLocationLabel.trim() || 'Minha localização') : null,
+          location_label: attachLocationToPost ? (publishLocationLabel.trim() || 'My location') : null,
         })
-        toast.success('Moment publicado!')
+        toast.success(t('nav.moment') + ' ' + t('nav.publish'))
         window.dispatchEvent(new CustomEvent('ello:moment-created'))
       }
 
@@ -360,9 +362,9 @@ export default function Navbar() {
       if (detail && typeof detail === 'string') {
         toast.error(detail)
       } else if (error?.code === 'ECONNABORTED') {
-        toast.error('Upload de video demorou demais. Tente um arquivo menor.')
+        toast.error(t('toast.uploadTimeout'))
       } else {
-        toast.error('Erro ao publicar')
+        toast.error(t('toast.publishError'))
       }
     } finally {
       setPublishing(false)
@@ -396,7 +398,7 @@ export default function Navbar() {
           <div className="hidden md:flex gap-2 items-center px-6 py-2 bg-slate-800/30 rounded-full border border-slate-700/50 backdrop-blur-sm">
             <button
               onClick={openPublisher}
-              title="Novo Post"
+              title={t('nav.newPost')}
               className="p-2.5 rounded-full bg-gradient-to-r from-primary to-pink-500 hover:from-primary/80 hover:to-pink-400 text-white transition-all duration-300 flex items-center justify-center group relative shadow-lg shadow-primary/50 hover:shadow-primary/80"
             >
               <Plus size={26} strokeWidth={2} />
@@ -475,7 +477,7 @@ export default function Navbar() {
             <button
               onClick={handleLogout}
               className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200"
-              title="Logout"
+              title={t('nav.logout')}
             >
               <LogOut size={22} strokeWidth={1.5} />
             </button>
@@ -533,12 +535,12 @@ export default function Navbar() {
                 className="flex-1 p-3 bg-gradient-to-r from-primary to-pink-500 hover:from-primary/80 hover:to-pink-400 text-white rounded-xl flex items-center justify-center gap-2 transition-all font-semibold shadow-lg"
               >
                 <Plus size={20} strokeWidth={2} />
-                <span>Nova Post</span>
+                <span>{t('nav.newPost')}</span>
               </button>
               <button
                 onClick={handleLogout}
                 className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-500 rounded-xl transition font-semibold"
-                title="Logout"
+                title={t('nav.logout')}
               >
                 <LogOut size={20} strokeWidth={1.5} />
               </button>
@@ -551,7 +553,7 @@ export default function Navbar() {
         <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
           <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl p-5 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white">Nova Publicacao</h2>
+              <h2 className="text-xl font-semibold text-white">{t('nav.createPost')}</h2>
               <button onClick={closePublisher} className="text-gray-400 hover:text-white transition">
                 <X size={22} />
               </button>
@@ -564,7 +566,7 @@ export default function Navbar() {
                   publishMode === 'moment' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                Moment
+                {t('nav.moment')}
               </button>
               <button
                 onClick={() => setPublishMode('vibe')}
@@ -572,7 +574,7 @@ export default function Navbar() {
                   publishMode === 'vibe' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                Vibe (video)
+                {t('nav.vibeVideo')}
               </button>
               <button
                 onClick={() => setPublishMode('story')}
@@ -580,15 +582,15 @@ export default function Navbar() {
                   publishMode === 'story' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                Story
+                {t('nav.story')}
               </button>
             </div>
 
-            <label className="block text-sm text-gray-300 mb-2">Legenda</label>
+            <label className="block text-sm text-gray-300 mb-2">{t('nav.createCaption')}</label>
             <textarea
               value={publishText}
               onChange={(e) => setPublishText(e.target.value)}
-              placeholder={publishMode === 'story' ? 'Adicione uma legenda (opcional)... use #hashtag e @usuario' : 'Escreva sua legenda... use #hashtag e @usuario'}
+              placeholder={publishMode === 'story' ? t('nav.captionOptional') : t('nav.captionDefault')}
               className="w-full h-28 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary resize-none"
             />
 
@@ -597,13 +599,13 @@ export default function Navbar() {
                 onClick={() => galleryInputRef.current?.click()}
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200"
               >
-                <Image size={16} /> Galeria
+                <Image size={16} /> {t('nav.gallery')}
               </button>
               <button
                 onClick={() => cameraInputRef.current?.click()}
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200"
               >
-                <Camera size={16} /> Camera
+                <Camera size={16} /> {t('nav.camera')}
               </button>
               {publishFile && (
                 <span className="text-xs text-gray-400 self-center truncate max-w-[220px]">{publishFile.name}</span>
@@ -615,7 +617,7 @@ export default function Navbar() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm text-gray-200">
                     <MapPin size={15} className={attachLocationToPost ? 'text-primary' : 'text-gray-400'} />
-                    <span>Adicionar localização</span>
+                    <span>{t('nav.addLocation')}</span>
                   </div>
                   <button
                     onClick={() => {
@@ -631,7 +633,7 @@ export default function Navbar() {
                       attachLocationToPost ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                     }`}
                   >
-                    {attachLocationToPost ? 'Ativo' : 'Ativar'}
+                    {attachLocationToPost ? t('nav.active') : t('nav.enable')}
                   </button>
                 </div>
 
@@ -642,20 +644,20 @@ export default function Navbar() {
                       disabled={loadingPublishLocation}
                       className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200 disabled:opacity-60"
                     >
-                      {loadingPublishLocation ? 'Obtendo localização...' : 'Usar localização atual'}
+                      {loadingPublishLocation ? t('nav.gettingLocation') : t('nav.useCurrentLocation')}
                     </button>
 
                     <input
                       type="text"
                       value={publishLocationLabel}
                       onChange={(e) => setPublishLocationLabel(e.target.value)}
-                      placeholder="Nome do local (ex: Parque Central, Shopping X)"
+                      placeholder={t('nav.locationPlaceholder')}
                       className="w-full h-10 bg-slate-800 border border-slate-700 rounded-lg px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                     />
 
                     {publishLatitude !== null && publishLongitude !== null && (
                       <p className="text-xs text-emerald-300">
-                        Local pronto para publicação ({publishLatitude.toFixed(4)}, {publishLongitude.toFixed(4)})
+                        {t('nav.locationReady')} ({publishLatitude.toFixed(4)}, {publishLongitude.toFixed(4)})
                       </p>
                     )}
                   </>
@@ -690,7 +692,7 @@ export default function Navbar() {
             )}
 
             <p className="text-xs text-gray-500 mt-2">
-              Dica: voce pode publicar so texto, ou combinar texto com foto/video. # e @ sao aceitos na legenda.
+              {t('nav.tip')}
             </p>
 
             <div className="flex justify-end gap-3 mt-5">
@@ -699,7 +701,7 @@ export default function Navbar() {
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
               >
                 <X size={16} />
-                Cancelar
+                {t('nav.cancel')}
               </button>
               <button
                 onClick={handlePublish}
@@ -707,7 +709,7 @@ export default function Navbar() {
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-60"
               >
                 <Plus size={16} />
-                {publishing ? 'Publicando...' : 'Publicar'}
+                {publishing ? t('nav.publishing') : t('nav.publish')}
               </button>
             </div>
           </div>

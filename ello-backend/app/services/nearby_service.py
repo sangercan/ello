@@ -47,15 +47,7 @@ def get_nearby_users(
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
 
-    # If user has gone inactive, auto-offline + hidden in nearby.
-    if current_user.last_activity_at is None or current_user.last_activity_at < cutoff:
-        if current_user.is_online or current_user.is_visible_nearby:
-            current_user.is_online = False
-            current_user.is_visible_nearby = False
-            current_user.last_seen_at = datetime.now(timezone.utc)
-            db.commit()
-        return []
-
+    # Do not auto-hide on inactivity. Visibility changes only on explicit toggle/logout/app close.
     if not current_user.is_online:
         return []
 
@@ -101,9 +93,7 @@ def get_nearby_users(
             continue
 
         if user.last_activity_at is None or user.last_activity_at < cutoff:
-            user.is_online = False
-            user.is_visible_nearby = False
-            user.last_seen_at = datetime.now(timezone.utc)
+            # Keep visibility as-is; just skip stale users.
             continue
 
         distance = haversine(

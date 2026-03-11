@@ -48,6 +48,12 @@ const normalizeForSearch = (value: string) =>
     .toLowerCase()
 
 export default function NearbyPage() {
+  const debugLog = (...args: any[]) => {
+    if (import.meta.env.DEV) console.log(...args)
+  }
+  const debugWarn = (...args: any[]) => {
+    if (import.meta.env.DEV) console.warn(...args)
+  }
   const navigate = useNavigate()
   const realtimeRefreshRef = useRef<number | null>(null)
   const [nearbyTab, setNearbyTab] = useState<'users' | 'places'>('users')
@@ -55,7 +61,12 @@ export default function NearbyPage() {
   const [places, setPlaces] = useState<NearbyPlace[]>([])
   const [placesLoading, setPlacesLoading] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(() => {
+    const saved = localStorage.getItem('nearby_visibility')
+    if (saved === 'true') return true
+    if (saved === 'false') return false
+    return false
+  })
   const [radiusKm, setRadiusKm] = useState<number>(() => {
     const saved = localStorage.getItem('nearby_radius_km')
     const parsed = saved ? Number(saved) : 5
@@ -88,29 +99,29 @@ export default function NearbyPage() {
 
   useEffect(() => {
     const init = async () => {
-      console.log('[NearbyPage] 🚀 Inicializando página...')
+      debugLog('[NearbyPage] 🚀 Inicializando página...')
       
       // 1. Verificar localização
       await checkLocationStatus()
       
       // 2. Carregar visibilidade do backend (ESSENCIAL!)
-      console.log('[NearbyPage] ⏳ Aguardando carregamento de visibilidade...')
+      debugLog('[NearbyPage] ⏳ Aguardando carregamento de visibilidade...')
       await loadUserVisibilityStatus()
       
       // 3. Se tem localização, carregar usuários próximos
       const lat = localStorage.getItem('user_latitude')
       const lng = localStorage.getItem('user_longitude')
       
-      console.log('[NearbyPage] 📍 Localização:', lat ? 'sim' : 'não')
+      debugLog('[NearbyPage] 📍 Localização:', lat ? 'sim' : 'não')
       
       if (lat && lng) {
-        console.log('[NearbyPage] 🔍 Carregando usuários próximos...')
+        debugLog('[NearbyPage] 🔍 Carregando usuários próximos...')
         await Promise.all([loadNearbyUsers(), loadNearbyFavorites(), loadNearbyPlaces()])
       } else {
-        console.log('[NearbyPage] ⚠️ Sem localização - não carregando usuários')
+        debugLog('[NearbyPage] ⚠️ Sem localização - não carregando usuários')
       }
       
-      console.log('[NearbyPage] ✅ Inicialização completa')
+      debugLog('[NearbyPage] ✅ Inicialização completa')
     }
     
     init().catch(err => console.error('[NearbyPage] Erro na inicialização:', err))
@@ -131,25 +142,26 @@ export default function NearbyPage() {
 
   const loadUserVisibilityStatus = async () => {
     try {
-      console.log('[NearbyPage] 📡 Carregando status de visibilidade do backend...')
+      debugLog('[NearbyPage] 📡 Carregando status de visibilidade do backend...')
       const response = await apiClient.getCurrentUser()
       
-      console.log('[NearbyPage] 📦 Resposta completa do getCurrentUser:', JSON.stringify(response.data, null, 2))
-      console.log('[NearbyPage] 🔍 Campo is_visible_nearby:', response.data?.is_visible_nearby)
+      const payload = response?.data && response.data.is_visible_nearby !== undefined ? response.data : response
       
-      const visibilityStatus = response.data?.is_visible_nearby
+      const visibilityStatus = payload?.is_visible_nearby
       
       if (visibilityStatus === undefined || visibilityStatus === null) {
-        console.warn('[NearbyPage] ⚠️ Campo is_visible_nearby não foi retornado pelo backend!')
+        debugWarn('[NearbyPage] ⚠️ Campo is_visible_nearby não foi retornado pelo backend!')
       }
       
       const finalStatus = visibilityStatus === true ? true : false
-      console.log('[NearbyPage] ✅ Status de visibilidade final:', finalStatus ? '🟢 VISÍVEL' : '🔴 OCULTO')
+      debugLog('[NearbyPage] ✅ Status de visibilidade final:', finalStatus ? '🟢 VISÍVEL' : '🔴 OCULTO')
 
       setIsVisible(finalStatus)
+      localStorage.setItem('nearby_visibility', finalStatus ? 'true' : 'false')
     } catch (error) {
       console.error('[NearbyPage] ❌ Erro ao carregar status de visibilidade:', error)
       setIsVisible(false)
+      localStorage.setItem('nearby_visibility', 'false')
     }
   }
 
@@ -194,7 +206,7 @@ export default function NearbyPage() {
   // Sincronizar visibilidade quando página ganha foco
   useEffect(() => {
     const handleFocus = () => {
-      console.log('[NearbyPage] Página ganhou foco - sincronizando visibilidade...')
+      debugLog('[NearbyPage] Página ganhou foco - sincronizando visibilidade...')
       loadUserVisibilityStatus()
     }
 
@@ -215,7 +227,7 @@ export default function NearbyPage() {
 
       realtimeRefreshRef.current = window.setTimeout(() => {
         if (!loading && !placesLoading) {
-          console.log('[NearbyPage] 🔄 Realtime refresh: recarregando usuários e locais...')
+          debugLog('[NearbyPage] 🔄 Realtime refresh: recarregando usuários e locais...')
           loadNearbyUsers()
           loadNearbyFavorites()
           loadNearbyPlaces()
@@ -275,7 +287,7 @@ export default function NearbyPage() {
       localStorage.setItem('nearby_location_state', state)
       localStorage.setItem('nearby_location_country', country)
     } catch (error) {
-      console.warn('[NearbyPage] Falha ao resolver pais/estado/cidade:', error)
+      debugWarn('[NearbyPage] Falha ao resolver pais/estado/cidade:', error)
       setLocationCity('')
       setLocationState('')
       setLocationCountry('')
@@ -308,9 +320,8 @@ export default function NearbyPage() {
       setLoading(true)
       const sourceRadius = radiusOverride ?? radiusKm
       const safeRadius = Math.max(1, Math.min(20000, sourceRadius))
-      console.log('[NearbyPage] Loading nearby users with radius:', safeRadius)
+      debugLog('[NearbyPage] Loading nearby users with radius:', safeRadius)
       const response = await apiClient.getNearbyUsers(safeRadius)
-      console.log('[NearbyPage] Response:', response)
       
       if (response && response.data) {
         const list = Array.isArray(response.data) ? response.data : []
@@ -382,33 +393,30 @@ export default function NearbyPage() {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords
-          console.log('[NearbyPage] 📍 Localização obtida:', latitude, longitude)
           
           // Salvar localmente
           localStorage.setItem('user_latitude', latitude.toString())
           localStorage.setItem('user_longitude', longitude.toString())
-          console.log('[NearbyPage] 💾 Localização salva no localStorage')
+          debugLog('[NearbyPage] 💾 Localização salva no localStorage')
 
           try {
             // Atualizar no backend
-            console.log('[NearbyPage] 📡 Enviando localização ao backend...')
-            const response = await apiClient.updateUserLocation(latitude, longitude)
-            console.log('[NearbyPage] ✅ Resposta do backend:', response.data)
+            debugLog('[NearbyPage] 📡 Enviando localização ao backend...')
+            await apiClient.updateUserLocation(latitude, longitude)
             
             setHasLocation(true)
-            console.log('[NearbyPage] ✓ hasLocation = true')
+            debugLog('[NearbyPage] ✓ hasLocation = true')
             
             toast.success('Localização atualizada!')
             await resolveLocationName(latitude, longitude)
             
             // Recarregar usuários próximos
-            console.log('[NearbyPage] 🔍 Recarregando usuários próximos...')
+            debugLog('[NearbyPage] 🔍 Recarregando usuários próximos...')
             loadNearbyUsers()
             loadNearbyPlaces()
           } catch (err) {
-            const error = err as any
             console.error('[NearbyPage] ❌ Erro ao salvar localização:', err)
-            console.error('[NearbyPage] Resposta do erro:', error.response?.data)
+            
             toast.error('Erro ao salvar localização')
           }
         },
@@ -425,14 +433,14 @@ export default function NearbyPage() {
   const handleToggleVisibility = async () => {
     try {
       const newState = !isVisible
-      console.log('[NearbyPage] 🔄 Toggling visibility from', isVisible ? '🟢 VISÍVEL' : '🔴 OCULTO', 'to', newState ? '🟢 VISÍVEL' : '🔴 OCULTO')
+      debugLog('[NearbyPage] 🔄 Toggling visibility from', isVisible ? '🟢 VISÍVEL' : '🔴 OCULTO', 'to', newState ? '🟢 VISÍVEL' : '🔴 OCULTO')
       
       // Fazer requisição ao backend
-      const response = await apiClient.toggleNearbyVisibility(newState)
-      console.log('[NearbyPage] ✅ Resposta do toggle:', response.data)
+      await apiClient.toggleNearbyVisibility(newState)
       
       // Atualizar estado local
       setIsVisible(newState)
+      localStorage.setItem('nearby_visibility', newState ? 'true' : 'false')
       
       // Recarregar usuários próximos (afinal mudou se está visível ou não)
       loadNearbyUsers()
@@ -463,8 +471,8 @@ export default function NearbyPage() {
 
     try {
       setAuthorLoading(true)
-      const response = await apiClient.getUser(userId)
-      const payload = response?.data || {}
+      const userPayload = await apiClient.getUser(userId)
+      const payload = userPayload || {}
       setAuthorCache((prev) => ({
         ...prev,
         [userId]: {

@@ -37,11 +37,8 @@ def nearby_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Regra de negocio: usuario offline nao pode usar nearby nem ficar visivel.
+    # Usuario offline nao pode usar nearby.
     if not current_user.is_online:
-        if current_user.is_visible_nearby:
-            current_user.is_visible_nearby = False
-            db.commit()
         return []
 
     if current_user.is_visible_nearby is not True:

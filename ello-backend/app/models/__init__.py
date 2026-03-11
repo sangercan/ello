@@ -7,6 +7,7 @@
 from .user import User
 from .conversation import Conversation
 from .group import Group
+from .group_member import GroupMember
 from .moment import Moment
 from .story import Story
 from .vibe import Vibe
@@ -17,7 +18,9 @@ from .like import Like
 from .follow import Follow
 from .message import Message
 from .notification import Notification
+from .push_device import PushDevice
 from .call_log import CallLog
+from .call_session import CallSession
 from .message_reaction import MessageReaction
 from .nearby_favorite import NearbyFavorite
 from .user_block import UserBlock

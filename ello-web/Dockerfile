@@ -4,7 +4,18 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 ARG VITE_API_URL=/api
-ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_WS_URL=
+ARG VITE_STUN_URL=
+ARG VITE_TURN_URL=
+ARG VITE_TURN_USER=
+ARG VITE_TURN_PASS=
+
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_WS_URL=$VITE_WS_URL \
+    VITE_STUN_URL=$VITE_STUN_URL \
+    VITE_TURN_URL=$VITE_TURN_URL \
+    VITE_TURN_USER=$VITE_TURN_USER \
+    VITE_TURN_PASS=$VITE_TURN_PASS
 
 COPY ello-web/package*.json ./
 
@@ -12,8 +23,9 @@ RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm instal
 
 COPY ello-web/ .
 
-# Build with vite only, skip TypeScript checking
-RUN npm run vite build 2>/dev/null || npx vite build
+# Build: prefer the project `build` script (runs tsc + vite), fallback to npx
+# Use npx fallback to avoid executing package bin files with missing exec bits.
+RUN npm run build 2>/dev/null || npx vite build
 
 # Stage 2: Runtime (Nginx to serve React app)
 FROM nginx:alpine
