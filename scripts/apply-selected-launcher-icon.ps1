@@ -29,10 +29,18 @@ if (!(Test-Path $SourceIconPath)) {
   throw "Source icon not found: $SourceIconPath"
 }
 
-$canonicalSource = 'e:\ello\assets\launcher\ello-launcher-1024.png'
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$launcherDir = Join-Path $repoRoot 'assets\launcher'
+if (!(Test-Path $launcherDir)) {
+  New-Item -ItemType Directory -Path $launcherDir | Out-Null
+}
+$canonicalSource = Join-Path $launcherDir 'ello-launcher-1024.png'
 Copy-Item -LiteralPath $SourceIconPath -Destination $canonicalSource -Force
 
-$androidRoots = @('e:\ello\ello-web\android', 'e:\ello\android')
+$androidRoots = @(
+  (Join-Path $repoRoot 'ello-web\android'),
+  (Join-Path $repoRoot 'android')
+) | Where-Object { Test-Path $_ }
 $densitySizes = @{
   'mdpi' = @{ icon = 48; fg = 108 }
   'hdpi' = @{ icon = 72; fg = 162 }
@@ -50,10 +58,11 @@ foreach ($root in $androidRoots) {
   }
 }
 
-$iosTargets = @(
-  'e:\ello\ello-web\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png',
-  'e:\ello\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
-)
+$iosTargets = @()
+$webIosIcon = Join-Path $repoRoot 'ello-web\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
+$rootIosIcon = Join-Path $repoRoot 'ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
+if (Test-Path (Split-Path $webIosIcon -Parent)) { $iosTargets += $webIosIcon }
+if (Test-Path (Split-Path $rootIosIcon -Parent)) { $iosTargets += $rootIosIcon }
 
 foreach ($iosIcon in $iosTargets) {
   Resize-And-Save $canonicalSource $iosIcon 1024

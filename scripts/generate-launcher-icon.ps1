@@ -31,7 +31,8 @@ function Resize-And-Save([string]$src, [string]$dst, [int]$size) {
   if ($img) { $img.Dispose() }
 }
 
-$sourceDir = 'e:\ello\assets\launcher'
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$sourceDir = Join-Path $repoRoot 'assets\launcher'
 if (!(Test-Path $sourceDir)) {
   New-Item -ItemType Directory -Path $sourceDir | Out-Null
 }
@@ -76,7 +77,10 @@ if ($g) { $g.Dispose() }
 if ($bmp) { $bmp.Dispose() }
 
 # Android target sizes
-$androidRoots = @('e:\ello\ello-web\android', 'e:\ello\android')
+$androidRoots = @(
+  (Join-Path $repoRoot 'ello-web\android'),
+  (Join-Path $repoRoot 'android')
+) | Where-Object { Test-Path $_ }
 $densitySizes = @{
   'mdpi' = @{ icon = 48; fg = 108 }
   'hdpi' = @{ icon = 72; fg = 162 }
@@ -95,10 +99,11 @@ foreach ($root in $androidRoots) {
 }
 
 # iOS icon target
-$iosTargets = @(
-  'e:\ello\ello-web\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png',
-  'e:\ello\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
-)
+$iosTargets = @()
+$webIosIcon = Join-Path $repoRoot 'ello-web\ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
+$rootIosIcon = Join-Path $repoRoot 'ios\App\App\Assets.xcassets\AppIcon.appiconset\AppIcon-512@2x.png'
+if (Test-Path (Split-Path $webIosIcon -Parent)) { $iosTargets += $webIosIcon }
+if (Test-Path (Split-Path $rootIosIcon -Parent)) { $iosTargets += $rootIosIcon }
 
 foreach ($iosIcon in $iosTargets) {
   Resize-And-Save $sourcePng $iosIcon 1024
