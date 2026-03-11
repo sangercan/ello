@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
 import api from '@services/api'
@@ -64,7 +65,22 @@ const preloadablePages = [
 function App() {
   const resolvedApiBase = RESOLVED_API_BASE_URL
   const configuredWsUrl = (import.meta.env.VITE_WS_URL || '').trim()
-  const wsOriginCandidate = configuredWsUrl || resolvedApiBase
+  const isNative = Capacitor.getPlatform() !== 'web'
+  const isValidNativeWsOrigin = (value: string) => {
+    if (!value) return false
+    if (!/^(https|wss):\/\//i.test(value)) return false
+    try {
+      const url = new URL(value)
+      const isIpHost = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || isIpHost) return false
+      return true
+    } catch {
+      return false
+    }
+  }
+  const wsOriginCandidate = isNative
+    ? (isValidNativeWsOrigin(configuredWsUrl) ? configuredWsUrl : resolvedApiBase)
+    : (configuredWsUrl || resolvedApiBase)
 
   const { initialize, isAuthenticated, user } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -151,6 +167,10 @@ function App() {
 
     const buildWsUrl = (userId: number) => {
       const base = (wsOriginCandidate || '').trim().replace(/\/+$/, '')
+      if (/^wss?:\/\//i.test(base)) {
+        const parsed = new URL(base)
+        return `${parsed.protocol}//${parsed.host}/ws/${userId}`
+      }
       if (/^https?:\/\//i.test(base)) {
         const parsed = new URL(base)
         const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'

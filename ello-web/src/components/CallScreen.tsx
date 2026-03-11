@@ -86,6 +86,30 @@ const getMediaConstraints = (callType: string) => ({
   video: callType === 'video',
 })
 
+const describeMediaError = (error: unknown) => {
+  if (error && typeof error === 'object' && 'name' in error) {
+    const name = String((error as { name?: unknown }).name || '')
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+      return 'Permita camera e microfone para ligar no app.'
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      return 'Nao foi encontrado camera/microfone neste aparelho.'
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'Camera/microfone esta em uso por outro app.'
+    }
+    if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+      return 'Este aparelho nao suporta os requisitos de midia da chamada.'
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return 'Falha ao acessar camera/microfone no app.'
+}
+
 const CallScreen = () => {
   const activeCall = useCallStore((state) => state.activeCall)
   const answerCall = useCallStore((state) => state.answerCall)
@@ -385,7 +409,17 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
   const prepareLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current
     if (!activeCallType) throw new Error('Chamada inexistente')
-    const stream = await navigator.mediaDevices.getUserMedia(getMediaConstraints(activeCallType))
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Este app/webview nao suporta getUserMedia para chamadas.')
+    }
+
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(getMediaConstraints(activeCallType))
+    } catch (error) {
+      throw new Error(describeMediaError(error))
+    }
+
     localStreamRef.current = stream
     if (localVideoRef.current && activeCallType === 'video') {
       localVideoRef.current.srcObject = stream
@@ -540,7 +574,8 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
         console.debug('[Call] offer enviado', pc.localDescription?.type)
       } catch (error) {
         console.error('Erro ao iniciar oferta da chamada:', error)
-        setStatusLabel('Erro ao iniciar')
+        const message = describeMediaError(error)
+        setStatusLabel(message)
       }
     }
 
@@ -594,7 +629,8 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
       answerCall()
     } catch (error) {
       console.error('Erro ao responder a chamada:', error)
-      setStatusLabel('Erro ao atender')
+      const message = describeMediaError(error)
+      setStatusLabel(message)
     }
   }, [activeCallId, activeCallType, answerCall, prepareLocalStream, ensureLocalTracks, forceSendRecvForLocalKinds, createPeerConnection, sendCallSignal, flushPendingSignals])
 

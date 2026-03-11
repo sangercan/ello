@@ -45,6 +45,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Precisamos da camera para chamadas de video no Ello.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Precisamos do microfone para chamadas de voz e video no Ello.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>
