@@ -48,6 +48,7 @@ def delete_device(
         user_id=current_user.id,
         token=payload.token,
         device_id=payload.device_id,
+        subscription_endpoint=payload.subscription_endpoint,
     )
 
 

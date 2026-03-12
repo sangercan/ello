@@ -17,6 +17,9 @@ class PushDevice(Base):
     platform = Column(String(32), nullable=True)
     device_id = Column(String(128), nullable=True, index=True)
     app_version = Column(String(32), nullable=True)
+    subscription_endpoint = Column(String(1024), nullable=True, index=True)
+    subscription_p256dh = Column(String(512), nullable=True)
+    subscription_auth = Column(String(256), nullable=True)
     enabled = Column(Boolean, default=True, nullable=False)
 
     allow_messages = Column(Boolean, default=True, nullable=False)

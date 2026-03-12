@@ -114,6 +114,29 @@ def _ensure_group_columns():
                 conn.execute(text("ALTER TABLE group_members ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
 
 
+def _ensure_push_device_columns():
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE push_devices ADD COLUMN IF NOT EXISTS subscription_endpoint VARCHAR(1024)"))
+            conn.execute(text("ALTER TABLE push_devices ADD COLUMN IF NOT EXISTS subscription_p256dh VARCHAR(512)"))
+            conn.execute(text("ALTER TABLE push_devices ADD COLUMN IF NOT EXISTS subscription_auth VARCHAR(256)"))
+            return
+
+        if dialect == "sqlite":
+            cols = {
+                row[1]
+                for row in conn.execute(text("PRAGMA table_info(push_devices)")).fetchall()
+            }
+            if "subscription_endpoint" not in cols:
+                conn.execute(text("ALTER TABLE push_devices ADD COLUMN subscription_endpoint TEXT"))
+            if "subscription_p256dh" not in cols:
+                conn.execute(text("ALTER TABLE push_devices ADD COLUMN subscription_p256dh TEXT"))
+            if "subscription_auth" not in cols:
+                conn.execute(text("ALTER TABLE push_devices ADD COLUMN subscription_auth TEXT"))
+
+
 def _ensure_message_conversation_nullable():
     """Allow group messages without mandatory conversation_id."""
     with engine.begin() as conn:
@@ -128,6 +151,11 @@ _ensure_panel_admin_columns_exist()
 _ensure_message_conversation_nullable()
 try:
     _ensure_group_columns()
+except NameError:
+    # hot-reload guard
+    pass
+try:
+    _ensure_push_device_columns()
 except NameError:
     # hot-reload guard
     pass

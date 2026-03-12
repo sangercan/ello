@@ -1,3 +1,4 @@
+﻿import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -9,6 +10,8 @@ from app.core.config import (
     FIREBASE_CREDENTIALS_FILE,
     FIREBASE_CREDENTIALS_JSON,
     PUSH_NOTIFICATIONS_ENABLED,
+    WEB_PUSH_VAPID_PRIVATE_KEY,
+    WEB_PUSH_VAPID_SUBJECT,
 )
 from app.core.websocket_manager import manager
 from app.models.push_device import PushDevice
@@ -18,9 +21,23 @@ logger = logging.getLogger(__name__)
 
 _firebase_ready = False
 _firebase_init_attempted = False
+_web_push_ready = False
+_web_push_init_attempted = False
 
 
-def _load_firebase():
+def _clean_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _build_web_device_token(endpoint: str) -> str:
+    digest = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+    return f"web:{digest}"
+
+
+def _load_firebase() -> bool:
     global _firebase_ready, _firebase_init_attempted
 
     if _firebase_ready:
@@ -62,18 +79,61 @@ def _load_firebase():
         return False
 
 
+def _load_web_push() -> bool:
+    global _web_push_ready, _web_push_init_attempted
+
+    if _web_push_ready:
+        return True
+    if _web_push_init_attempted:
+        return False
+
+    _web_push_init_attempted = True
+
+    if not PUSH_NOTIFICATIONS_ENABLED:
+        return False
+
+    if not WEB_PUSH_VAPID_PRIVATE_KEY or not WEB_PUSH_VAPID_SUBJECT:
+        logger.info("Web push disabled: WEB_PUSH_VAPID_PRIVATE_KEY/WEB_PUSH_VAPID_SUBJECT missing")
+        return False
+
+    try:
+        from pywebpush import webpush  # noqa: F401
+
+        _web_push_ready = True
+        return True
+    except Exception as exc:
+        logger.warning("Failed to initialize Web Push support: %s", exc)
+        return False
+
+
 def register_push_device(db: Session, *, user_id: int, payload) -> PushDevice:
-    token = payload.token.strip()
+    token = _clean_text(getattr(payload, "token", None))
+    endpoint = _clean_text(getattr(payload, "subscription_endpoint", None))
+    p256dh = _clean_text(getattr(payload, "subscription_p256dh", None))
+    auth = _clean_text(getattr(payload, "subscription_auth", None))
+
+    if endpoint and (token is None or token == endpoint):
+        token = _build_web_device_token(endpoint)
+
+    if token is None:
+        raise ValueError("token or subscription_endpoint is required")
+
     row = db.query(PushDevice).filter(PushDevice.token == token).first()
+    if row is None and endpoint:
+        row = db.query(PushDevice).filter(PushDevice.subscription_endpoint == endpoint).first()
 
     if row is None:
         row = PushDevice(user_id=user_id, token=token)
         db.add(row)
 
     row.user_id = user_id
-    row.platform = payload.platform
-    row.device_id = payload.device_id
-    row.app_version = payload.app_version
+    row.token = token
+    row.platform = _clean_text(getattr(payload, "platform", None))
+    row.device_id = _clean_text(getattr(payload, "device_id", None))
+    row.app_version = _clean_text(getattr(payload, "app_version", None))
+    row.subscription_endpoint = endpoint
+    row.subscription_p256dh = p256dh
+    row.subscription_auth = auth
     row.enabled = True
     row.allow_messages = bool(payload.allow_messages)
     row.allow_likes = bool(payload.allow_likes)
@@ -87,20 +147,35 @@ def register_push_device(db: Session, *, user_id: int, payload) -> PushDevice:
     return row
 
 
-def unregister_push_device(db: Session, *, user_id: int, token: str | None, device_id: str | None) -> dict[str, int]:
+def unregister_push_device(
+    db: Session,
+    *,
+    user_id: int,
+    token: str | None,
+    device_id: str | None,
+    subscription_endpoint: str | None,
+) -> dict[str, int]:
     query = db.query(PushDevice).filter(PushDevice.user_id == user_id, PushDevice.enabled.is_(True))
 
-    if token:
-        query = query.filter(PushDevice.token == token.strip())
-    elif device_id:
-        query = query.filter(PushDevice.device_id == device_id.strip())
+    normalized_token = _clean_text(token)
+    normalized_device_id = _clean_text(device_id)
+    normalized_endpoint = _clean_text(subscription_endpoint)
+
+    if normalized_endpoint:
+        query = query.filter(PushDevice.subscription_endpoint == normalized_endpoint)
+    elif normalized_token:
+        query = query.filter(PushDevice.token == normalized_token)
+    elif normalized_device_id:
+        query = query.filter(PushDevice.device_id == normalized_device_id)
     else:
         return {"updated": 0}
 
     rows = query.all()
+    now = datetime.now(timezone.utc)
+
     for row in rows:
         row.enabled = False
-        row.last_seen_at = datetime.now(timezone.utc)
+        row.last_seen_at = now
 
     db.commit()
     return {"updated": len(rows)}
@@ -109,12 +184,20 @@ def unregister_push_device(db: Session, *, user_id: int, token: str | None, devi
 def update_push_preferences(db: Session, *, user_id: int, payload) -> dict[str, int]:
     query = db.query(PushDevice).filter(PushDevice.user_id == user_id, PushDevice.enabled.is_(True))
 
-    if payload.token:
-        query = query.filter(PushDevice.token == payload.token.strip())
-    elif payload.device_id:
-        query = query.filter(PushDevice.device_id == payload.device_id.strip())
+    token = _clean_text(getattr(payload, "token", None))
+    device_id = _clean_text(getattr(payload, "device_id", None))
+    endpoint = _clean_text(getattr(payload, "subscription_endpoint", None))
+
+    if endpoint:
+        query = query.filter(PushDevice.subscription_endpoint == endpoint)
+    elif token:
+        query = query.filter(PushDevice.token == token)
+    elif device_id:
+        query = query.filter(PushDevice.device_id == device_id)
 
     rows = query.all()
+    now = datetime.now(timezone.utc)
+
     for row in rows:
         if payload.allow_messages is not None:
             row.allow_messages = bool(payload.allow_messages)
@@ -126,7 +209,7 @@ def update_push_preferences(db: Session, *, user_id: int, payload) -> dict[str, 
             row.allow_presence = bool(payload.allow_presence)
         if payload.allow_general is not None:
             row.allow_general = bool(payload.allow_general)
-        row.last_seen_at = datetime.now(timezone.utc)
+        row.last_seen_at = now
 
     db.commit()
     return {"updated": len(rows)}
@@ -159,39 +242,34 @@ def _sanitize_data(data: dict[str, Any] | None) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items() if v is not None}
 
 
-def send_push_to_user(
-    db: Session,
+def _is_web_push_device(device: PushDevice) -> bool:
+    platform = (device.platform or "").strip().lower()
+    if platform == "web":
+        return True
+    return bool(device.subscription_endpoint and device.subscription_p256dh and device.subscription_auth)
+
+
+def _send_mobile_pushes(
     *,
+    devices: list[PushDevice],
     user_id: int,
     title: str,
     body: str,
-    category: str = "general",
-    data: dict[str, Any] | None = None,
-    skip_if_online: bool = True,
-) -> dict[str, int]:
-    if skip_if_online and manager.is_user_connected(int(user_id)):
-        return {"sent": 0, "failed": 0, "skipped": 1}
-
-    devices = (
-        db.query(PushDevice)
-        .filter(PushDevice.user_id == int(user_id), PushDevice.enabled.is_(True))
-        .all()
-    )
-    filtered = [row for row in devices if _is_category_allowed(row, category)]
-    if not filtered:
-        return {"sent": 0, "failed": 0, "skipped": 0}
+    payload: dict[str, str],
+) -> tuple[int, int]:
+    if not devices:
+        return 0, 0
 
     if not _load_firebase():
-        return {"sent": 0, "failed": len(filtered), "skipped": 0}
+        return 0, len(devices)
 
     from firebase_admin import messaging
 
-    payload = _sanitize_data(data)
     sent = 0
     failed = 0
     now = datetime.now(timezone.utc)
 
-    for device in filtered:
+    for device in devices:
         message = messaging.Message(
             token=device.token,
             notification=messaging.Notification(title=title, body=body),
@@ -214,8 +292,135 @@ def send_push_to_user(
                 device.enabled = False
             logger.warning("Push send failed user=%s device=%s: %s", user_id, device.id, exc)
 
+    return sent, failed
+
+
+def _build_web_subscription(device: PushDevice) -> dict[str, Any] | None:
+    endpoint = _clean_text(device.subscription_endpoint)
+    p256dh = _clean_text(device.subscription_p256dh)
+    auth = _clean_text(device.subscription_auth)
+
+    if not endpoint or not p256dh or not auth:
+        return None
+
+    return {
+        "endpoint": endpoint,
+        "keys": {
+            "p256dh": p256dh,
+            "auth": auth,
+        },
+    }
+
+
+def _send_web_pushes(
+    *,
+    devices: list[PushDevice],
+    user_id: int,
+    title: str,
+    body: str,
+    payload: dict[str, str],
+) -> tuple[int, int]:
+    if not devices:
+        return 0, 0
+
+    if not _load_web_push():
+        return 0, len(devices)
+
+    from pywebpush import WebPushException, webpush
+
+    vapid_claims = {"sub": WEB_PUSH_VAPID_SUBJECT}
+    web_payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "data": payload,
+        }
+    )
+
+    sent = 0
+    failed = 0
+    now = datetime.now(timezone.utc)
+
+    for device in devices:
+        subscription_info = _build_web_subscription(device)
+        if subscription_info is None:
+            failed += 1
+            device.enabled = False
+            continue
+
+        try:
+            webpush(
+                subscription_info=subscription_info,
+                data=web_payload,
+                vapid_private_key=WEB_PUSH_VAPID_PRIVATE_KEY,
+                vapid_claims=vapid_claims,
+                ttl=120,
+            )
+            device.last_seen_at = now
+            sent += 1
+        except WebPushException as exc:
+            failed += 1
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code in {404, 410}:
+                device.enabled = False
+            logger.warning("Web push send failed user=%s device=%s status=%s: %s", user_id, device.id, status_code, exc)
+        except Exception as exc:
+            failed += 1
+            logger.warning("Web push send failed user=%s device=%s: %s", user_id, device.id, exc)
+
+    return sent, failed
+
+
+def send_push_to_user(
+    db: Session,
+    *,
+    user_id: int,
+    title: str,
+    body: str,
+    category: str = "general",
+    data: dict[str, Any] | None = None,
+    skip_if_online: bool = True,
+) -> dict[str, int]:
+    if skip_if_online and manager.is_user_connected(int(user_id)):
+        return {"sent": 0, "failed": 0, "skipped": 1}
+
+    devices = (
+        db.query(PushDevice)
+        .filter(PushDevice.user_id == int(user_id), PushDevice.enabled.is_(True))
+        .all()
+    )
+    filtered = [row for row in devices if _is_category_allowed(row, category)]
+    if not filtered:
+        return {"sent": 0, "failed": 0, "skipped": 0}
+
+    web_devices = [row for row in filtered if _is_web_push_device(row)]
+    web_ids = {id(row) for row in web_devices}
+    mobile_devices = [row for row in filtered if id(row) not in web_ids]
+
+    payload = _sanitize_data(data)
+
+    mobile_sent, mobile_failed = _send_mobile_pushes(
+        devices=mobile_devices,
+        user_id=int(user_id),
+        title=title,
+        body=body,
+        payload=payload,
+    )
+    web_sent, web_failed = _send_web_pushes(
+        devices=web_devices,
+        user_id=int(user_id),
+        title=title,
+        body=body,
+        payload=payload,
+    )
+
     db.commit()
-    return {"sent": sent, "failed": failed, "skipped": 0}
+
+    return {
+        "sent": mobile_sent + web_sent,
+        "failed": mobile_failed + web_failed,
+        "skipped": 0,
+    }
 
 
 def send_push_for_notification(db: Session, *, user_id: int, actor_id: int, notif_type: str, message: str | None, reference_id: int | None):

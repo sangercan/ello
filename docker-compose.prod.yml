@@ -79,6 +79,8 @@ services:
       PUSH_NOTIFICATIONS_ENABLED: ${PUSH_NOTIFICATIONS_ENABLED:-true}
       FIREBASE_CREDENTIALS_FILE: ${FIREBASE_CREDENTIALS_FILE:-}
       FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
+      WEB_PUSH_VAPID_PRIVATE_KEY: ${WEB_PUSH_VAPID_PRIVATE_KEY:-}
+      WEB_PUSH_VAPID_SUBJECT: ${WEB_PUSH_VAPID_SUBJECT:-mailto:admin@ellosocial.com}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -104,6 +106,7 @@ services:
         VITE_TURN_URL: ${VITE_TURN_URL:-}
         VITE_TURN_USER: ${VITE_TURN_USER:-}
         VITE_TURN_PASS: ${VITE_TURN_PASS:-}
+        VITE_WEB_PUSH_VAPID_PUBLIC_KEY: ${WEB_PUSH_VAPID_PUBLIC_KEY:-}
     container_name: ello_frontend
     restart: unless-stopped
     depends_on:
