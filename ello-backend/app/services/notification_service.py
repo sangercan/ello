@@ -209,3 +209,13 @@ def mark_all_notifications_as_read(db: Session, current_user_id: int):
 
     db.commit()
     return {"updated": len(rows)}
+
+
+def clear_all_notifications(db: Session, current_user_id: int):
+    deleted = (
+        db.query(Notification)
+        .filter(Notification.user_id == current_user_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"deleted": int(deleted or 0)}

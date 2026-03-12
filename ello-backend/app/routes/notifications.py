@@ -9,6 +9,7 @@ from app.services.notification_service import (
     get_notifications,
     mark_notification_as_read,
     mark_all_notifications_as_read,
+    clear_all_notifications,
 )
 from app.core.dependencies import get_current_user
 
@@ -37,3 +38,9 @@ def read_notification(notification_id: int,
 def read_all_notifications(db: Session = Depends(get_db),
                            current_user=Depends(get_current_user)):
     return mark_all_notifications_as_read(db, current_user.id)
+
+
+@router.delete("/clear")
+def clear_notifications(db: Session = Depends(get_db),
+                        current_user=Depends(get_current_user)):
+    return clear_all_notifications(db, current_user.id)

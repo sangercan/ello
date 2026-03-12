@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCheck, Heart, MessageCircle, Radio, UserPlus } from 'lucide-react'
+import { Bell, CheckCheck, Heart, MessageCircle, Radio, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import apiClient from '@services/api'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
@@ -118,6 +118,20 @@ export default function NotificationsPage() {
     }
   }
 
+  const clearAllNotifications = async () => {
+    if (items.length === 0) return
+    if (!window.confirm('Deseja limpar todas as notificacoes?')) return
+
+    try {
+      await apiClient.clearAllNotifications()
+      setItems([])
+      window.dispatchEvent(new CustomEvent('ello:ws:notification-refresh'))
+      toast.success('Notificacoes limpas')
+    } catch {
+      toast.error('Erro ao limpar notificacoes')
+    }
+  }
+
   const openActor = (item: NotificationItem) => {
     const actorId = item.actor?.id || item.actor_id
     if (!actorId) return
@@ -151,13 +165,22 @@ export default function NotificationsPage() {
             <h1 className="text-2xl font-bold text-white">Notificacoes</h1>
             <p className="text-xs text-slate-400 mt-1">{unreadCount} nao lida(s)</p>
           </div>
-          <button
-            onClick={markAllAsRead}
-            disabled={unreadCount === 0}
-            className="h-9 px-3 rounded-full border border-slate-700 text-xs text-slate-200 disabled:text-slate-500 disabled:border-slate-800 hover:bg-slate-800 transition inline-flex items-center gap-1.5"
-          >
-            <CheckCheck size={14} /> Marcar todas como lidas
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={markAllAsRead}
+              disabled={unreadCount === 0}
+              className="h-9 px-3 rounded-full border border-slate-700 text-xs text-slate-200 disabled:text-slate-500 disabled:border-slate-800 hover:bg-slate-800 transition inline-flex items-center gap-1.5"
+            >
+              <CheckCheck size={14} /> Marcar todas como lidas
+            </button>
+            <button
+              onClick={clearAllNotifications}
+              disabled={items.length === 0}
+              className="h-9 px-3 rounded-full border border-slate-700 text-xs text-red-300 disabled:text-slate-500 disabled:border-slate-800 hover:bg-red-500/10 transition inline-flex items-center gap-1.5"
+            >
+              <Trash2 size={14} /> Limpar notificacoes
+            </button>
+          </div>
         </div>
 
         {loading ? (

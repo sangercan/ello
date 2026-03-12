@@ -324,6 +324,7 @@ const api = apiClient as AxiosInstance & {
   getNotifications: (page?: number, limit?: number) => Promise<any>
   markNotificationAsRead: (notificationId: string | number) => Promise<any>
   markAllNotificationsAsRead: () => Promise<any>
+  clearAllNotifications: () => Promise<any>
   getConversations: (page?: number, limit?: number) => Promise<any>
   deleteConversation: (conversationId: string | number) => Promise<any>
   blockUser: (userId: string | number) => Promise<any>
@@ -649,6 +650,10 @@ api.markNotificationAsRead = async (notificationId: string | number) => {
 
 api.markAllNotificationsAsRead = async () => {
   return apiClient.put('/notifications/read-all')
+}
+
+api.clearAllNotifications = async () => {
+  return apiClient.delete('/notifications/clear')
 }
 
 api.getConversations = async (page = 1, limit = 20) => {
