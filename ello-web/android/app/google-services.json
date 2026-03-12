@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "393930999980",
+    "project_id": "ello-7867d",
+    "storage_bucket": "ello-7867d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:393930999980:android:c0c60c0800d56a02467709",
+        "android_client_info": {
+          "package_name": "com.ellosocial.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCE6waynwm5VQ8wpcOjCXOVASCbM2_JR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
