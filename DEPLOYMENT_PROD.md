@@ -74,7 +74,21 @@ Use `deploy/nginx/ellosocial.com.conf` no host e recarregue nginx:
 nginx -t && systemctl reload nginx
 ```
 
-## 7. Comandos proibidos em producao
+## 7. Auto start dos servicos no boot (systemd)
+
+Para garantir que backend/frontend/db/redis subam automaticamente com o sistema:
+
+```bash
+cp /opt/ello/deploy/ello-compose.service /etc/systemd/system/ello-compose.service
+systemctl daemon-reload
+systemctl enable ello-compose.service
+systemctl start ello-compose.service
+systemctl status ello-compose.service
+```
+
+Isso executa `docker compose ... up -d` no boot, e com `restart: unless-stopped` os containers voltam automaticamente.
+
+## 8. Comandos proibidos em producao
 
 Nao rode estes comandos em producao se quiser preservar dados:
 

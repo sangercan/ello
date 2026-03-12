@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from datetime import datetime
 from io import BytesIO
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
+import base64
 import os
 import shutil
 import subprocess
@@ -26,11 +27,94 @@ MEDIA_PROFILE_SIZES: dict[str, tuple[int, int]] = {
     "vibe": (1080, 1920),
 }
 
+MIME_TO_EXTENSION: dict[str, str] = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "image/avif": "avif",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/aac": "aac",
+}
+
+IMAGE_EXTENSIONS = {
+    "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "avif",
+}
+VIDEO_EXTENSIONS = {
+    "mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp",
+}
+AUDIO_EXTENSIONS = {
+    "mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac",
+}
+
 
 def _build_filename(media_type: str, user_id: int, original_name: str) -> str:
     safe_name = os.path.basename(original_name).replace(" ", "_")
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     return f"{media_type}_{user_id}_{timestamp}_{safe_name}"
+
+
+def _extract_extension(original_name: str) -> str:
+    return os.path.splitext(original_name or "")[1].lower().lstrip(".")
+
+
+def _infer_media_type(mime: str, filename: str) -> str:
+    if mime.startswith("image/"):
+        return "image"
+    if mime.startswith("video/"):
+        return "video"
+    if mime.startswith("audio/"):
+        return "audio"
+
+    ext = _extract_extension(filename)
+    if ext in IMAGE_EXTENSIONS:
+        return "image"
+    if ext in VIDEO_EXTENSIONS:
+        return "video"
+    if ext in AUDIO_EXTENSIONS:
+        return "audio"
+    return "document"
+
+
+def _resolve_extension(mime: str, original_name: str, fallback: str = "bin") -> str:
+    if mime in MIME_TO_EXTENSION:
+        return MIME_TO_EXTENSION[mime]
+
+    ext = _extract_extension(original_name)
+    if ext:
+        return ext
+
+    return fallback
+
+
+def _decode_data_url_if_needed(file_bytes: bytes) -> tuple[bytes, str | None]:
+    """Decode `data:*;base64,...` payloads sent as plain text by some webviews."""
+    if not file_bytes:
+        return file_bytes, None
+
+    head = file_bytes[:256]
+    if not head.startswith(b"data:") or b";base64," not in head:
+        return file_bytes, None
+
+    try:
+        text = file_bytes.decode("utf-8", errors="strict")
+        header, payload = text.split(",", 1)
+        if ";base64" not in header:
+            return file_bytes, None
+
+        mime = header[5:].split(";")[0].strip().lower() or None
+        decoded = base64.b64decode(payload, validate=True)
+        return decoded, mime
+    except Exception:
+        return file_bytes, None
 
 
 def _optimize_image_bytes(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
@@ -55,6 +139,7 @@ def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str
         "image/gif": ".gif",
         "image/heic": ".heic",
         "image/heif": ".heif",
+        "image/avif": ".avif",
     }
     in_ext = ext_map.get(mime, ".img")
 
@@ -361,14 +446,7 @@ def upload_file(
         raise HTTPException(status_code=400, detail="Invalid file")
 
     mime = (file.content_type or "").lower()
-    if mime.startswith("image/"):
-        media_type = "image"
-    elif mime.startswith("video/"):
-        media_type = "video"
-    elif mime.startswith("audio/"):
-        media_type = "audio"
-    else:
-        media_type = "document"
+    media_type = _infer_media_type(mime, file.filename)
 
     folder_by_media_type = {
         "image": "images",
@@ -381,18 +459,38 @@ def upload_file(
     uploads_dir = f"/app/uploads/{uploads_subdir}"
     os.makedirs(uploads_dir, exist_ok=True)
 
-    unique_filename = _build_filename(media_type, current_user.id, file.filename)
     file_bytes = file.file.read()
+    file_bytes, decoded_mime = _decode_data_url_if_needed(file_bytes)
+    if decoded_mime and (
+        not mime
+        or mime == "application/octet-stream"
+        or mime == "text/plain"
+    ):
+        mime = decoded_mime
+        media_type = _infer_media_type(mime, file.filename)
+        uploads_subdir = folder_by_media_type.get(media_type, "documents")
+        uploads_dir = f"/app/uploads/{uploads_subdir}"
+        os.makedirs(uploads_dir, exist_ok=True)
+
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Arquivo vazio ou invalido")
+
+    unique_filename = _build_filename(media_type, current_user.id, file.filename)
 
     normalized_context = (context or "").strip().lower()
     target_size = MEDIA_PROFILE_SIZES.get(normalized_context)
 
     try:
         if media_type == "image":
-            if target_size:
-                payload, extension = _normalize_image_to_canvas(file_bytes, target_size[0], target_size[1])
-            else:
-                payload, extension = _optimize_image_bytes(file_bytes, mime)
+            try:
+                if target_size:
+                    payload, extension = _normalize_image_to_canvas(file_bytes, target_size[0], target_size[1])
+                else:
+                    payload, extension = _optimize_image_bytes(file_bytes, mime)
+            except (UnidentifiedImageError, OSError, ValueError):
+                # Fallback for unsupported decoders (e.g. HEIC/HEIF/AVIF on some runtimes).
+                payload = file_bytes
+                extension = _resolve_extension(mime, file.filename, fallback="jpg")
         elif media_type == "video":
             if target_size:
                 payload, extension = _normalize_video_to_canvas(file_bytes, target_size[0], target_size[1])

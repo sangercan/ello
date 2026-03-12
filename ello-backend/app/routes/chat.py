@@ -49,6 +49,7 @@ from app.routes.upload import (
     _compress_video_bytes,
     _compress_document_bytes,
     _optimize_image_bytes,
+    _resolve_extension,
 )
 
 # ----------------------------------------------------------
@@ -669,7 +670,12 @@ async def send_media(
 
         try:
             if media_type == 'image':
-                payload, extension = _optimize_image_bytes(media_bytes, inferred_mime or 'image/jpeg')
+                try:
+                    payload, extension = _optimize_image_bytes(media_bytes, inferred_mime or 'image/jpeg')
+                except Exception:
+                    # Preserve original bytes for unsupported decoders (HEIC/HEIF/AVIF).
+                    payload = media_bytes
+                    extension = _resolve_extension(inferred_mime or '', filename, fallback='jpg')
             elif media_type == 'video':
                 payload, extension = _compress_video_bytes(media_bytes)
             elif media_type == 'audio':

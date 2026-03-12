@@ -3,6 +3,7 @@ services:
   db:
     image: postgres:15-alpine
     container_name: ello_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ello
       POSTGRES_PASSWORD: ello123
@@ -24,6 +25,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ello_redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -42,6 +44,7 @@ services:
       context: .
       dockerfile: ./ello-backend/Dockerfile
     container_name: ello_backend
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -86,6 +89,7 @@ services:
         VITE_API_URL: http://backend:8000
         VITE_WEB_PUSH_VAPID_PUBLIC_KEY: ""
     container_name: ello_frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:

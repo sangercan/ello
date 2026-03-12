@@ -1,0 +1,16 @@
+[Unit]
+Description=ELLO Social Platform (Docker Compose)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ello
+ExecStart=/usr/bin/docker compose -f /opt/ello/docker-compose.prod.yml --env-file /opt/ello/.env.prod up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f /opt/ello/docker-compose.prod.yml --env-file /opt/ello/.env.prod down
+ExecReload=/usr/bin/docker compose -f /opt/ello/docker-compose.prod.yml --env-file /opt/ello/.env.prod up -d --remove-orphans
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
