@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from '@store/authStore'
 import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
 import api from '@services/api'
-import { registerNativePushDevice } from '@services/pushNotifications'
+import { registerPushDevice } from '@services/pushNotifications'
 import CallScreen from './components/CallScreen'
 import { useCallStore } from '@store/callStore'
 
@@ -152,7 +152,7 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated || loading) return
 
-    registerNativePushDevice().catch((error) => {
+    registerPushDevice().catch((error) => {
       console.error('[App] Erro ao registrar push notifications:', error)
     })
   }, [isAuthenticated, loading])
@@ -166,14 +166,20 @@ function App() {
     let shouldReconnect = true
 
     const buildWsUrl = (userId: number) => {
+      const shouldForceSecureWs = window.location.protocol === 'https:'
       const base = (wsOriginCandidate || '').trim().replace(/\/+$/, '')
       if (/^wss?:\/\//i.test(base)) {
         const parsed = new URL(base)
-        return `${parsed.protocol}//${parsed.host}/ws/${userId}`
+        const protocol = shouldForceSecureWs && parsed.protocol === 'ws:' ? 'wss:' : parsed.protocol
+        return `${protocol}//${parsed.host}/ws/${userId}`
       }
       if (/^https?:\/\//i.test(base)) {
         const parsed = new URL(base)
-        const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
+        const wsProtocol = shouldForceSecureWs
+          ? 'wss:'
+          : parsed.protocol === 'https:'
+            ? 'wss:'
+            : 'ws:'
         return `${wsProtocol}//${parsed.host}/ws/${userId}`
       }
 
@@ -187,6 +193,7 @@ function App() {
 
       ws.onopen = () => {
         ;(window as any).__elloAppWs = ws
+        window.dispatchEvent(new CustomEvent('ello:ws:open'))
         heartbeatTimer = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }))
@@ -297,6 +304,7 @@ function App() {
         if ((window as any).__elloAppWs === ws) {
           ;(window as any).__elloAppWs = null
         }
+        window.dispatchEvent(new CustomEvent('ello:ws:closed'))
 
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
@@ -326,6 +334,7 @@ function App() {
       }
       appWsRef.current = null
       ;(window as any).__elloAppWs = null
+      window.dispatchEvent(new CustomEvent('ello:ws:closed'))
     }
   }, [isAuthenticated, loading, user?.id, wsOriginCandidate])
 

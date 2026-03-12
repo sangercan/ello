@@ -131,6 +131,7 @@ const CallScreen = () => {
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null)
   const pendingSignalsRef = useRef<Record<number, SignalPayload[]>>({})
   const pendingIceRef = useRef<Record<number, RTCIceCandidateInit[]>>({})
+  const queuedSignalsRef = useRef<SignalPayload[]>([])
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerEnabled, setIsSpeakerEnabled] = useState(false)
   const [miniPosition, setMiniPosition] = useState<{ x: number; y: number }>({
@@ -264,22 +265,51 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     })
   }, [])
 
+  const sendSignalOverOpenSocket = useCallback(
+    (signal: SignalPayload) => {
+      if (!activePeerId || !activeCallId) return false
+      const ws = (window as any).__elloAppWs as WebSocket | null
+      if (ws?.readyState !== WebSocket.OPEN) return false
+      console.debug('[Call] enviando sinal', { to: activePeerId, signal })
+      ws.send(
+        JSON.stringify({
+          type: 'call_signal',
+          to_user_id: activePeerId,
+          signal: { ...signal, call_id: activeCallId },
+        }),
+      )
+      return true
+    },
+    [activePeerId, activeCallId],
+  )
+
+  const flushQueuedSignals = useCallback(() => {
+    if (!queuedSignalsRef.current.length) return
+    const pending = [...queuedSignalsRef.current]
+    queuedSignalsRef.current = []
+    for (const queued of pending) {
+      const sent = sendSignalOverOpenSocket(queued)
+      if (!sent) {
+        queuedSignalsRef.current.push(queued)
+      }
+    }
+  }, [sendSignalOverOpenSocket])
+
   const sendCallSignal = useCallback(
     (signal: SignalPayload) => {
       if (!activePeerId || !activeCallId) return
-      const ws = (window as any).__elloAppWs as WebSocket | null
-      if (ws?.readyState === WebSocket.OPEN) {
-        console.debug('[Call] enviando sinal', { to: activePeerId, signal })
-        ws.send(
-          JSON.stringify({
-            type: 'call_signal',
-            to_user_id: activePeerId,
-            signal: { ...signal, call_id: activeCallId },
-          }),
-        )
+      const sent = sendSignalOverOpenSocket(signal)
+      if (sent) return
+      queuedSignalsRef.current.push(signal)
+      if (queuedSignalsRef.current.length > 200) {
+        queuedSignalsRef.current = queuedSignalsRef.current.slice(-200)
       }
+      if (signal.type !== 'ice-candidate') {
+        setStatusLabel((prev) => (prev === 'Conectado' ? prev : 'Reconectando chamada...'))
+      }
+      flushQueuedSignals()
     },
-    [activePeerId, activeCallId],
+    [activePeerId, activeCallId, sendSignalOverOpenSocket, flushQueuedSignals],
   )
 
   const cleanupCall = useCallback(() => {
@@ -300,6 +330,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     if (localVideoRef.current) localVideoRef.current.srcObject = null
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
+    queuedSignalsRef.current = []
     stopRingtone()
   }, [stopRingtone])
 
@@ -409,6 +440,13 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
   const prepareLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current
     if (!activeCallType) throw new Error('Chamada inexistente')
+    const isHttpPage =
+      window.location.protocol === 'http:' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    if (isHttpPage) {
+      throw new Error('Chamada web requer HTTPS para liberar camera e microfone.')
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Este app/webview nao suporta getUserMedia para chamadas.')
     }
@@ -537,6 +575,20 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     if (!activeCallId) return
     flushPendingSignals(activeCallId)
   }, [activeCallId, flushPendingSignals])
+
+  useEffect(() => {
+    if (!activeCallId) return
+    const retryFlush = () => {
+      flushQueuedSignals()
+    }
+    window.addEventListener('ello:ws:open', retryFlush)
+    const intervalId = window.setInterval(retryFlush, 600)
+    retryFlush()
+    return () => {
+      window.removeEventListener('ello:ws:open', retryFlush)
+      window.clearInterval(intervalId)
+    }
+  }, [activeCallId, flushQueuedSignals])
 
   useEffect(() => {
     if (remoteAudioRef.current) {

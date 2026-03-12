@@ -49,6 +49,10 @@
 	<string>Precisamos da camera para chamadas de video no Ello.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Precisamos do microfone para chamadas de voz e video no Ello.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Precisamos da sua localizacao para recursos de mapa e compartilhamento de local.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Precisamos da sua localizacao para recursos de mapa e compartilhamento de local.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

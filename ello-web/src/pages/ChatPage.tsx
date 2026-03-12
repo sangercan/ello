@@ -374,6 +374,33 @@ export default function ChatPage() {
     if (!recipientUser || callLoading) return
     setCallLoading(callType)
     try {
+      const isHttpPage =
+        window.location.protocol === 'http:' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1'
+      if (isHttpPage) {
+        toast.error('Para chamadas no web, use HTTPS.')
+        return
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error('Este dispositivo nao suporta camera/microfone para chamadas.')
+        return
+      }
+
+      // Preflight de permissao evita abrir chamada sem acesso a audio/video.
+      const probeStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === 'video',
+      })
+      probeStream.getTracks().forEach((track) => track.stop())
+
+      const ws = getAppWebSocket()
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        toast.error('Conexao em tempo real indisponivel. Tente novamente em alguns segundos.')
+        return
+      }
+
       const response = await apiClient.startCall(recipientUser.id, callType)
       const callId = response.data?.id || Date.now()
       const label = callType === 'video' ? 'vídeo' : 'voz'
@@ -385,7 +412,7 @@ export default function ChatPage() {
       })
     } catch (error: any) {
       console.error('Erro ao iniciar chamada:', error)
-      const detail = error?.response?.data?.detail || 'Erro ao iniciar chamada'
+      const detail = error?.response?.data?.detail || error?.message || 'Erro ao iniciar chamada'
       toast.error(detail)
     } finally {
       setCallLoading(null)
