@@ -349,20 +349,24 @@ const api = apiClient as AxiosInstance & {
   markOffline: () => Promise<any>
   markActivity: () => Promise<any>
   registerPushDevice: (data: {
-    token: string
+    token?: string
     platform?: string
     device_id?: string
     app_version?: string
+    subscription_endpoint?: string
+    subscription_p256dh?: string
+    subscription_auth?: string
     allow_messages?: boolean
     allow_likes?: boolean
     allow_calls?: boolean
     allow_presence?: boolean
     allow_general?: boolean
   }) => Promise<any>
-  unregisterPushDevice: (data?: { token?: string; device_id?: string }) => Promise<any>
+  unregisterPushDevice: (data?: { token?: string; device_id?: string; subscription_endpoint?: string }) => Promise<any>
   updatePushPreferences: (data: {
     token?: string
     device_id?: string
+    subscription_endpoint?: string
     allow_messages?: boolean
     allow_likes?: boolean
     allow_calls?: boolean
@@ -744,10 +748,13 @@ api.markActivity = async () => {
 }
 
 api.registerPushDevice = async (data: {
-  token: string
+  token?: string
   platform?: string
   device_id?: string
   app_version?: string
+  subscription_endpoint?: string
+  subscription_p256dh?: string
+  subscription_auth?: string
   allow_messages?: boolean
   allow_likes?: boolean
   allow_calls?: boolean
@@ -757,13 +764,14 @@ api.registerPushDevice = async (data: {
   return apiClient.post('/push/devices', data)
 }
 
-api.unregisterPushDevice = async (data?: { token?: string; device_id?: string }) => {
+api.unregisterPushDevice = async (data?: { token?: string; device_id?: string; subscription_endpoint?: string }) => {
   return apiClient.delete('/push/devices', { data: data || {} })
 }
 
 api.updatePushPreferences = async (data: {
   token?: string
   device_id?: string
+  subscription_endpoint?: string
   allow_messages?: boolean
   allow_likes?: boolean
   allow_calls?: boolean
