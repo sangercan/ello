@@ -59,15 +59,15 @@ export const moodTheme: Record<
   },
   cansado: {
     label: 'Cansado',
-    className: 'from-slate-500/20 to-zinc-500/10 border-slate-400/30',
+    className: 'from-rose-500/25 to-fuchsia-500/15 border-rose-400/45',
     suggestion: 'Pega mais leve hoje. Conte algo real do seu dia.',
-    ringColor: '#64748B',
+    ringColor: '#F43F5E',
   },
   triste: {
     label: 'Triste',
-    className: 'from-slate-600/20 to-blue-600/10 border-slate-500/30',
-    suggestion: 'Se quiser, compartilhe como você está se sentindo.',
-    ringColor: '#475569',
+    className: 'from-blue-500/30 to-indigo-500/20 border-blue-400/50',
+    suggestion: 'Se quiser, compartilhe como voce esta se sentindo.',
+    ringColor: '#2563EB',
   },
 }
 

@@ -27,6 +27,7 @@ import {
   Zap,
 } from 'lucide-react'
 const DASHBOARD_CACHE_KEY = 'ello:cache:dashboard:v1'
+const DASHBOARD_REQUEST_TIMEOUT_MS = 4500
 
 type ConversationPreview = {
   id: number
@@ -92,6 +93,24 @@ const extractList = (payload: any) => {
 const extractTotal = (payload: any, fallbackLength: number) => {
   const total = Number(payload?.total)
   return Number.isFinite(total) && total >= 0 ? total : fallbackLength
+}
+
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs = DASHBOARD_REQUEST_TIMEOUT_MS): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error('dashboard-request-timeout'))
+    }, timeoutMs)
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      })
+  })
 }
 
 const formatRelative = (dateString?: string) => {
@@ -211,6 +230,8 @@ export default function DashboardPage() {
     void loadDashboard(hasHydratedCache)
     void loadWeatherWidget()
     void loadEventsWidget()
+    void loadRealtimeInsights()
+
     const realtimeTimer = window.setInterval(() => {
       void loadRealtimeInsights()
     }, 20000)
@@ -223,11 +244,11 @@ export default function DashboardPage() {
       if (!background) setLoading(true)
 
       const [momentsRes, vibesRes, conversationsRes, notificationsRes, musicRes] = await Promise.allSettled([
-        apiClient.getMoments(1, 12),
-        apiClient.getVibes(1, 12),
-        apiClient.getConversations(1, 20),
-        apiClient.getNotifications(1, 20),
-        apiClient.getMusicFeed(1, 20),
+        withTimeout(apiClient.getMoments(1, 8)),
+        withTimeout(apiClient.getVibes(1, 8)),
+        withTimeout(apiClient.getConversations(1, 12)),
+        withTimeout(apiClient.getNotifications(1, 12)),
+        withTimeout(apiClient.getMusicFeed(1, 12)),
       ])
 
       const momentsPayload = momentsRes.status === 'fulfilled' ? momentsRes.value.data : {}
@@ -284,12 +305,27 @@ export default function DashboardPage() {
       })
 
       const myId = Number(user?.id)
-      const myMoments = momentsList.filter((m: any) => Number(m.author_id || m.user_id || m.author?.id) === myId)
-      const latest = myMoments.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0]
-      const views = Number(latest?.views_count || (Number(latest?.likes_count || 0) + Number(latest?.comments_count || 0)))
-      setInsights((prev) => ({ ...prev, lastPostViews: Number.isFinite(views) ? views : 0 }))
+      let latestMoment: any | null = null
+      for (const moment of momentsList) {
+        const authorId = Number(moment?.author_id || moment?.user_id || moment?.author?.id)
+        if (authorId !== myId) continue
 
-      void loadRealtimeInsights()
+        if (!latestMoment) {
+          latestMoment = moment
+          continue
+        }
+
+        const currentTs = new Date(moment?.created_at || 0).getTime()
+        const latestTs = new Date(latestMoment?.created_at || 0).getTime()
+        if (currentTs > latestTs) {
+          latestMoment = moment
+        }
+      }
+      const views = Number(
+        latestMoment?.views_count ||
+        (Number(latestMoment?.likes_count || 0) + Number(latestMoment?.comments_count || 0))
+      )
+      setInsights((prev) => ({ ...prev, lastPostViews: Number.isFinite(views) ? views : 0 }))
 
       try {
         window.sessionStorage.setItem(
