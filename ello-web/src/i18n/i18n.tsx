@@ -7,7 +7,14 @@ type I18nContextValue = {
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
-const I18nContext = createContext<I18nContextValue | null>(null)
+type GlobalI18nScope = typeof globalThis & {
+  __elloI18nContext__?: ReturnType<typeof createContext<I18nContextValue | null>>
+}
+
+const globalI18nScope = globalThis as GlobalI18nScope
+const I18nContext =
+  globalI18nScope.__elloI18nContext__ ??
+  (globalI18nScope.__elloI18nContext__ = createContext<I18nContextValue | null>(null))
 
 const STORAGE_KEY = 'ello.language'
 
@@ -105,7 +112,18 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 export function useI18n() {
   const context = useContext(I18nContext)
   if (!context) {
-    throw new Error('useI18n must be used within I18nProvider')
+    // Avoid runtime blank screens in production if provider context gets detached.
+    if (import.meta.env.DEV) {
+      throw new Error('useI18n must be used within I18nProvider')
+    }
+    return {
+      language: 'en' as SupportedLanguage,
+      setLanguage: () => {},
+      t: (key: string, params?: Record<string, string | number>) => {
+        const fallback = getNestedTranslation('en', key) || key
+        return applyParams(fallback, params)
+      },
+    }
   }
   return context
 }
