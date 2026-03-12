@@ -54,6 +54,7 @@ VIDEO_EXTENSIONS = {
 AUDIO_EXTENSIONS = {
     "mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac",
 }
+BASE64_TEXT_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=_- \r\n\t")
 
 
 def _build_filename(media_type: str, user_id: int, original_name: str) -> str:
@@ -95,6 +96,58 @@ def _resolve_extension(mime: str, original_name: str, fallback: str = "bin") -> 
     return fallback
 
 
+def _is_generic_mime(mime: str) -> bool:
+    normalized = (mime or "").strip().lower()
+    return normalized in {
+        "",
+        "application/octet-stream",
+        "binary/octet-stream",
+        "text/plain",
+    }
+
+
+def _detect_mime_by_signature(file_bytes: bytes) -> str | None:
+    if not file_bytes:
+        return None
+
+    head = file_bytes[:64]
+
+    if head.startswith(b"\xFF\xD8\xFF"):
+        return "image/jpeg"
+    if head.startswith(b"\x89PNG\r\n\x1A\n"):
+        return "image/png"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if head.startswith(b"BM"):
+        return "image/bmp"
+    if head.startswith(b"RIFF") and len(head) >= 12 and head[8:12] == b"WEBP":
+        return "image/webp"
+
+    if len(file_bytes) >= 12 and file_bytes[4:8] == b"ftyp":
+        brand = file_bytes[8:12].decode("ascii", errors="ignore").lower()
+        if brand in {"heic", "heix", "hevc", "hevx", "mif1", "msf1"}:
+            return "image/heic"
+        if brand in {"heif"}:
+            return "image/heif"
+        if brand in {"avif", "avis"}:
+            return "image/avif"
+        if brand in {"isom", "iso2", "mp41", "mp42", "3gp4", "3gp5", "qt  "}:
+            return "video/mp4"
+        if brand in {"m4a ", "m4b ", "m4p "}:
+            return "audio/mp4"
+
+    if head.startswith(b"\x1A\x45\xDF\xA3"):
+        return "video/webm"
+    if head.startswith(b"ID3"):
+        return "audio/mpeg"
+    if head.startswith(b"RIFF") and len(head) >= 12 and head[8:12] == b"WAVE":
+        return "audio/wav"
+    if head.startswith(b"OggS"):
+        return "audio/ogg"
+
+    return None
+
+
 def _decode_data_url_if_needed(file_bytes: bytes) -> tuple[bytes, str | None]:
     """Decode `data:*;base64,...` payloads sent as plain text by some webviews."""
     if not file_bytes:
@@ -115,6 +168,47 @@ def _decode_data_url_if_needed(file_bytes: bytes) -> tuple[bytes, str | None]:
         return decoded, mime
     except Exception:
         return file_bytes, None
+
+
+def _decode_raw_base64_if_needed(file_bytes: bytes) -> bytes:
+    """Decode plain base64 payload (without data URL header) when detected."""
+    if not file_bytes:
+        return file_bytes
+
+    sample = file_bytes[:4096]
+    try:
+        text_sample = sample.decode("ascii")
+    except UnicodeDecodeError:
+        return file_bytes
+
+    if not text_sample:
+        return file_bytes
+
+    if any(ch not in BASE64_TEXT_CHARS for ch in text_sample):
+        return file_bytes
+
+    try:
+        text = file_bytes.decode("ascii")
+    except UnicodeDecodeError:
+        return file_bytes
+
+    compact = "".join(text.split())
+    if len(compact) < 128:
+        return file_bytes
+
+    padded = compact + ("=" * ((4 - (len(compact) % 4)) % 4))
+    try:
+        decoded = base64.b64decode(padded, validate=True)
+    except Exception:
+        return file_bytes
+
+    if not decoded:
+        return file_bytes
+
+    if _detect_mime_by_signature(decoded):
+        return decoded
+
+    return file_bytes
 
 
 def _optimize_image_bytes(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
@@ -455,25 +549,27 @@ def upload_file(
         "document": "documents",
     }
 
-    uploads_subdir = folder_by_media_type.get(media_type, "documents")
-    uploads_dir = f"/app/uploads/{uploads_subdir}"
-    os.makedirs(uploads_dir, exist_ok=True)
-
     file_bytes = file.file.read()
     file_bytes, decoded_mime = _decode_data_url_if_needed(file_bytes)
-    if decoded_mime and (
-        not mime
-        or mime == "application/octet-stream"
-        or mime == "text/plain"
-    ):
+    if decoded_mime:
         mime = decoded_mime
-        media_type = _infer_media_type(mime, file.filename)
-        uploads_subdir = folder_by_media_type.get(media_type, "documents")
-        uploads_dir = f"/app/uploads/{uploads_subdir}"
-        os.makedirs(uploads_dir, exist_ok=True)
+
+    if _is_generic_mime(mime) or mime.startswith("text/"):
+        file_bytes = _decode_raw_base64_if_needed(file_bytes)
+
+    sniffed_mime = _detect_mime_by_signature(file_bytes)
+    if sniffed_mime:
+        sniffed_media_type = _infer_media_type(sniffed_mime, file.filename)
+        if _is_generic_mime(mime) or sniffed_media_type != media_type:
+            mime = sniffed_mime
+            media_type = sniffed_media_type
 
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Arquivo vazio ou invalido")
+
+    uploads_subdir = folder_by_media_type.get(media_type, "documents")
+    uploads_dir = f"/app/uploads/{uploads_subdir}"
+    os.makedirs(uploads_dir, exist_ok=True)
 
     unique_filename = _build_filename(media_type, current_user.id, file.filename)
 

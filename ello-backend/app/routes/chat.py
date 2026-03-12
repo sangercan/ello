@@ -48,6 +48,8 @@ from app.routes.upload import (
     _compress_audio_bytes,
     _compress_video_bytes,
     _compress_document_bytes,
+    _detect_mime_by_signature,
+    _infer_media_type,
     _optimize_image_bytes,
     _resolve_extension,
 )
@@ -664,9 +666,17 @@ async def send_media(
             media_data = media_blob
 
         media_bytes = base64.b64decode(media_data)
+        sniffed_mime = _detect_mime_by_signature(media_bytes)
+        if sniffed_mime and not inferred_mime:
+            inferred_mime = sniffed_mime
 
         if media_type not in {'image', 'video', 'audio', 'document'}:
             media_type = 'document'
+
+        if sniffed_mime:
+            sniffed_media_type = _infer_media_type(sniffed_mime, filename)
+            if media_type == 'document' or sniffed_media_type != media_type:
+                media_type = sniffed_media_type
 
         try:
             if media_type == 'image':
