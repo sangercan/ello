@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
-import { useMoodStore } from '@store/moodStore'
 import apiClient from '@services/api'
 import { requestEssentialPermissions } from '@services/permissions'
 import { registerPushDevice } from '@services/pushNotifications'
 import { toast } from 'react-hot-toast'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
-import { getMoodAvatarRingStyle, moodTheme, type MoodType } from '@/utils/mood'
+import { DEFAULT_MOOD, getMoodAvatarRingStyle, isMoodType, moodTheme, type MoodType } from '@/utils/mood'
 import {
   Bell,
   Compass,
@@ -35,6 +34,7 @@ type ConversationPreview = {
   username: string
   fullName: string
   avatarUrl?: string
+  mood?: string | null
   lastMessage?: string
   lastMessageTime?: string
   unreadCount: number
@@ -132,9 +132,7 @@ const weatherCodeToLabel = (code: number) => {
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
-  const mood = useMoodStore((state) => state.mood)
-  const setMood = useMoodStore((state) => state.setMood)
-  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
+  const mood = isMoodType(user?.mood) ? user.mood : DEFAULT_MOOD
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -250,6 +248,7 @@ export default function DashboardPage() {
         username: String(conv.other_user?.username || ''),
         fullName: String(conv.other_user?.full_name || conv.other_user?.username || 'Usuário'),
         avatarUrl: resolveMediaUrl(conv.other_user?.avatar_url),
+        mood: conv.other_user?.mood || null,
         lastMessage: String(conv.last_message || ''),
         lastMessageTime: conv.last_message_time,
         unreadCount: Number(conv.unread_count || 0),
@@ -415,6 +414,22 @@ export default function DashboardPage() {
     }
   }
 
+  const handleChangeMood = async (nextMood: MoodType) => {
+    if (nextMood === mood) return
+
+    try {
+      const response = await apiClient.updateProfile({ mood: nextMood })
+      const nextUser = response?.data || response
+      if (nextUser && typeof nextUser === 'object') {
+        useAuthStore.setState({ user: nextUser })
+      }
+      toast.success(`Humor atualizado para ${moodTheme[nextMood].label}.`)
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail
+      toast.error(detail || 'Nao foi possivel atualizar seu humor agora.')
+    }
+  }
+
   const quickActions = useMemo(() => ([
     {
       label: 'Novo Moment',
@@ -453,8 +468,10 @@ export default function DashboardPage() {
     { id: 'focado', label: 'Focado', icon: Target },
     { id: 'relaxando', label: 'Relaxando', icon: Moon },
     { id: 'animado', label: 'Animado', icon: Zap },
-    { id: 'criativo', label: 'Criativo', icon: Palette },
-    { id: 'grato', label: 'Grato', icon: Heart },
+    { id: 'calmo', label: 'Calmo', icon: Waves },
+    { id: 'pensativo', label: 'Pensativo', icon: Palette },
+    { id: 'cansado', label: 'Cansado', icon: HeartPulse },
+    { id: 'triste', label: 'Triste', icon: Heart },
   ]
 
   if (loading) {
@@ -529,7 +546,7 @@ export default function DashboardPage() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setMood(item.id)}
+                    onClick={() => void handleChangeMood(item.id)}
                     className={`h-10 rounded-lg text-xs inline-flex items-center justify-center gap-1 border transition ${active ? 'bg-white/20 border-white/40 text-white' : 'bg-slate-900/40 border-slate-700 text-slate-200'}`}
                   >
                     <Icon size={13} /> {item.label}
@@ -538,7 +555,7 @@ export default function DashboardPage() {
               })}
             </div>
             <p className="mt-3 text-[11px] text-slate-300">
-              A cor do humor aparece no circulo da foto em chats, moments, vibes e stories.
+              A cor do humor aparece individualmente no seu perfil e no chat.
             </p>
           </article>
 
@@ -609,7 +626,7 @@ export default function DashboardPage() {
                           src={item.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.username}`}
                           alt={item.username}
                           className="w-8 h-8 rounded-full"
-                          style={moodAvatarRingStyle}
+                          style={getMoodAvatarRingStyle(item.mood)}
                         />
                         <div className="min-w-0">
                           <p className="text-xs text-white font-medium truncate">{item.fullName}</p>

@@ -83,6 +83,7 @@ def _ensure_panel_admin_columns_exist():
         if dialect == "postgresql":
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_panel_admin BOOLEAN DEFAULT FALSE"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_panel_active BOOLEAN DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mood VARCHAR(32)"))
             return
 
         if dialect == "sqlite":
@@ -94,6 +95,8 @@ def _ensure_panel_admin_columns_exist():
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_panel_admin BOOLEAN DEFAULT 0"))
             if "is_panel_active" not in cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_panel_active BOOLEAN DEFAULT 0"))
+            if "mood" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN mood TEXT"))
 
 
 def _ensure_group_columns():

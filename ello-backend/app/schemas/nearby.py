@@ -10,6 +10,7 @@ class NearbyUserResponse(BaseModel):
     id: int
     username: str
     avatar_url: Optional[str]
+    mood: Optional[str] = None
     distance_km: float
     is_online: bool
     is_favorite: bool = False

@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import type { User, Moment } from '@/types'
 import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Edit3, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import { getMoodAvatarRingStyle } from '@/utils/mood'
 const PROFILE_CACHE_PREFIX = 'ello:cache:profile:v1:'
 
 interface EditFormData {
@@ -355,6 +356,7 @@ export default function ProfilePage() {
                 src={user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.username}
                 alt={user.username}
                 className="w-40 h-40 rounded-full border-4 border-slate-950 object-cover shadow-2xl"
+                style={getMoodAvatarRingStyle(user.mood)}
               />
               {user.is_online && (
                 <div className="absolute bottom-4 right-4 w-5 h-5 bg-green-500 rounded-full border-4 border-slate-950 animate-pulse"></div>
@@ -624,6 +626,7 @@ export default function ProfilePage() {
                     src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                     alt={user.username}
                     className="w-10 h-10 rounded-full object-cover"
+                    style={getMoodAvatarRingStyle(user.mood)}
                   />
                   <div>
                     <p className="text-white font-semibold">{user.full_name}</p>
@@ -695,6 +698,7 @@ export default function ProfilePage() {
                     src={avatarPreview || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
                     alt="avatar preview"
                     className="w-24 h-24 rounded-full object-cover border-2 border-primary"
+                    style={getMoodAvatarRingStyle(user.mood)}
                   />
                   <label className="flex items-center justify-center w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer transition">
                     <span className="text-sm font-semibold">Alterar Foto</span>

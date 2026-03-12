@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { Moment } from '@/types'
 import { Heart, MessageCircle, Share2, X, Send, Search, Link2, PlusCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
-import { useMoodStore } from '@store/moodStore'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 const VIBES_CACHE_KEY = 'ello:cache:vibes:v1'
@@ -22,6 +21,7 @@ type ContentComment = {
     username?: string
     full_name?: string
     avatar_url?: string
+    mood?: string | null
   }
 }
 
@@ -49,13 +49,12 @@ type ConversationOption = {
   username: string
   fullName: string
   avatarUrl?: string
+  mood?: string | null
 }
 
 export default function VibesPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const mood = useMoodStore((state) => state.mood)
-  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const [vibes, setVibes] = useState<Moment[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVibeForComments, setSelectedVibeForComments] = useState<Moment | null>(null)
@@ -146,6 +145,7 @@ export default function VibesPage() {
               avatar_url: v.author.avatar_url,
               is_online: Boolean(v.author.is_online),
               is_visible_nearby: Boolean(v.author.is_visible_nearby),
+              mood: v.author.mood || null,
               created_at: v.author.created_at || v.created_at,
             }
           : {
@@ -156,6 +156,7 @@ export default function VibesPage() {
               avatar_url: v.avatar_url,
               is_online: false,
               is_visible_nearby: false,
+              mood: v.mood || null,
               created_at: v.created_at,
             }
 
@@ -260,7 +261,7 @@ export default function VibesPage() {
       if (!background && vibes.length === 0) {
         setLoading(true)
       }
-      const response = await apiClient.getVibes(1, 24)
+      const response = await apiClient.getVibes(1, 12)
       const list = Array.isArray(response.data) ? response.data : response.data?.data || []
       setVibes(normalizeVibes(list))
     } catch (error) {
@@ -592,6 +593,7 @@ export default function VibesPage() {
           username: String(item.other_user?.username || ''),
           fullName: String(item.other_user?.full_name || 'Usuário'),
           avatarUrl: resolveMediaUrl(item.other_user?.avatar_url),
+          mood: item.other_user?.mood || null,
         }))
         .filter((item: ConversationOption) => Number.isFinite(item.userId) && item.userId > 0)
 
@@ -880,7 +882,7 @@ export default function VibesPage() {
                           src={vibe.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${vibe.author?.username || 'author'}`}
                           alt={vibe.author?.username || 'author'}
                           className="w-9 h-9 rounded-full object-cover"
-                          style={moodAvatarRingStyle}
+                          style={getMoodAvatarRingStyle(vibe.author?.mood)}
                         />
                       </button>
                       <div className="min-w-0 flex-1">
@@ -1053,7 +1055,7 @@ export default function VibesPage() {
                               src={comment.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.author?.username || comment.id}`}
                               alt={comment.author?.username || 'user'}
                               className="w-6 h-6 rounded-full object-cover mt-0.5"
-                              style={moodAvatarRingStyle}
+                              style={getMoodAvatarRingStyle(comment.author?.mood)}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-xs text-gray-300">
@@ -1121,7 +1123,7 @@ export default function VibesPage() {
                                     src={reply.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author?.username || reply.id}`}
                                     alt={reply.author?.username || 'user'}
                                     className="w-5 h-5 rounded-full object-cover mt-0.5"
-                                    style={moodAvatarRingStyle}
+                                    style={getMoodAvatarRingStyle(reply.author?.mood)}
                                   />
                                   <div className="min-w-0">
                                     <div className="text-[11px] text-gray-400">

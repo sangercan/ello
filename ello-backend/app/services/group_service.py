@@ -246,6 +246,7 @@ def list_group_members(db: Session, group_id: int, current_user_id: int):
             "username": user_map.get(r.user_id).username if user_map.get(r.user_id) else "",
             "full_name": user_map.get(r.user_id).full_name if user_map.get(r.user_id) else None,
             "avatar_url": user_map.get(r.user_id).avatar_url if user_map.get(r.user_id) else None,
+            "mood": user_map.get(r.user_id).mood if user_map.get(r.user_id) else None,
         }
         for r in rows
     ]
@@ -324,6 +325,7 @@ def send_group_message(
             "username": sender.username,
             "full_name": sender.full_name,
             "avatar_url": sender.avatar_url,
+            "mood": sender.mood,
         }
 
     member_ids = sorted({
@@ -380,6 +382,7 @@ def get_group_messages(db: Session, group_id: int, current_user_id: int, page: i
               "username": msg.sender.username,
               "full_name": msg.sender.full_name,
               "avatar_url": msg.sender.avatar_url,
+              "mood": msg.sender.mood,
           } if msg.sender else None,
         })
     total = db.query(Message).filter(Message.group_id == group_id).count()

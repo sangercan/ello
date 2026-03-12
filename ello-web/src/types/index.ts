@@ -9,6 +9,7 @@ export interface User {
   link?: string
   location?: string
   category?: string
+  mood?: string | null
   is_online: boolean
   is_visible_nearby: boolean
   created_at: string

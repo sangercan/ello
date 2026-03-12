@@ -21,6 +21,7 @@ class UserBasic(BaseModel):
     full_name: str
     username: str
     avatar_url: Optional[str] = None
+    mood: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

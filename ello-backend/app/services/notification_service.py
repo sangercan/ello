@@ -33,6 +33,7 @@ def _serialize_notification(notification: Notification):
             "username": actor.username,
             "full_name": actor.full_name,
             "avatar_url": actor.avatar_url,
+            "mood": actor.mood,
         } if actor is not None else None,
     }
 

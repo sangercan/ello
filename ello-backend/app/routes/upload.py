@@ -213,11 +213,20 @@ def _decode_raw_base64_if_needed(file_bytes: bytes) -> bytes:
 
 def _optimize_image_bytes(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
     """Optimize image size while keeping visual quality high."""
-    # Prefer libvips for speed/compression ratio. Keep Pillow as safe fallback.
+    # Prefer libvips for speed/compression ratio.
     try:
         return _optimize_image_bytes_vips(file_bytes, mime)
     except Exception:
+        pass
+
+    # Pillow as secondary fallback.
+    try:
         return _optimize_image_bytes_pillow(file_bytes, mime)
+    except Exception:
+        pass
+
+    # ffmpeg fallback helps with formats unsupported by Pillow in some runtimes (HEIC/HEIF/AVIF).
+    return _optimize_image_bytes_ffmpeg(file_bytes, mime)
 
 
 def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
@@ -306,6 +315,68 @@ def _optimize_image_bytes_pillow(file_bytes: bytes, mime: str) -> tuple[bytes, s
         return output.getvalue(), extension
 
 
+def _optimize_image_bytes_ffmpeg(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        raise RuntimeError("ffmpeg not found in runtime")
+
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/heic": ".heic",
+        "image/heif": ".heif",
+        "image/avif": ".avif",
+    }
+    in_ext = ext_map.get(mime, ".img")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=in_ext) as temp_in:
+        temp_in.write(file_bytes)
+        temp_in.flush()
+        in_path = temp_in.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as temp_out:
+        out_path = temp_out.name
+
+    try:
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            in_path,
+            "-vf",
+            f"scale='min(iw,{MAX_IMAGE_DIMENSION})':-2",
+            "-vcodec",
+            "libwebp",
+            "-quality",
+            "82",
+            "-compression_level",
+            "6",
+            out_path,
+        ]
+
+        proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="ignore")
+            raise RuntimeError(f"ffmpeg image transcode failed: {stderr[:500]}")
+
+        with open(out_path, "rb") as f:
+            compressed = f.read()
+
+        if not compressed:
+            raise RuntimeError("ffmpeg image transcode produced empty output")
+
+        return compressed, "webp"
+    finally:
+        for path in (in_path, out_path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
 def _compress_video_bytes(file_bytes: bytes) -> tuple[bytes, str]:
     """Transcode videos to H.264/AAC MP4 to reduce size while preserving quality."""
     ffmpeg_bin = shutil.which("ffmpeg")
@@ -392,7 +463,7 @@ def _normalize_image_to_canvas(file_bytes: bytes, target_width: int, target_heig
         canvas.save(
             output,
             format="WEBP",
-            quality=95,
+            quality=88,
             method=6,
         )
         return output.getvalue(), "webp"
@@ -436,11 +507,11 @@ def _normalize_video_to_canvas(file_bytes: bytes, target_width: int, target_heig
             "-preset",
             "veryfast",
             "-crf",
-            "24",
+            "28",
             "-c:a",
             "aac",
             "-b:a",
-            "160k",
+            "128k",
             "-movflags",
             "+faststart",
             out_path,
@@ -578,15 +649,13 @@ def upload_file(
 
     try:
         if media_type == "image":
-            try:
-                if target_size:
+            if target_size:
+                try:
                     payload, extension = _normalize_image_to_canvas(file_bytes, target_size[0], target_size[1])
-                else:
+                except (UnidentifiedImageError, OSError, ValueError):
                     payload, extension = _optimize_image_bytes(file_bytes, mime)
-            except (UnidentifiedImageError, OSError, ValueError):
-                # Fallback for unsupported decoders (e.g. HEIC/HEIF/AVIF on some runtimes).
-                payload = file_bytes
-                extension = _resolve_extension(mime, file.filename, fallback="jpg")
+            else:
+                payload, extension = _optimize_image_bytes(file_bytes, mime)
         elif media_type == "video":
             if target_size:
                 payload, extension = _normalize_video_to_canvas(file_bytes, target_size[0], target_size[1])

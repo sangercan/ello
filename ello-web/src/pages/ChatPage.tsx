@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
-import { useMoodStore } from '@store/moodStore'
 import apiClient from '@services/api'
 import { ensureCallPermissions, ensureCameraPermission, ensureLocationPermission } from '@services/permissions'
 import { resolveMediaUrl } from '@utils/mediaUrl'
@@ -44,6 +43,7 @@ interface ForwardTarget {
   username: string
   full_name?: string
   avatar_url?: string
+  mood?: string | null
 }
 
 export default function ChatPage() {
@@ -59,8 +59,6 @@ export default function ChatPage() {
   const { recipientId } = useParams<{ recipientId: string }>()
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
-  const mood = useMoodStore((state) => state.mood)
-  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const startOutgoingCall = useCallStore((state) => state.startOutgoingCall)
   const [recipientUser, setRecipientUser] = useState<ChatUser | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -1277,7 +1275,7 @@ export default function ChatPage() {
               src={recipientUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipientUser.username}`}
               alt={recipientUser.username}
               className="w-[30px] h-[30px] sm:w-10 sm:h-10 rounded-full border border-slate-700 object-cover flex-shrink-0"
-              style={moodAvatarRingStyle}
+              style={getMoodAvatarRingStyle(recipientUser.mood)}
             />
 
             <div className="min-w-0 text-left">
@@ -1359,7 +1357,7 @@ export default function ChatPage() {
                 src={recipientUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipientUser.username}`}
                 alt={recipientUser.username}
                 className="w-16 h-16 rounded-full mx-auto mb-4 border border-slate-700 object-cover"
-                style={moodAvatarRingStyle}
+                style={getMoodAvatarRingStyle(recipientUser.mood)}
               />
               <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">Comece uma conversa com {recipientUser.full_name || recipientUser.username}</h3>
               <p className="text-gray-400 text-xs sm:text-sm">@{recipientUser.username}</p>
@@ -1892,7 +1890,7 @@ export default function ChatPage() {
                       src={target.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${target.username}`}
                       alt={target.username}
                       className="w-10 h-10 rounded-full border border-slate-600 object-cover"
-                      style={moodAvatarRingStyle}
+                      style={getMoodAvatarRingStyle(target.mood)}
                     />
                     <div className="min-w-0">
                       <p className="text-white text-sm font-medium truncate">{target.full_name || target.username}</p>

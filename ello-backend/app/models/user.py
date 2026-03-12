@@ -28,6 +28,7 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     bio = Column(String, nullable=True)
     location = Column(String, nullable=True)
+    mood = Column(String(32), nullable=True)
 
     # 🔥 NOVOS CAMPOS
     link = Column(String, nullable=True)

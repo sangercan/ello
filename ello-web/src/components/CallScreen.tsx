@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
 import { useCallStore } from '@store/callStore'
-import { useMoodStore } from '@store/moodStore'
 import api from '@services/api'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 
@@ -120,8 +119,6 @@ const CallScreen = () => {
   const isMinimized = useCallStore((state) => state.isMinimized)
   const restoreCall = useCallStore((state) => state.restoreCall)
   const toggleMinimize = useCallStore((state) => state.toggleMinimize)
-  const mood = useMoodStore((state) => state.mood)
-  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const iceServers = useRef<RTCIceServer[]>(buildIceServers())
 
   const [statusLabel, setStatusLabel] = useState('Ligando...')
@@ -802,12 +799,12 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
         onPointerCancel={handleMiniPointerUp}
       >
         <div className="flex items-center gap-3">
-          <img
-            src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
-            alt={activeCall.user.username}
-            className="h-12 w-12 rounded-full border border-white/10 object-cover"
-            style={moodAvatarRingStyle}
-          />
+            <img
+              src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
+              alt={activeCall.user.username}
+              className="h-12 w-12 rounded-full border border-white/10 object-cover"
+              style={getMoodAvatarRingStyle(activeCall.user.mood)}
+            />
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold truncate">{activeCall.user.full_name || activeCall.user.username}</p>
             <p className="text-xs text-white/60">{connected ? 'Conectado' : statusLabel}</p>
@@ -948,7 +945,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
                 src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
                 alt={activeCall.user.username}
                 className="h-20 w-20 rounded-full object-cover mx-auto"
-                style={moodAvatarRingStyle}
+                style={getMoodAvatarRingStyle(activeCall.user.mood)}
               />
               <p className="mt-3 text-lg font-semibold text-white">{activeCall.user.full_name || activeCall.user.username}</p>
               <p className="text-sm text-white/70">{callLabel}</p>
@@ -1008,7 +1005,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
               src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
               alt={activeCall.user.username}
               className="h-28 w-28 rounded-full border-4 border-white/20 object-cover"
-              style={moodAvatarRingStyle}
+              style={getMoodAvatarRingStyle(activeCall.user.mood)}
             />
             <span className="absolute -bottom-1 right-0 h-4 w-4 rounded-full border-2 border-slate-950 bg-emerald-500" />
           </div>

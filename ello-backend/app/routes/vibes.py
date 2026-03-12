@@ -55,6 +55,7 @@ async def create(data: VibeCreate,
                     "username": current_user.username,
                     "full_name": current_user.full_name,
                     "avatar_url": current_user.avatar_url,
+                    "mood": current_user.mood,
                 },
             },
         })

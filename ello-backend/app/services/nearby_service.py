@@ -108,6 +108,7 @@ def get_nearby_users(
                 "id": user.id,
                 "username": user.username,
                 "avatar_url": user.avatar_url,
+                "mood": user.mood,
                 "distance_km": round(distance, 2),
                 "is_online": user.is_online,
                 "is_favorite": user.id in favorite_ids,
@@ -150,6 +151,7 @@ def list_nearby_favorites(db: Session, current_user: User):
             "id": user.id,
             "username": user.username,
             "avatar_url": user.avatar_url,
+            "mood": user.mood,
             "distance_km": round(haversine(current_user.latitude, current_user.longitude, user.latitude, user.longitude), 2),
             "is_online": bool(
                 user.is_online and user.last_activity_at and user.last_activity_at >= (datetime.now(timezone.utc) - timedelta(minutes=20))

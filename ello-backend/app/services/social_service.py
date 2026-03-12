@@ -157,6 +157,7 @@ def add_comment(db: Session, current_user, content_type, content_id, text, paren
                 "username": current_user.username,
                 "full_name": current_user.full_name,
                 "avatar_url": current_user.avatar_url,
+                "mood": current_user.mood,
             },
         }
     }
@@ -208,6 +209,7 @@ def get_comments(db: Session, content_type: str, content_id: int, current_user=N
                 "full_name": author.full_name,
                 "username": author.username,
                 "avatar_url": author.avatar_url,
+                "mood": author.mood,
             },
         }
         for comment, author in comments

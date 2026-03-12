@@ -4,7 +4,6 @@ import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import { MessageSquare, Plus, Clock, MoreVertical, Trash2, Ban, Users } from 'lucide-react'
 import { useAuthStore } from '@store/authStore'
-import { useMoodStore } from '@store/moodStore'
 import { resolveMediaUrl } from '@utils/mediaUrl'
 import { useI18n } from '@/i18n/i18n'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
@@ -15,6 +14,7 @@ interface Conversation {
   username: string
   full_name?: string
   avatar_url?: string
+  mood?: string | null
   last_message?: string
   last_message_time?: string
   is_online?: boolean
@@ -33,8 +33,6 @@ interface Group {
 export default function ConversationsPage() {
   const navigate = useNavigate()
   const currentUser = useAuthStore((s) => s.user)
-  const mood = useMoodStore((state) => state.mood)
-  const moodAvatarRingStyle = getMoodAvatarRingStyle(mood)
   const { t, language } = useI18n()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [groups, setGroups] = useState<Group[]>([])
@@ -115,6 +113,7 @@ export default function ConversationsPage() {
         username: conv.other_user?.username || '',
         full_name: conv.other_user?.full_name,
         avatar_url: conv.other_user?.avatar_url,
+        mood: conv.other_user?.mood || null,
         last_message: conv.last_message,
         last_message_time: conv.last_message_time,
         is_online: conv.other_user?.is_online,
@@ -416,7 +415,7 @@ export default function ConversationsPage() {
                     }
                     alt={conversation.username}
                     className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-slate-700 object-cover flex-shrink-0"
-                    style={moodAvatarRingStyle}
+                    style={getMoodAvatarRingStyle(conversation.mood)}
                   />
 
                   {/* Content */}

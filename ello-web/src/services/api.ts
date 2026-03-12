@@ -225,6 +225,7 @@ export interface UserResponse {
   full_name: string
   bio?: string
   avatar_url?: string
+  mood?: string | null
   created_at: string
 }
 

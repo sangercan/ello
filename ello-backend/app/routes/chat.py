@@ -51,7 +51,6 @@ from app.routes.upload import (
     _detect_mime_by_signature,
     _infer_media_type,
     _optimize_image_bytes,
-    _resolve_extension,
 )
 
 # ----------------------------------------------------------
@@ -106,6 +105,7 @@ async def _notify_new_chat_message(db: Session, receiver_id: int, actor: User, m
                     "username": actor.username,
                     "full_name": actor.full_name,
                     "avatar_url": actor.avatar_url,
+                    "mood": actor.mood,
                 },
             },
         })
@@ -680,12 +680,7 @@ async def send_media(
 
         try:
             if media_type == 'image':
-                try:
-                    payload, extension = _optimize_image_bytes(media_bytes, inferred_mime or 'image/jpeg')
-                except Exception:
-                    # Preserve original bytes for unsupported decoders (HEIC/HEIF/AVIF).
-                    payload = media_bytes
-                    extension = _resolve_extension(inferred_mime or '', filename, fallback='jpg')
+                payload, extension = _optimize_image_bytes(media_bytes, inferred_mime or 'image/jpeg')
             elif media_type == 'video':
                 payload, extension = _compress_video_bytes(media_bytes)
             elif media_type == 'audio':

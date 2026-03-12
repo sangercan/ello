@@ -165,6 +165,7 @@ def get_stories(db: Session, current_user):
                 "full_name": story.author.full_name,
                 "username": story.author.username,
                 "avatar_url": story.author.avatar_url,
+                "mood": story.author.mood,
             } if story.author else None,
             "likes_count": likes_count_map.get(story.id, 0),
             "is_liked": story.id in liked_story_ids,

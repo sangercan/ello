@@ -5,11 +5,29 @@
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
+from fastapi import HTTPException
 from datetime import datetime, timezone, timedelta
 from app.models.user import User
 from app.models.follow import Follow
 from app.models.moment import Moment
 from app.core.presence import get_user_last_seen
+
+
+VALID_MOODS = {
+    "feliz",
+    "focado",
+    "relaxando",
+    "animado",
+    "calmo",
+    "pensativo",
+    "cansado",
+    "triste",
+}
+
+LEGACY_MOOD_ALIASES = {
+    "criativo": "pensativo",
+    "grato": "calmo",
+}
 
 
 # ==========================================================
@@ -34,10 +52,27 @@ def get_user_by_username(db: Session, username: str):
 
 def update_user_profile(db: Session, user: User, update_data: dict):
 
-    allowed_fields = ["full_name", "bio", "avatar_url", "location", "link", "category"]
+    allowed_fields = ["full_name", "bio", "avatar_url", "location", "link", "category", "mood"]
 
     for key, value in update_data.items():
         if key in allowed_fields:
+            if key == "mood":
+                if value is None:
+                    setattr(user, key, None)
+                    continue
+
+                normalized_mood = str(value).strip().lower()
+                if not normalized_mood:
+                    setattr(user, key, None)
+                    continue
+
+                normalized_mood = LEGACY_MOOD_ALIASES.get(normalized_mood, normalized_mood)
+
+                if normalized_mood not in VALID_MOODS:
+                    raise HTTPException(status_code=400, detail="Mood invalido")
+
+                setattr(user, key, normalized_mood)
+                continue
             setattr(user, key, value)
 
     db.commit()
@@ -127,6 +162,7 @@ def get_full_profile(db: Session, user_id: int, current_user_id: int = None):
         "avatar_url": user.avatar_url,
         "bio": user.bio,
         "location": user.location,
+        "mood": user.mood,
         "link": user.link,
         "category": user.category,
         "is_online": is_online_now,

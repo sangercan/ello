@@ -132,6 +132,7 @@ def get_moments_intelligence(
                 "full_name": moment.author.full_name,
                 "username": moment.author.username,
                 "avatar_url": moment.author.avatar_url,
+                "mood": moment.author.mood,
             } if moment.author else None
         }
 

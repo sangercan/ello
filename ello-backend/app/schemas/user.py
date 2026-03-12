@@ -39,6 +39,7 @@ class UserUpdate(BaseModel):
     location: Optional[str] = None
     link: Optional[str] = None
     category: Optional[str] = None
+    mood: Optional[str] = None
 
 
 # ----------------------------------------------------------
@@ -54,6 +55,7 @@ class UserResponse(BaseModel):
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     location: Optional[str] = None
+    mood: Optional[str] = None
 
     # 🔥 NOVOS CAMPOS
     link: Optional[str] = None

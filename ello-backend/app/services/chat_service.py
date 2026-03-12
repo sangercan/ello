@@ -196,6 +196,7 @@ def list_user_conversations(
                 "full_name": other_user.full_name,
                 "username": other_user.username,
                 "avatar_url": other_user.avatar_url,
+                "mood": other_user.mood,
                 "is_online": bool(
                     other_user.is_online and
                     other_user.last_activity_at and

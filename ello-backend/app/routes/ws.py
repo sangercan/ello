@@ -63,6 +63,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                         "username": user.username,
                         "full_name": user.full_name,
                         "avatar_url": user.avatar_url,
+                        "mood": user.mood,
                     },
                 },
             })

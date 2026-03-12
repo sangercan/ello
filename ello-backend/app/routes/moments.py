@@ -58,6 +58,7 @@ async def create(
                 "full_name": current_user.full_name,
                 "username": current_user.username,
                 "avatar_url": current_user.avatar_url,
+                "mood": current_user.mood,
             },
         },
     })
@@ -87,6 +88,7 @@ async def create(
                     "username": current_user.username,
                     "full_name": current_user.full_name,
                     "avatar_url": current_user.avatar_url,
+                    "mood": current_user.mood,
                 },
             },
         })

@@ -78,6 +78,7 @@ def get_vibes(db: Session, current_user, page, limit):
                 'full_name': vibe.author.full_name,
                 'username': vibe.author.username,
                 'avatar_url': vibe.author.avatar_url,
+                'mood': vibe.author.mood,
             } if vibe.author else None,
         })
 
