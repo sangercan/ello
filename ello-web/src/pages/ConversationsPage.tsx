@@ -30,6 +30,37 @@ interface Group {
   image_url?: string
 }
 
+const toSafeString = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return fallback
+  return String(value)
+}
+
+const toSafeNumber = (value: unknown): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const toSafeDateString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString()
+  return undefined
+}
+
+const toPreviewMessage = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return undefined
+
+  if (typeof value === 'object') {
+    const maybeContent = (value as { content?: unknown }).content
+    if (typeof maybeContent === 'string') return maybeContent
+    return undefined
+  }
+
+  return String(value)
+}
+
 export default function ConversationsPage() {
   const navigate = useNavigate()
   const currentUser = useAuthStore((s) => s.user)
@@ -105,24 +136,36 @@ export default function ConversationsPage() {
         setLoading(true)
       }
       const response = await apiClient.getConversations(1, 50)
-      
-      // Transform data to match Conversation interface
-      const transformed = (response.data?.data || []).map((conv: any) => ({
-        id: conv.id,
-        user_id: conv.other_user?.id,
-        username: conv.other_user?.username || '',
-        full_name: conv.other_user?.full_name,
-        avatar_url: conv.other_user?.avatar_url,
-        mood: conv.other_user?.mood || null,
-        last_message: conv.last_message,
-        last_message_time: conv.last_message_time,
-        is_online: conv.other_user?.is_online,
-        last_seen_at: conv.other_user?.last_seen_at,
-        unread_count: conv.unread_count,
-      }))
+      const payload = response.data
+      const data = Array.isArray(payload?.data) ? payload.data : []
+
+      // Transform data to match Conversation interface and ignore malformed rows.
+      const transformed: Conversation[] = data
+        .map((conv: any): Conversation | null => {
+          const conversationId = toSafeNumber(conv?.id)
+          const otherUserId = toSafeNumber(conv?.other_user?.id)
+          if (conversationId === null || otherUserId === null) {
+            return null
+          }
+
+          return {
+            id: conversationId,
+            user_id: otherUserId,
+            username: toSafeString(conv?.other_user?.username, ''),
+            full_name: toSafeString(conv?.other_user?.full_name, '') || undefined,
+            avatar_url: toSafeString(conv?.other_user?.avatar_url, '') || undefined,
+            mood: typeof conv?.other_user?.mood === 'string' ? conv.other_user.mood : null,
+            last_message: toPreviewMessage(conv?.last_message),
+            last_message_time: toSafeDateString(conv?.last_message_time),
+            is_online: Boolean(conv?.other_user?.is_online),
+            last_seen_at: toSafeDateString(conv?.other_user?.last_seen_at),
+            unread_count: toSafeNumber(conv?.unread_count) ?? 0,
+          }
+        })
+        .filter((item: Conversation | null): item is Conversation => item !== null)
 
       // Order by last message date (desc)
-      const sorted = transformed.sort((a: any, b: any) => {
+      const sorted = transformed.sort((a: Conversation, b: Conversation) => {
         const dateA = new Date(a.last_message_time || 0).getTime()
         const dateB = new Date(b.last_message_time || 0).getTime()
         return dateB - dateA
@@ -145,14 +188,32 @@ export default function ConversationsPage() {
     try {
       if (!isBackgroundRefresh) setLoading(true)
       const response = await apiClient.getGroups()
-      const data = response.data || []
+      const payload = response.data
+      const data = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : []
       setGroups(
-        data.map((g: any) => ({
-          id: g.id,
-          name: g.name,
-          member_ids: g.member_ids || [],
-          image_url: g.image_url || '',
-        }))
+        data
+          .map((g: any): Group | null => {
+            const id = toSafeNumber(g?.id)
+            if (id === null) return null
+
+            const memberIds = Array.isArray(g?.member_ids)
+              ? g.member_ids
+                  .map((memberId: unknown) => toSafeNumber(memberId))
+                  .filter((memberId: number | null): memberId is number => memberId !== null)
+              : []
+
+            return {
+              id,
+              name: toSafeString(g?.name, `Grupo ${id}`),
+              member_ids: memberIds,
+              image_url: toSafeString(g?.image_url, '') || undefined,
+            }
+          })
+          .filter((item: Group | null): item is Group => item !== null)
       )
     } catch (error) {
       console.error('Erro ao carregar grupos:', error)
@@ -161,12 +222,14 @@ export default function ConversationsPage() {
     }
   }
 
-  const filteredConversations = conversations.filter((conv) =>
-    (conv.username || '').toLowerCase().includes(searchQuery.toLowerCase())
-  )
-  const filteredGroups = groups.filter((g) =>
-    g.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+
+  const filteredConversations = conversations.filter((conv) => {
+    const searchable = `${conv.username || ''} ${conv.full_name || ''}`.toLowerCase()
+    return searchable.includes(normalizedQuery)
+  })
+
+  const filteredGroups = groups.filter((g) => (g.name || '').toLowerCase().includes(normalizedQuery))
 
   const handleDeleteConversation = async (conversation: Conversation) => {
     if (!window.confirm(`${t('conversations.deleteConversation')}: ${conversation.full_name || conversation.username}?`)) return
@@ -228,7 +291,9 @@ export default function ConversationsPage() {
   }
 
   const getConversationPreview = (message?: string) => {
-    if (!message) return { text: t('conversations.noMessage'), isLocation: false }
+    if (typeof message !== 'string' || !message.trim()) {
+      return { text: t('conversations.noMessage'), isLocation: false }
+    }
 
     const normalized = message.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(message) || /Compartilhar\s+Localizacao/i.test(normalized)

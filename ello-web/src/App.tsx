@@ -14,15 +14,44 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AdminProtectedRoute from './components/AdminProtectedRoute'
 import Navbar from './components/Navbar'
 import MusicDockPlayer from './components/MusicDockPlayer'
+import RouteErrorBoundary from './components/RouteErrorBoundary'
 
 type ImportFactory<T extends ComponentType<any>> = () => Promise<{ default: T }>
 type LazyWithPreload<T extends ComponentType<any>> = ReturnType<typeof lazy<T>> & {
   preload: () => Promise<{ default: T }>
 }
 
+const CHUNK_RELOAD_KEY = '__ello_chunk_reload__'
+
+const isChunkLoadError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error)
+  return /(chunk|loading css chunk|dynamic imported module|module script failed)/i.test(message)
+}
+
 const lazyWithPreload = <T extends ComponentType<any>>(factory: ImportFactory<T>): LazyWithPreload<T> => {
-  const Component = lazy(factory) as LazyWithPreload<T>
-  Component.preload = factory
+  const safeFactory = async () => {
+    try {
+      const module = await factory()
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+      }
+      return module
+    } catch (error) {
+      if (typeof window !== 'undefined' && isChunkLoadError(error)) {
+        const alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1'
+        if (!alreadyReloaded) {
+          sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+          window.location.reload()
+          return new Promise<{ default: T }>(() => {})
+        }
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+      }
+      throw error
+    }
+  }
+
+  const Component = lazy(safeFactory) as LazyWithPreload<T>
+  Component.preload = safeFactory
   return Component
 }
 
@@ -397,41 +426,49 @@ function App() {
       {isAuthenticated && <CallScreen />}
       
       {isAuthenticated && <Navbar />}
-      
-      <Suspense fallback={null}>
-        <Routes>
-        {/* Landing Page - Multiple Routes */}
-        <Route path="/" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
-        <Route path="/home" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
-        <Route path="/inicio" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
 
-        {/* Auth Routes */}
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/moments" /> : <LoginPage />} />
-        <Route path="/register" element={isAuthenticated ? <Navigate to="/moments" /> : <RegisterPage />} />
+      <RouteErrorBoundary>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-10">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          }
+        >
+          <Routes>
+          {/* Landing Page - Multiple Routes */}
+          <Route path="/" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
+          <Route path="/home" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
+          <Route path="/inicio" element={isAuthenticated ? <Navigate to="/moments" /> : <LandingPage />} />
 
-        {/* Admin Panel Routes */}
-        <Route path="/painel/login" element={<AdminLoginPage />} />
-        <Route path="/painel" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
-        <Route path="/painel/usuarios" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
+          {/* Auth Routes */}
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/moments" /> : <LoginPage />} />
+          <Route path="/register" element={isAuthenticated ? <Navigate to="/moments" /> : <RegisterPage />} />
 
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/moments" element={<ProtectedRoute><MomentsPage /></ProtectedRoute>} />
-        <Route path="/vibes" element={<ProtectedRoute><VibesPage /></ProtectedRoute>} />
-        <Route path="/music" element={<ProtectedRoute><MusicPage /></ProtectedRoute>} />
-        <Route path="/nearby" element={<ProtectedRoute><NearbyPage /></ProtectedRoute>} />
-        <Route path="/chat" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
-        <Route path="/chat/:recipientId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-        <Route path="/chat-group/:groupId" element={<ProtectedRoute><GroupChatPage /></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/profile/:userId" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          {/* Admin Panel Routes */}
+          <Route path="/painel/login" element={<AdminLoginPage />} />
+          <Route path="/painel" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
+          <Route path="/painel/usuarios" element={<AdminProtectedRoute><AdminPanelPage /></AdminProtectedRoute>} />
 
-        {/* Redirect 404 */}
-        <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Suspense>
+          {/* Protected Routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/moments" element={<ProtectedRoute><MomentsPage /></ProtectedRoute>} />
+          <Route path="/vibes" element={<ProtectedRoute><VibesPage /></ProtectedRoute>} />
+          <Route path="/music" element={<ProtectedRoute><MusicPage /></ProtectedRoute>} />
+          <Route path="/nearby" element={<ProtectedRoute><NearbyPage /></ProtectedRoute>} />
+          <Route path="/chat" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
+          <Route path="/chat/:recipientId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/chat-group/:groupId" element={<ProtectedRoute><GroupChatPage /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/profile/:userId" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+          {/* Redirect 404 */}
+          <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
+      </RouteErrorBoundary>
 
       {isAuthenticated && <MusicDockPlayer />}
     </BrowserRouter>
