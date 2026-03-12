@@ -1,7 +1,9 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
 import { useCallStore } from '@store/callStore'
+import { useMoodStore } from '@store/moodStore'
 import api from '@services/api'
+import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 type SignalPayload = {
   type: 'offer' | 'answer' | 'ice-candidate' | 'call_end'
@@ -118,6 +120,8 @@ const CallScreen = () => {
   const isMinimized = useCallStore((state) => state.isMinimized)
   const restoreCall = useCallStore((state) => state.restoreCall)
   const toggleMinimize = useCallStore((state) => state.toggleMinimize)
+  const mood = useMoodStore((state) => state.mood)
+  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const iceServers = useRef<RTCIceServer[]>(buildIceServers())
 
   const [statusLabel, setStatusLabel] = useState('Ligando...')
@@ -150,6 +154,7 @@ const CallScreen = () => {
   const isIncoming = activeCallDirection === 'incoming'
   const isVideoCall = activeCallType === 'video'
   const callLabel = isVideoCall ? 'Chamada de vídeo' : 'Chamada de voz'
+  const isRinging = activeCall?.status === 'ringing'
 
   const playRemoteAudio = useCallback(() => {
     const audio = remoteAudioRef.current
@@ -701,8 +706,6 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     return () => cleanupCall()
   }, [cleanupCall])
 
-  const isRinging = activeCall?.status === 'ringing'
-
   useEffect(() => {
     if (isRinging) {
       startRingtone(isIncoming ? 'incoming' : 'outgoing')
@@ -721,6 +724,26 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [isMinimized, clampMiniPosition])
+
+  const isIncomingRinging = isIncoming && isRinging
+
+  useEffect(() => {
+    if (!isIncomingRinging || !isMinimized) return
+    restoreCall()
+  }, [isIncomingRinging, isMinimized, restoreCall])
+
+  useEffect(() => {
+    if (!isIncomingRinging || !('vibrate' in navigator)) return
+    const pattern = [220, 120, 220, 120, 400]
+    navigator.vibrate(pattern)
+    const intervalId = window.setInterval(() => {
+      navigator.vibrate(pattern)
+    }, 2600)
+    return () => {
+      window.clearInterval(intervalId)
+      navigator.vibrate(0)
+    }
+  }, [isIncomingRinging])
 
   if (!activeCall) return null
 
@@ -766,6 +789,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
   }
 
   const connected = activeCall.status === 'active'
+  const canMinimize = !isIncomingRinging
 
   if (isMinimized) {
     return (
@@ -782,6 +806,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
             src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
             alt={activeCall.user.username}
             className="h-12 w-12 rounded-full border border-white/10 object-cover"
+            style={moodAvatarRingStyle}
           />
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold truncate">{activeCall.user.full_name || activeCall.user.username}</p>
@@ -901,18 +926,52 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
 
         <div className="absolute top-0 left-0 right-0 p-4">
           <div className="mx-auto max-w-lg rounded-2xl border border-white/20 bg-black/25 px-4 py-3 text-center text-white backdrop-blur-xl">
-            <button
-              onClick={toggleMinimize}
-              className="absolute right-7 top-7 text-white/70 hover:text-white"
-              title="Minimizar"
-            >
-              <Minimize2 size={18} />
-            </button>
+            {canMinimize && (
+              <button
+                onClick={toggleMinimize}
+                className="absolute right-7 top-7 text-white/70 hover:text-white"
+                title="Minimizar"
+              >
+                <Minimize2 size={18} />
+              </button>
+            )}
             <div className="text-lg font-semibold">{activeCall.user.full_name || activeCall.user.username}</div>
             <div className="text-xs text-white/75">{callLabel}</div>
             <div className="text-sm text-white/90 mt-1">{statusText}</div>
           </div>
         </div>
+
+        {isIncomingRinging && !connected && (
+          <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 backdrop-blur-md p-4">
+            <div className="w-full max-w-sm rounded-3xl border border-white/25 bg-slate-950/80 p-5 text-center shadow-2xl shadow-black/80">
+              <img
+                src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
+                alt={activeCall.user.username}
+                className="h-20 w-20 rounded-full object-cover mx-auto"
+                style={moodAvatarRingStyle}
+              />
+              <p className="mt-3 text-lg font-semibold text-white">{activeCall.user.full_name || activeCall.user.username}</p>
+              <p className="text-sm text-white/70">{callLabel}</p>
+              <p className="mt-1 text-xs text-emerald-300">Chamada recebida agora</p>
+              <div className="mt-5 flex items-center justify-center gap-3">
+                <button
+                  onClick={handleEndCall}
+                  className="h-11 px-4 rounded-full bg-red-500 text-white text-sm font-medium hover:bg-red-400 transition inline-flex items-center gap-2"
+                >
+                  <PhoneOff size={17} />
+                  Recusar
+                </button>
+                <button
+                  onClick={performAccept}
+                  className="h-11 px-4 rounded-full bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-400 transition inline-flex items-center gap-2"
+                >
+                  <PhoneIncoming size={17} />
+                  Atender
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <audio ref={remoteAudioRef} autoPlay className="sr-only" />
 
@@ -929,13 +988,15 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 backdrop-blur-xl">
       <div className="w-full max-w-sm rounded-[2.25rem] border border-white/20 bg-slate-900/45 p-6 text-center shadow-2xl shadow-black/70 backdrop-blur-2xl">
         <div className="flex flex-col items-center gap-4">
-          <button
-            onClick={toggleMinimize}
-            className="absolute right-4 top-4 text-white/60 hover:text-white"
-            title="Minimizar"
-          >
-            <Minimize2 size={18} />
-          </button>
+          {canMinimize && (
+            <button
+              onClick={toggleMinimize}
+              className="absolute right-4 top-4 text-white/60 hover:text-white"
+              title="Minimizar"
+            >
+              <Minimize2 size={18} />
+            </button>
+          )}
           <div className="relative">
             {isRinging && (
               <>
@@ -947,6 +1008,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
               src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
               alt={activeCall.user.username}
               className="h-28 w-28 rounded-full border-4 border-white/20 object-cover"
+              style={moodAvatarRingStyle}
             />
             <span className="absolute -bottom-1 right-0 h-4 w-4 rounded-full border-2 border-slate-950 bg-emerald-500" />
           </div>

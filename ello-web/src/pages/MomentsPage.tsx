@@ -1,11 +1,13 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { Moment, Story } from '@/types'
 import { Heart, MessageCircle, Share2, X, ChevronLeft, ChevronRight, Send, Search, Link2, PlusCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@store/authStore'
+import { useMoodStore } from '@store/moodStore'
 import { useNavigate } from 'react-router-dom'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 const PAGE_SIZE = 10
 const STORY_SEEN_STORAGE_KEY = 'ello:stories-seen-by-user'
@@ -60,6 +62,8 @@ type ConversationOption = {
 
 export default function MomentsPage() {
   const user = useAuthStore((state) => state.user)
+  const mood = useMoodStore((state) => state.mood)
+  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const navigate = useNavigate()
   const [moments, setMoments] = useState<Moment[]>([])
   const [stories, setStories] = useState<Story[]>([])
@@ -1310,6 +1314,7 @@ export default function MomentsPage() {
                     src={resolveMediaUrl(user?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'me'}`}
                     alt={user?.username || 'me'}
                     className="w-full h-full rounded-full object-cover"
+                    style={moodAvatarRingStyle}
                   />
                 </button>
                 <button
@@ -1344,6 +1349,7 @@ export default function MomentsPage() {
                       src={resolveMediaUrl(group.author?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${group.author?.username || `story-user-${group.userId}`}`}
                       alt={group.author?.username || 'story'}
                       className="w-full h-full rounded-full object-cover"
+                      style={moodAvatarRingStyle}
                     />
                   </div>
                 </div>
@@ -1387,6 +1393,7 @@ export default function MomentsPage() {
                         src={moment.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${moment.author?.username || 'author'}`}
                         alt={moment.author?.username || 'author'}
                         className="w-10 h-10 rounded-full object-cover"
+                        style={moodAvatarRingStyle}
                       />
                     </button>
                     <div>
@@ -1592,6 +1599,7 @@ export default function MomentsPage() {
               src={selectedStoryGroup?.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedStoryGroup?.author?.username || `story-user-${selectedStoryGroup?.userId}`}`}
               alt={selectedStoryGroup?.author?.username || 'story'}
               className="w-8 h-8 rounded-full object-cover"
+              style={moodAvatarRingStyle}
             />
             <div className="text-left">
               <p className="text-sm font-semibold leading-tight">{selectedStoryGroup?.author?.full_name || 'Usuario'}</p>
@@ -1976,6 +1984,7 @@ export default function MomentsPage() {
                               src={comment.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.author?.username || comment.id}`}
                               alt={comment.author?.username || 'user'}
                               className="w-6 h-6 rounded-full object-cover mt-0.5"
+                              style={moodAvatarRingStyle}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-xs text-gray-300">
@@ -2043,6 +2052,7 @@ export default function MomentsPage() {
                                     src={reply.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author?.username || reply.id}`}
                                     alt={reply.author?.username || 'user'}
                                     className="w-5 h-5 rounded-full object-cover mt-0.5"
+                                    style={moodAvatarRingStyle}
                                   />
                                   <div className="min-w-0">
                                     <div className="text-[11px] text-gray-400">

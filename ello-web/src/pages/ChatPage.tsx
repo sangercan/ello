@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
+import { useMoodStore } from '@store/moodStore'
 import apiClient from '@services/api'
+import { ensureCallPermissions, ensureCameraPermission, ensureLocationPermission } from '@services/permissions'
 import { resolveMediaUrl } from '@utils/mediaUrl'
 import { useCallStore } from '@store/callStore'
 import { toast } from 'react-hot-toast'
@@ -9,6 +11,7 @@ import { toast } from 'react-hot-toast'
 import { Send, ArrowLeft, Phone, Video, MoreVertical, Paperclip, MapPin, Mic, Image, Smile, X, FileText, PlayCircle, Camera, Pencil, Trash2 } from 'lucide-react'
 import type { CallType } from '@/types/call'
 import type { User as AppUser } from '@/types'
+import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 type ChatUser = AppUser & {
   last_seen_at?: string
@@ -56,6 +59,8 @@ export default function ChatPage() {
   const { recipientId } = useParams<{ recipientId: string }>()
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
+  const mood = useMoodStore((state) => state.mood)
+  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const startOutgoingCall = useCallStore((state) => state.startOutgoingCall)
   const [recipientUser, setRecipientUser] = useState<ChatUser | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -383,17 +388,22 @@ export default function ChatPage() {
         return
       }
 
+      const permission = await ensureCallPermissions(callType)
+      if (!permission.granted) {
+        if (permission.media.microphone !== 'granted') {
+          toast.error('Permita o microfone para iniciar chamadas.')
+          return
+        }
+        if (callType === 'video' && permission.media.camera !== 'granted') {
+          toast.error('Permita a camera para iniciar chamadas de video.')
+          return
+        }
+      }
+
       if (!navigator.mediaDevices?.getUserMedia) {
         toast.error('Este dispositivo nao suporta camera/microfone para chamadas.')
         return
       }
-
-      // Preflight de permissao evita abrir chamada sem acesso a audio/video.
-      const probeStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video',
-      })
-      probeStream.getTracks().forEach((track) => track.stop())
 
       const ws = getAppWebSocket()
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -1108,6 +1118,12 @@ export default function ChatPage() {
       return
     }
 
+    const permission = await ensureLocationPermission()
+    if (!permission.granted) {
+      toast.error('Permita localizacao para compartilhar sua posicao.')
+      return
+    }
+
     try {
       setIsSending(true)
       navigator.geolocation.getCurrentPosition(async (position) => {
@@ -1153,6 +1169,12 @@ export default function ChatPage() {
 
   const handleOpenCamera = async () => {
     try {
+      const permission = await ensureCameraPermission()
+      if (!permission.granted) {
+        toast.error('Permita camera para capturar foto.')
+        return
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user' },
         audio: false
@@ -1254,7 +1276,8 @@ export default function ChatPage() {
             <img
               src={recipientUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipientUser.username}`}
               alt={recipientUser.username}
-              className="w-[30px] h-[30px] sm:w-10 sm:h-10 rounded-full border border-primary/40 flex-shrink-0"
+              className="w-[30px] h-[30px] sm:w-10 sm:h-10 rounded-full border border-slate-700 object-cover flex-shrink-0"
+              style={moodAvatarRingStyle}
             />
 
             <div className="min-w-0 text-left">
@@ -1335,7 +1358,8 @@ export default function ChatPage() {
               <img
                 src={recipientUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipientUser.username}`}
                 alt={recipientUser.username}
-                className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-primary/40"
+                className="w-16 h-16 rounded-full mx-auto mb-4 border border-slate-700 object-cover"
+                style={moodAvatarRingStyle}
               />
               <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">Comece uma conversa com {recipientUser.full_name || recipientUser.username}</h3>
               <p className="text-gray-400 text-xs sm:text-sm">@{recipientUser.username}</p>
@@ -1867,7 +1891,8 @@ export default function ChatPage() {
                     <img
                       src={target.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${target.username}`}
                       alt={target.username}
-                      className="w-10 h-10 rounded-full border border-slate-600"
+                      className="w-10 h-10 rounded-full border border-slate-600 object-cover"
+                      style={moodAvatarRingStyle}
                     />
                     <div className="min-w-0">
                       <p className="text-white text-sm font-medium truncate">{target.full_name || target.username}</p>

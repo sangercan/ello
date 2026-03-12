@@ -1,23 +1,31 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
+import { useMoodStore } from '@store/moodStore'
 import apiClient from '@services/api'
+import { requestEssentialPermissions } from '@services/permissions'
+import { registerPushDevice } from '@services/pushNotifications'
 import { toast } from 'react-hot-toast'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import { getMoodAvatarRingStyle, moodTheme, type MoodType } from '@/utils/mood'
 import {
   Bell,
   Compass,
   Droplets,
+  Heart,
   HeartPulse,
   MessageCircle,
   Moon,
   Music2,
+  Palette,
   PlusCircle,
+  ShieldCheck,
   Sparkles,
   Sun,
   Target,
   Users,
   Waves,
+  Zap,
 } from 'lucide-react'
 const DASHBOARD_CACHE_KEY = 'ello:cache:dashboard:v1'
 
@@ -56,8 +64,6 @@ type DashboardStats = {
   unreadNotifications: number
   musicCount: number
 }
-
-type MoodType = 'feliz' | 'focado' | 'relaxando'
 
 type WeatherWidget = {
   city: string
@@ -124,23 +130,11 @@ const weatherCodeToLabel = (code: number) => {
   return 'Clima variavel'
 }
 
-const moodTheme = {
-  feliz: {
-    className: 'from-amber-500/20 to-orange-500/10 border-amber-400/30',
-    suggestion: 'Energia alta hoje. Que tal postar uma vibe alegre?'
-  },
-  focado: {
-    className: 'from-sky-500/20 to-cyan-500/10 border-sky-400/30',
-    suggestion: 'Modo foco ativo. Compartilhe algo produtivo no feed.'
-  },
-  relaxando: {
-    className: 'from-violet-500/20 to-fuchsia-500/10 border-violet-400/30',
-    suggestion: 'Hora de desacelerar. Poste um momento tranquilo.'
-  },
-}
-
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
+  const mood = useMoodStore((state) => state.mood)
+  const setMood = useMoodStore((state) => state.setMood)
+  const moodAvatarRingStyle = useMemo(() => getMoodAvatarRingStyle(mood), [mood])
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -158,12 +152,6 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<NotificationPreview[]>([])
   const [musicItems, setMusicItems] = useState<MusicPreview[]>([])
 
-  const [mood, setMood] = useState<MoodType>(() => {
-    if (typeof window === 'undefined') return 'feliz'
-    const stored = window.localStorage.getItem('ello.dashboard.mood') as MoodType | null
-    return stored && ['feliz', 'focado', 'relaxando'].includes(stored) ? stored : 'feliz'
-  })
-
   const [weather, setWeather] = useState<WeatherWidget | null>(null)
   const [insights, setInsights] = useState<InsightWidget>({ onlineNow: 0, lastPostViews: 0 })
   const [events, setEvents] = useState<EventWidget[]>([])
@@ -173,10 +161,6 @@ export default function DashboardPage() {
   const [minutesToBreak, setMinutesToBreak] = useState(20)
   const [breathingRunning, setBreathingRunning] = useState(false)
   const [breathingPhase, setBreathingPhase] = useState<'inspire' | 'expire'>('inspire')
-
-  useEffect(() => {
-    window.localStorage.setItem('ello.dashboard.mood', mood)
-  }, [mood])
 
   useEffect(() => {
     if (!breakReminderOn) return
@@ -403,6 +387,34 @@ export default function DashboardPage() {
     toast.success('Dashboard atualizado')
   }
 
+  const handleRequestAllPermissions = async () => {
+    const labels: Record<string, string> = {
+      camera: 'camera',
+      microphone: 'microfone',
+      location: 'localizacao',
+      notifications: 'notificacoes',
+    }
+
+    try {
+      const result = await requestEssentialPermissions()
+      const blocked = Object.entries(result)
+        .filter(([, status]) => status !== 'granted')
+        .map(([permission]) => labels[permission] || permission)
+
+      if (blocked.length === 0) {
+        if (result.notifications === 'granted') {
+          await registerPushDevice()
+        }
+        toast.success('Permissoes liberadas para camera, microfone, localizacao e notificacoes.')
+        return
+      }
+
+      toast(`Permissoes pendentes: ${blocked.join(', ')}`)
+    } catch {
+      toast.error('Nao foi possivel validar permissoes agora.')
+    }
+  }
+
   const quickActions = useMemo(() => ([
     {
       label: 'Novo Moment',
@@ -428,12 +440,21 @@ export default function DashboardPage() {
       className: 'from-amber-500/20 to-orange-500/10 border-amber-400/30 text-amber-200',
       action: () => navigate('/music'),
     },
-  ]), [navigate])
+    {
+      label: 'Liberar permissoes',
+      icon: ShieldCheck,
+      className: 'from-emerald-500/20 to-teal-500/10 border-emerald-400/30 text-emerald-200',
+      action: () => void handleRequestAllPermissions(),
+    },
+  ]), [navigate, handleRequestAllPermissions])
 
   const moodItems: Array<{ id: MoodType; label: string; icon: any }> = [
     { id: 'feliz', label: 'Feliz', icon: Sun },
     { id: 'focado', label: 'Focado', icon: Target },
     { id: 'relaxando', label: 'Relaxando', icon: Moon },
+    { id: 'animado', label: 'Animado', icon: Zap },
+    { id: 'criativo', label: 'Criativo', icon: Palette },
+    { id: 'grato', label: 'Grato', icon: Heart },
   ]
 
   if (loading) {
@@ -501,7 +522,7 @@ export default function DashboardPage() {
           <article className={`rounded-2xl border bg-gradient-to-br p-4 ${moodTheme[mood].className}`}>
             <h2 className="text-sm font-semibold text-white inline-flex items-center gap-2"><Sparkles size={15} /> Moodboard pessoal</h2>
             <p className="text-xs text-slate-200 mt-2">{moodTheme[mood].suggestion}</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {moodItems.map((item) => {
                 const Icon = item.icon
                 const active = mood === item.id
@@ -516,6 +537,9 @@ export default function DashboardPage() {
                 )
               })}
             </div>
+            <p className="mt-3 text-[11px] text-slate-300">
+              A cor do humor aparece no circulo da foto em chats, moments, vibes e stories.
+            </p>
           </article>
 
           <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
@@ -546,7 +570,7 @@ export default function DashboardPage() {
           </article>
         </section>
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {quickActions.map((action) => {
             const Icon = action.icon
             return (
@@ -585,6 +609,7 @@ export default function DashboardPage() {
                           src={item.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.username}`}
                           alt={item.username}
                           className="w-8 h-8 rounded-full"
+                          style={moodAvatarRingStyle}
                         />
                         <div className="min-w-0">
                           <p className="text-xs text-white font-medium truncate">{item.fullName}</p>
