@@ -16,11 +16,12 @@ from datetime import datetime, timezone
 from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.user import UserResponse, UserUpdate, AccountDeleteRequest, AccountDeleteResponse
 from app.schemas.suggestion import SuggestionResponse
 from app.services.user_service import (
     get_full_profile,
     update_user_profile,
+    delete_user_account,
     list_followers,
     list_following,
     get_user_suggestions,
@@ -118,6 +119,23 @@ def edit_profile(
         user_id=updated_user.id,
         current_user_id=updated_user.id
     )
+
+
+@router.delete("/me", response_model=AccountDeleteResponse)
+def delete_my_account(
+    payload: AccountDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if payload.confirmation_text.strip().upper() != "EXCLUIR":
+        raise HTTPException(status_code=400, detail="Confirmacao invalida")
+
+    result = delete_user_account(
+        db=db,
+        user=current_user,
+        password=payload.password
+    )
+    return result
 
 
 # ==========================================================

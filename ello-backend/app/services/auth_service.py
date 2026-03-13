@@ -62,6 +62,10 @@ def authenticate_user(db: Session, identifier: str, password: str):
         logger.debug("authenticate_user: user not found for identifier=%s", ident)
         return None
 
+    if bool(getattr(user, "is_deleted", False)):
+        logger.debug("authenticate_user: blocked deleted user id=%s", user.id)
+        return None
+
     if not verify_password(password, user.password_hash):
         logger.debug("authenticate_user: invalid password for user id=%s", user.id)
         return None

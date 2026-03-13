@@ -230,7 +230,7 @@ const contentByPage: Record<PageKey, PageContent> = {
       {
         title: 'Solicitar exclusao',
         bullets: [
-          'No app: acesse Configuracoes e selecione a opcao de exclusao de conta (quando disponivel).',
+          'No app e na web: acesse Configuracoes e selecione a opcao de exclusao de conta.',
           'Por suporte: envie solicitacao para delete-account@ellosocial.com usando o email vinculado a conta.',
         ],
       },

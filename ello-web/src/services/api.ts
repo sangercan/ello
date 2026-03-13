@@ -301,6 +301,7 @@ const api = apiClient as AxiosInstance & {
   updateComment: (commentId: string | number, text: string) => Promise<any>
   deleteComment: (commentId: string | number) => Promise<any>
   updateProfile: (data: any) => Promise<any>
+  deleteAccount: (payload: { password: string; confirmation_text: string }) => Promise<any>
   getUser: (userId: string | number) => Promise<any>
   searchUsers: (query: string) => Promise<any>
   followUser: (userId: string | number) => Promise<any>
@@ -556,6 +557,10 @@ api.deleteComment = async (commentId: string | number) => {
 
 api.updateProfile = async (data: any) => {
   return apiClient.put('/users/me', data)
+}
+
+api.deleteAccount = async (payload: { password: string; confirmation_text: string }) => {
+  return apiClient.delete('/users/me', { data: payload })
 }
 
 api.getUser = async (userId: string | number) => {

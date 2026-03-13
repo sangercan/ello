@@ -43,6 +43,20 @@ class UserUpdate(BaseModel):
 
 
 # ----------------------------------------------------------
+# DELETE ACCOUNT
+# ----------------------------------------------------------
+
+class AccountDeleteRequest(BaseModel):
+    password: str
+    confirmation_text: str
+
+
+class AccountDeleteResponse(BaseModel):
+    success: bool = True
+    message: str
+
+
+# ----------------------------------------------------------
 # USER RESPONSE
 # ----------------------------------------------------------
 

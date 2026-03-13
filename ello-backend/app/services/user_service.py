@@ -6,10 +6,24 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from fastapi import HTTPException
+import secrets
 from datetime import datetime, timezone, timedelta
 from app.models.user import User
 from app.models.follow import Follow
 from app.models.moment import Moment
+from app.models.story import Story
+from app.models.vibe import Vibe
+from app.models.comment import Comment
+from app.models.like import Like
+from app.models.music import Music
+from app.models.music_favorite import MusicFavorite
+from app.models.notification import Notification
+from app.models.push_device import PushDevice
+from app.models.group_member import GroupMember
+from app.models.nearby_favorite import NearbyFavorite
+from app.models.message_reaction import MessageReaction
+from app.models.user_block import UserBlock
+from app.core.security import verify_password, hash_password
 from app.core.presence import get_user_last_seen
 
 
@@ -35,7 +49,7 @@ LEGACY_MOOD_ALIASES = {
 # ==========================================================
 
 def get_user_by_id(db: Session, user_id: int):
-    return db.query(User).filter(User.id == user_id).first()
+    return db.query(User).filter(User.id == user_id, User.is_deleted.is_(False)).first()
 
 
 # ==========================================================
@@ -43,7 +57,7 @@ def get_user_by_id(db: Session, user_id: int):
 # ==========================================================
 
 def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
+    return db.query(User).filter(User.username == username, User.is_deleted.is_(False)).first()
 
 
 # ==========================================================
@@ -190,7 +204,7 @@ def get_full_profile(db: Session, user_id: int, current_user_id: int = None):
 def list_followers(db: Session, user_id: int):
     return db.query(User)\
         .join(Follow, Follow.follower_id == User.id)\
-        .filter(Follow.following_id == user_id)\
+        .filter(Follow.following_id == user_id, User.is_deleted.is_(False))\
         .all()
 
 
@@ -201,7 +215,7 @@ def list_followers(db: Session, user_id: int):
 def list_following(db: Session, user_id: int):
     return db.query(User)\
         .join(Follow, Follow.following_id == User.id)\
-        .filter(Follow.follower_id == user_id)\
+        .filter(Follow.follower_id == user_id, User.is_deleted.is_(False))\
         .all()
 
 
@@ -215,7 +229,7 @@ def get_user_suggestions(db: Session, current_user_id: int, limit: int = 10):
         .filter(Follow.follower_id == current_user_id)
 
     suggestions = db.query(User)\
-        .filter(User.id != current_user_id)\
+        .filter(User.id != current_user_id, User.is_deleted.is_(False))\
         .filter(User.id.notin_(following_subquery))\
         .order_by(func.random())\
         .limit(limit)\
@@ -235,6 +249,7 @@ def search_users(db: Session, current_user_id: int, query: str, limit: int = 30)
 
     results = db.query(User).filter(
         User.id != current_user_id,
+        User.is_deleted.is_(False),
         or_(
             User.username.ilike(like_term),
             User.full_name.ilike(like_term),
@@ -245,3 +260,66 @@ def search_users(db: Session, current_user_id: int, query: str, limit: int = 30)
         get_full_profile(db, user_id=user.id, current_user_id=current_user_id)
         for user in results
     ]
+
+
+def delete_user_account(db: Session, user: User, password: str):
+    if bool(getattr(user, "is_deleted", False)):
+        return {"success": True, "message": "Conta ja excluida"}
+
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Senha incorreta")
+
+    user_id = user.id
+    now = datetime.now(timezone.utc)
+    entropy = secrets.token_hex(4)
+    suffix = f"{user_id}_{int(now.timestamp())}_{entropy}"
+
+    # Remove primary content and relation rows created by this user.
+    db.query(Moment).filter(Moment.user_id == user_id).delete(synchronize_session=False)
+    db.query(Story).filter(Story.user_id == user_id).delete(synchronize_session=False)
+    db.query(Vibe).filter(Vibe.user_id == user_id).delete(synchronize_session=False)
+    db.query(Comment).filter(Comment.user_id == user_id).delete(synchronize_session=False)
+    db.query(Like).filter(Like.user_id == user_id).delete(synchronize_session=False)
+    db.query(MusicFavorite).filter(MusicFavorite.user_id == user_id).delete(synchronize_session=False)
+    db.query(Music).filter(Music.uploaded_by == user_id).delete(synchronize_session=False)
+    db.query(Follow).filter(
+        or_(Follow.follower_id == user_id, Follow.following_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(Notification).filter(
+        or_(Notification.user_id == user_id, Notification.actor_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(PushDevice).filter(PushDevice.user_id == user_id).delete(synchronize_session=False)
+    db.query(GroupMember).filter(GroupMember.user_id == user_id).delete(synchronize_session=False)
+    db.query(NearbyFavorite).filter(
+        or_(NearbyFavorite.user_id == user_id, NearbyFavorite.favorite_user_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(MessageReaction).filter(MessageReaction.user_id == user_id).delete(synchronize_session=False)
+    db.query(UserBlock).filter(
+        or_(UserBlock.blocker_id == user_id, UserBlock.blocked_id == user_id)
+    ).delete(synchronize_session=False)
+
+    # Keep the user row for FK integrity and anonymize personal identifiers.
+    user.full_name = "Conta Excluida"
+    user.username = f"deleted_{suffix}"
+    user.email = f"deleted_{suffix}@deleted.ellosocial.local"
+    user.password_hash = hash_password(secrets.token_urlsafe(32))
+    user.avatar_url = None
+    user.bio = None
+    user.location = None
+    user.mood = None
+    user.link = None
+    user.category = None
+    user.latitude = None
+    user.longitude = None
+    user.is_online = False
+    user.is_visible_nearby = False
+    user.is_panel_admin = False
+    user.is_panel_active = False
+    user.is_deleted = True
+    user.deleted_at = now
+    user.last_seen_at = now
+    user.last_activity_at = None
+
+    db.commit()
+
+    return {"success": True, "message": "Conta excluida com sucesso"}

@@ -99,6 +99,26 @@ def _ensure_panel_admin_columns_exist():
                 conn.execute(text("ALTER TABLE users ADD COLUMN mood TEXT"))
 
 
+def _ensure_user_deletion_columns_exist():
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE"))
+            return
+
+        if dialect == "sqlite":
+            cols = {
+                row[1]
+                for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+            }
+            if "is_deleted" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT 0"))
+            if "deleted_at" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at TEXT"))
+
+
 def _ensure_group_columns():
     with engine.begin() as conn:
         dialect = engine.dialect.name
@@ -151,6 +171,7 @@ def _ensure_message_conversation_nullable():
 
 _ensure_geotag_columns_exist()
 _ensure_panel_admin_columns_exist()
+_ensure_user_deletion_columns_exist()
 _ensure_message_conversation_nullable()
 try:
     _ensure_group_columns()

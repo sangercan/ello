@@ -71,6 +71,12 @@ def get_current_user(
             detail="User not found"
         )
 
+    if bool(getattr(user, "is_deleted", False)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
     return user
 
 def get_optional_current_user(
@@ -100,7 +106,10 @@ def get_optional_current_user(
     except Exception:
         pass
 
-    return db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None or bool(getattr(user, "is_deleted", False)):
+        return None
+    return user
 
 
 def get_current_panel_admin(
