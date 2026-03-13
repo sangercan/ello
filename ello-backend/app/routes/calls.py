@@ -46,7 +46,7 @@ async def start(data: CallStart,
             "from_user_id": current_user.id,
             "call_type": data.call_type,
         },
-        skip_if_online=True,
+        skip_if_online=False,
     )
 
     return call

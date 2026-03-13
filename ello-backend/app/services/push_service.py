@@ -275,22 +275,35 @@ def _send_mobile_pushes(
     android_channel_id = "ello_calls" if is_call_push else "ello_general"
     android_sound = "recebida" if is_call_push else "notificacao"
     apns_sound = "default"
+    message_data = payload if not is_call_push else {**payload, "title": title, "body": body}
 
     for device in devices:
+        notification_payload = None if is_call_push else messaging.Notification(title=title, body=body)
+        apns_aps = (
+            messaging.Aps(
+                alert=messaging.ApsAlert(title=title, body=body),
+                sound=apns_sound,
+            )
+            if is_call_push
+            else messaging.Aps(sound=apns_sound)
+        )
+
         message = messaging.Message(
             token=device.token,
-            notification=messaging.Notification(title=title, body=body),
-            data=payload,
+            notification=notification_payload,
+            data=message_data,
             android=messaging.AndroidConfig(
                 priority="high",
                 notification=messaging.AndroidNotification(
                     sound=android_sound,
                     channel_id=android_channel_id,
+                    priority="max" if is_call_push else "high",
+                    visibility="public",
                 ),
             ),
             apns=messaging.APNSConfig(
                 headers={"apns-priority": "10"},
-                payload=messaging.APNSPayload(aps=messaging.Aps(sound=apns_sound)),
+                payload=messaging.APNSPayload(aps=apns_aps),
             ),
         )
 
