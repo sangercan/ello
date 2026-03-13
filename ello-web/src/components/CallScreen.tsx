@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
 import { useCallStore } from '@store/callStore'
 import api from '@services/api'
-import { startLoopingAlertSound } from '@services/alertSounds'
+import { playAlertSound, startLoopingAlertSound } from '@services/alertSounds'
 import { disableCallMode, enableCallMode } from '@services/callMode'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 
@@ -585,6 +585,58 @@ const CallScreen = () => {
   }, [handleCallSignalEvent])
 
   useEffect(() => {
+    const handleCallStatusEvent = (event: Event) => {
+      if (!activeCallId) return
+      const detail = (event as CustomEvent<any>).detail || {}
+      const incomingCallId = Number(detail.call_id ?? detail.callId)
+      if (!Number.isFinite(incomingCallId) || incomingCallId !== activeCallId) return
+
+      const raw = String(detail.status || detail.call_status || detail.type || '').toLowerCase()
+      const status = raw.startsWith('call_') ? raw.slice(5) : raw
+      if (!status || status === 'accepted') return
+
+      if (status === 'busy') {
+        stopRingtone()
+        setStatusLabel('Usuario ocupado em outra ligacao')
+        playAlertSound('busy')
+        window.setTimeout(() => {
+          finalizeCallLocally()
+        }, 1800)
+        return
+      }
+
+      if (status === 'missed') {
+        stopRingtone()
+        setStatusLabel('Nao atendida')
+        window.setTimeout(() => {
+          finalizeCallLocally()
+        }, 500)
+        return
+      }
+
+      if (status === 'rejected') {
+        stopRingtone()
+        setStatusLabel('Ligacao recusada')
+        window.setTimeout(() => {
+          finalizeCallLocally()
+        }, 500)
+        return
+      }
+
+      if (status === 'ended' || status === 'canceled' || status === 'cancelled') {
+        stopRingtone()
+        setStatusLabel('Ligacao encerrada')
+        window.setTimeout(() => {
+          finalizeCallLocally()
+        }, 500)
+      }
+    }
+
+    window.addEventListener('ello:call:status', handleCallStatusEvent as EventListener)
+    return () => window.removeEventListener('ello:call:status', handleCallStatusEvent as EventListener)
+  }, [activeCallId, finalizeCallLocally, stopRingtone])
+
+  useEffect(() => {
     if (!activeCallId) return
     flushPendingSignals(activeCallId)
   }, [activeCallId, flushPendingSignals])
@@ -694,10 +746,19 @@ const CallScreen = () => {
       answerCall()
     } catch (error) {
       console.error('Erro ao responder a chamada:', error)
-      const message = describeMediaError(error)
+      const apiDetail = (error as any)?.response?.data?.detail
+      const message =
+        typeof apiDetail === 'string' && apiDetail.trim()
+          ? apiDetail
+          : describeMediaError(error)
       setStatusLabel(message)
+      if (typeof apiDetail === 'string' && /no longer available|encerrad/i.test(apiDetail)) {
+        window.setTimeout(() => {
+          finalizeCallLocally()
+        }, 500)
+      }
     }
-  }, [activeCallId, activeCallType, answerCall, prepareLocalStream, ensureLocalTracks, forceSendRecvForLocalKinds, createPeerConnection, sendCallSignal, flushPendingSignals])
+  }, [activeCallId, activeCallType, answerCall, prepareLocalStream, ensureLocalTracks, forceSendRecvForLocalKinds, createPeerConnection, sendCallSignal, flushPendingSignals, finalizeCallLocally])
 
   const handleEndCall = useCallback(async () => {
     if (!activeCallId) return

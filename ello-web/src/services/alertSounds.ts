@@ -1,4 +1,4 @@
-type AlertSound = 'notification' | 'incomingCall' | 'outgoingCall'
+type AlertSound = 'notification' | 'incomingCall' | 'outgoingCall' | 'busy'
 
 type LoopingSoundHandle = {
   stop: () => void
@@ -8,6 +8,7 @@ const SOUND_URLS: Record<AlertSound, string> = {
   notification: '/sounds/notificacao.mp3',
   incomingCall: '/sounds/recebida.mp3',
   outgoingCall: '/sounds/chamando.mp3',
+  busy: '/sounds/ocupado.mp3',
 }
 
 const canPlayAudio = () => typeof window !== 'undefined' && typeof Audio !== 'undefined'
@@ -57,4 +58,3 @@ export const startLoopingAlertSound = (
     },
   }
 }
-

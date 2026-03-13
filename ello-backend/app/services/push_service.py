@@ -271,17 +271,28 @@ def _send_mobile_pushes(
     now = datetime.now(timezone.utc)
 
     push_type = str(payload.get("type", "")).strip().lower()
-    is_call_push = category == "call" or push_type == "incoming_call"
-    android_channel_id = "ello_calls" if is_call_push else "ello_general"
-    android_sound = "recebida" if is_call_push else "notificacao"
+    call_control_types = {
+        "call_ended",
+        "call_missed",
+        "call_rejected",
+        "call_busy",
+        "call_canceled",
+        "call_cancelled",
+    }
+    is_incoming_call_push = push_type == "incoming_call"
+    is_call_control_push = category == "call" and push_type in call_control_types
+    is_data_only_call_push = is_incoming_call_push or is_call_control_push
+
+    android_channel_id = "ello_calls" if is_incoming_call_push else "ello_general"
+    android_sound = "recebida" if is_incoming_call_push else "notificacao"
     apns_sound = "default"
-    message_data = payload if not is_call_push else {**payload, "title": title, "body": body}
+    message_data = payload if not is_incoming_call_push else {**payload, "title": title, "body": body}
 
     for device in devices:
-        notification_payload = None if is_call_push else messaging.Notification(title=title, body=body)
+        notification_payload = None if is_data_only_call_push else messaging.Notification(title=title, body=body)
         android_notification = (
             None
-            if is_call_push
+            if is_data_only_call_push
             else messaging.AndroidNotification(
                 sound=android_sound,
                 channel_id=android_channel_id,
@@ -289,19 +300,22 @@ def _send_mobile_pushes(
                 visibility="public",
             )
         )
-        apns_aps = (
-            messaging.Aps(
+        if is_incoming_call_push:
+            apns_aps = messaging.Aps(
                 alert=messaging.ApsAlert(title=title, body=body),
                 sound=apns_sound,
             )
-            if is_call_push
-            else messaging.Aps(sound=apns_sound)
-        )
-        apns_headers = {"apns-priority": "10"}
-        if is_call_push:
-            # Call pushes are sent as data-only on Android so our custom messaging
-            # service can ring/show full-screen even when app is minimized.
+            apns_headers = {"apns-priority": "10"}
             apns_headers["apns-push-type"] = "alert"
+        elif is_call_control_push:
+            apns_aps = messaging.Aps(content_available=True)
+            apns_headers = {
+                "apns-priority": "5",
+                "apns-push-type": "background",
+            }
+        else:
+            apns_aps = messaging.Aps(sound=apns_sound)
+            apns_headers = {"apns-priority": "10"}
 
         message = messaging.Message(
             token=device.token,

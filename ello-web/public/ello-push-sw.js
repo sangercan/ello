@@ -11,6 +11,33 @@ self.addEventListener('push', (event) => {
   const title = String(payload.title || 'Ello')
   const body = String(payload.body || 'Nova notificacao')
   const data = payload.data && typeof payload.data === 'object' ? payload.data : {}
+  const pushType = String(data.type || '').toLowerCase()
+  const silentCallTypes = new Set([
+    'call_ended',
+    'call_missed',
+    'call_rejected',
+    'call_busy',
+    'call_canceled',
+    'call_cancelled',
+  ])
+
+  if (silentCallTypes.has(pushType)) {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          client.postMessage({
+            type: 'ello:web-push-received',
+            payload: {
+              title,
+              body,
+              data,
+            },
+          })
+        }
+      })
+    )
+    return
+  }
 
   const notificationOptions = {
     body,

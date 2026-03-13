@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { ensureCallPermissions, ensureCameraPermission, ensureLocationPermission } from '@services/permissions'
+import { playAlertSound } from '@services/alertSounds'
 import { resolveMediaUrl } from '@utils/mediaUrl'
 import { useCallStore } from '@store/callStore'
 import { toast } from 'react-hot-toast'
@@ -420,8 +421,28 @@ export default function ChatPage() {
       })
     } catch (error: any) {
       console.error('Erro ao iniciar chamada:', error)
-      const detail = error?.response?.data?.detail || error?.message || 'Erro ao iniciar chamada'
-      toast.error(detail)
+      const detailPayload = error?.response?.data?.detail
+      const detailMessage =
+        typeof detailPayload === 'string'
+          ? detailPayload
+          : typeof detailPayload?.message === 'string'
+            ? detailPayload.message
+            : error?.message || 'Erro ao iniciar chamada'
+      const detailCode =
+        typeof detailPayload === 'object' && detailPayload
+          ? String(detailPayload.code || '')
+          : ''
+      const isBusy = Boolean(
+        error?.response?.status === 409 &&
+          (detailCode.toLowerCase().includes('busy') || /ocupad/i.test(detailMessage))
+      )
+
+      if (isBusy) {
+        playAlertSound('busy')
+        toast.error('Usuario ocupado em outra ligacao')
+      } else {
+        toast.error(detailMessage)
+      }
     } finally {
       setCallLoading(null)
     }

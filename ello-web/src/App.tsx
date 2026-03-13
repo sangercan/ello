@@ -281,6 +281,10 @@ function App() {
             window.dispatchEvent(new CustomEvent('ello:ws:call-signal', { detail: data }))
           }
 
+          if (data.type === 'call_status') {
+            window.dispatchEvent(new CustomEvent('ello:call:status', { detail: data }))
+          }
+
           if (data.type === 'story_created') {
             window.dispatchEvent(new CustomEvent('ello:ws:story-created', { detail: data }))
             window.dispatchEvent(new CustomEvent('ello:story-created'))
@@ -418,6 +422,22 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return
 
+    const dispatchCallStatus = (payload: any) => {
+      const rawType = String(payload?.type || '').toLowerCase()
+      const rawStatus = String(payload?.status || payload?.call_status || '').toLowerCase()
+      const status = rawStatus || (rawType.startsWith('call_') ? rawType.slice(5) : '')
+      if (!status) return false
+      window.dispatchEvent(
+        new CustomEvent('ello:call:status', {
+          detail: {
+            ...payload,
+            status,
+          },
+        })
+      )
+      return true
+    }
+
     const handlePushReceived = (event: Event) => {
       const custom = event as CustomEvent<any>
       const detail = custom.detail || {}
@@ -426,6 +446,10 @@ function App() {
 
       if (pushType === 'incoming_call') {
         void handleIncomingCallPayload(payload)
+        return
+      }
+
+      if (pushType.startsWith('call_') && dispatchCallStatus(payload)) {
         return
       }
 
@@ -441,8 +465,13 @@ function App() {
         : detail?.data && typeof detail.data === 'object'
           ? detail.data
           : {}) || {}
-      if (String(payload?.type || '').toLowerCase() === 'incoming_call') {
+      const pushType = String(payload?.type || '').toLowerCase()
+      if (pushType === 'incoming_call') {
         void handleIncomingCallPayload(payload)
+        return
+      }
+      if (pushType.startsWith('call_')) {
+        dispatchCallStatus(payload)
       }
     }
 

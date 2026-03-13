@@ -37,9 +37,14 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         if (data == null || data.isEmpty()) return;
 
         final String type = String.valueOf(data.get("type")).trim().toLowerCase();
-        if (!"incoming_call".equals(type)) return;
+        if ("incoming_call".equals(type)) {
+            showIncomingCallNotification(remoteMessage, data);
+            return;
+        }
 
-        showIncomingCallNotification(remoteMessage, data);
+        if (isCallControlType(type)) {
+            dismissIncomingCallNotification(data.get("call_id"));
+        }
     }
 
     @Override
@@ -133,6 +138,22 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         return Uri.parse("android.resource://" + getPackageName() + "/raw/" + rawName);
     }
 
+    private boolean isCallControlType(@NonNull String type) {
+        return "call_ended".equals(type)
+            || "call_missed".equals(type)
+            || "call_rejected".equals(type)
+            || "call_busy".equals(type)
+            || "call_canceled".equals(type)
+            || "call_cancelled".equals(type);
+    }
+
+    private void dismissIncomingCallNotification(String callIdRaw) {
+        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+        manager.cancel(resolveCallNotificationId(callIdRaw));
+        // Fallback to base id in case call_id is missing in payload.
+        manager.cancel(CALL_NOTIFICATION_BASE_ID);
+    }
+
     private int resolveCallNotificationId(String callIdRaw) {
         try {
             if (callIdRaw == null) return CALL_NOTIFICATION_BASE_ID;
@@ -154,4 +175,3 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         return "";
     }
 }
-
