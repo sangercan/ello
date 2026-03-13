@@ -24,6 +24,7 @@ type LazyWithPreload<T extends ComponentType<any>> = ReturnType<typeof lazy<T>> 
 }
 
 const CHUNK_RELOAD_KEY = '__ello_chunk_reload__'
+const INCOMING_CALL_DEDUP_TTL_MS = 30_000
 
 const isChunkLoadError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error)
@@ -194,6 +195,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const appWsRef = useRef<WebSocket | null>(null)
   const chunksPreloadedRef = useRef(false)
+  const recentIncomingCallsRef = useRef<Map<number, number>>(new Map())
   const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall)
   const activeCall = useCallStore((state) => state.activeCall)
 
@@ -282,6 +284,19 @@ function App() {
         return
       }
 
+      const now = Date.now()
+      const recentIncomingCalls = recentIncomingCallsRef.current
+      for (const [existingCallId, timestamp] of recentIncomingCalls.entries()) {
+        if (now - timestamp > INCOMING_CALL_DEDUP_TTL_MS) {
+          recentIncomingCalls.delete(existingCallId)
+        }
+      }
+      const seenAt = recentIncomingCalls.get(callId)
+      if (typeof seenAt === 'number' && now - seenAt <= INCOMING_CALL_DEDUP_TTL_MS) {
+        return
+      }
+      recentIncomingCalls.set(callId, now)
+
       try {
         const userPayload = await api.getUser(fromUserId)
         receiveIncomingCall({
@@ -290,6 +305,7 @@ function App() {
           user: userPayload,
         })
       } catch (error) {
+        recentIncomingCalls.delete(callId)
         console.error('Erro ao carregar dados da chamada recebida:', error)
       }
     },
