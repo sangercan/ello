@@ -5,6 +5,7 @@ import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import { PlayerTrack, useMusicPlayerStore } from '@store/musicPlayerStore'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const MUSIC_CACHE_KEY = 'ello:cache:music:v1'
 
 type MusicTrack = {
@@ -19,6 +20,7 @@ type MusicTrack = {
 
 type FeedFilter = 'all' | 'mine' | 'favorites'
 type ShareDestination = 'chat' | 'story' | 'moment' | 'vibe'
+const FEED_FILTER_ORDER: FeedFilter[] = ['all', 'mine', 'favorites']
 
 const isAudioFile = (file: File) => file.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(file.name)
 
@@ -375,6 +377,22 @@ export default function MusicPage() {
     setShareBusy(false)
   }
 
+  const editTrackSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(editingTrack),
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setEditingTrack(null),
+  })
+
+  const shareMenuSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(shareTrack),
+    threshold: 35,
+    axisLockRatio: 1.2,
+    directions: ['down'],
+    onSwipe: closeShareMenu,
+  })
+
   const handleConfirmShare = async () => {
     if (!shareTrack || !shareDestination) return
     setShareBusy(true)
@@ -497,6 +515,27 @@ export default function MusicPage() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }, [tracks, filter, favoriteIds, search, user?.id])
 
+  const filterSwipeHandlers = useSwipeGesture({
+    enabled: !editingTrack && !shareTrack,
+    threshold: 50,
+    axisLockRatio: 1.25,
+    ignoreFrom: 'input, textarea, select, [contenteditable="true"], [data-gesture-ignore="true"]',
+    directions: ['left', 'right'],
+    onSwipe: ({ direction }) => {
+      const currentIndex = FEED_FILTER_ORDER.indexOf(filter)
+      if (currentIndex < 0) return
+
+      if (direction === 'left' && currentIndex < FEED_FILTER_ORDER.length - 1) {
+        setFilter(FEED_FILTER_ORDER[currentIndex + 1])
+        return
+      }
+
+      if (direction === 'right' && currentIndex > 0) {
+        setFilter(FEED_FILTER_ORDER[currentIndex - 1])
+      }
+    },
+  })
+
   const queueTracks = useMemo(() => visibleTracks.map(toPlayerTrack), [visibleTracks])
 
   useEffect(() => {
@@ -600,7 +639,7 @@ export default function MusicPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-4" {...filterSwipeHandlers}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
               {([
@@ -713,8 +752,16 @@ export default function MusicPage() {
         </section>
 
         {editingTrack && (
-          <div className="fixed inset-0 z-[160] bg-black/70 flex items-center justify-center p-4" onClick={() => setEditingTrack(null)}>
-            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-[160] bg-black/70 flex items-center justify-center p-4"
+            onClick={() => setEditingTrack(null)}
+            {...editTrackSwipeHandlers}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3"
+              onClick={(event) => event.stopPropagation()}
+              data-gesture-ignore="true"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-white font-semibold">Editar música</h3>
                 <button onClick={() => setEditingTrack(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
@@ -730,8 +777,16 @@ export default function MusicPage() {
         )}
 
         {shareTrack && (
-          <div className="fixed inset-0 z-[260] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={closeShareMenu}>
-            <div className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-[260] bg-black/70 backdrop-blur-sm flex items-end justify-center"
+            onClick={closeShareMenu}
+            {...shareMenuSwipeHandlers}
+          >
+            <div
+              className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+              onClick={(event) => event.stopPropagation()}
+              data-gesture-ignore="true"
+            >
               <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-slate-600/80" />
 
               <div className="flex items-center gap-2 rounded-xl bg-slate-800/90 px-3 h-11">

@@ -7,6 +7,7 @@ import { useAuthStore } from '@store/authStore'
 import { resolveMediaUrl } from '@utils/mediaUrl'
 import { useI18n } from '@/i18n/i18n'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 interface Conversation {
   id: number
@@ -79,6 +80,14 @@ export default function ConversationsPage() {
   const [savingGroup, setSavingGroup] = useState(false)
   const refreshConversationsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshGroupsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const groupModalSwipeHandlers = useSwipeGesture({
+    enabled: showGroupModal,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setShowGroupModal(false),
+  })
 
   useEffect(() => {
     void Promise.all([loadConversations(), loadGroups()])
@@ -563,8 +572,8 @@ export default function ConversationsPage() {
       </div>
 
       {showGroupModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" {...groupModalSwipeHandlers}>
+          <div className="w-full max-w-lg bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl" data-gesture-ignore="true">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Users size={18} className="text-primary" />

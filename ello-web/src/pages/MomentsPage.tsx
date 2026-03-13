@@ -7,6 +7,7 @@ import { useAuthStore } from '@store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 const PAGE_SIZE = 10
 const STORY_SEEN_STORAGE_KEY = 'ello:stories-seen-by-user'
@@ -100,7 +101,6 @@ export default function MomentsPage() {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentText, setEditingCommentText] = useState('')
   const feedSentinelRef = useRef<HTMLDivElement | null>(null)
-  const touchStartYRef = useRef<number | null>(null)
   const lastScrollNavigationAtRef = useRef(0)
   const lockedScrollYRef = useRef<number | null>(null)
 
@@ -498,6 +498,14 @@ export default function MomentsPage() {
     setReplyToMomentCommentId(null)
   }
 
+  const momentCommentsSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(selectedMomentForComments),
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: closeMomentCommentsModal,
+  })
+
   const submitMomentComment = async () => {
     if (!selectedMomentForComments) return
     const text = newMomentCommentText.trim()
@@ -723,6 +731,14 @@ export default function MomentsPage() {
     setFailedShareAvatarIds({})
     setShareBusy(false)
   }
+
+  const shareDecisionSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(shareDraft),
+    threshold: 35,
+    axisLockRatio: 1.2,
+    directions: ['down'],
+    onSwipe: closeShareDecision,
+  })
 
   const buildShareCreditText = (caption: string, sourceAuthor?: ShareDraft['sourceAuthor']) => {
     const creditSource = sourceAuthor?.username
@@ -998,27 +1014,22 @@ export default function MomentsPage() {
     navigateExpandedMedia('up')
   }, [navigateExpandedMedia])
 
-  const handleExpandedTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    touchStartYRef.current = event.touches[0]?.clientY ?? null
-  }
+  const expandedMediaSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(expandedMedia),
+    threshold: 40,
+    axisLockRatio: 1.2,
+    directions: ['up', 'down'],
+    onSwipe: ({ direction }) => {
+      if (direction === 'up') {
+        navigateExpandedMedia('down')
+        return
+      }
 
-  const handleExpandedTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (touchStartYRef.current === null) return
-    const endY = event.changedTouches[0]?.clientY
-    if (typeof endY !== 'number') return
-
-    const deltaY = touchStartYRef.current - endY
-    touchStartYRef.current = null
-
-    if (Math.abs(deltaY) < 40) return
-
-    if (deltaY > 0) {
-      navigateExpandedMedia('down')
-      return
-    }
-
-    navigateExpandedMedia('up')
-  }
+      if (direction === 'down') {
+        navigateExpandedMedia('up')
+      }
+    },
+  })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1125,6 +1136,26 @@ export default function MomentsPage() {
 
     closeStoryViewer()
   }, [selectedStoryUserIndex, selectedStoryItemIndex, selectedStoryGroup, groupedStories, markStoryGroupAsSeen])
+
+  const storyViewerSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(selectedStory),
+    threshold: 45,
+    axisLockRatio: 1.2,
+    directions: ['left', 'right', 'down'],
+    onSwipe: ({ direction }) => {
+      if (direction === 'left') {
+        goToNextStory()
+        return
+      }
+
+      if (direction === 'right') {
+        goToPrevStory()
+        return
+      }
+
+      closeStoryViewer()
+    },
+  })
 
   useEffect(() => {
     if (!selectedStory) return
@@ -1543,7 +1574,11 @@ export default function MomentsPage() {
       </div>
 
       {selectedStory && (
-        <div className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3 sm:p-6">
+        <div
+          className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3 sm:p-6"
+          style={{ touchAction: 'none' }}
+          {...storyViewerSwipeHandlers}
+        >
           <button
             onClick={closeStoryViewer}
             className="absolute top-4 right-4 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
@@ -1763,8 +1798,8 @@ export default function MomentsPage() {
         <div
           className="fixed inset-0 z-[95] bg-black/95 flex items-center justify-center p-0 sm:p-2"
           onWheel={handleExpandedMediaWheel}
-          onTouchStart={handleExpandedTouchStart}
-          onTouchEnd={handleExpandedTouchEnd}
+          style={{ touchAction: 'none' }}
+          {...expandedMediaSwipeHandlers}
         >
           <button
             onClick={closeExpandedMedia}
@@ -1847,8 +1882,16 @@ export default function MomentsPage() {
       )}
 
       {shareDraft && (
-        <div className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={closeShareDecision}>
-          <div className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm flex items-end justify-center"
+          onClick={closeShareDecision}
+          {...shareDecisionSwipeHandlers}
+        >
+          <div
+            className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+            onClick={(event) => event.stopPropagation()}
+            data-gesture-ignore="true"
+          >
             <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-slate-600/80" />
 
             <div className="flex items-center gap-2 rounded-xl bg-slate-800/90 px-3 h-11">
@@ -1944,10 +1987,12 @@ export default function MomentsPage() {
         <div
           className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={closeMomentCommentsModal}
+          {...momentCommentsSwipeHandlers}
         >
           <div
             className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
             onClick={(event) => event.stopPropagation()}
+            data-gesture-ignore="true"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <div>

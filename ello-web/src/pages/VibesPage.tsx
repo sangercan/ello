@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const VIBES_CACHE_KEY = 'ello:cache:vibes:v1'
 
 type ContentComment = {
@@ -369,6 +370,14 @@ export default function VibesPage() {
     setReplyToVibeCommentId(null)
   }
 
+  const vibeCommentsSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(selectedVibeForComments),
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: closeVibeCommentsModal,
+  })
+
   const submitVibeComment = async () => {
     if (!selectedVibeForComments) return
     const text = newVibeCommentText.trim()
@@ -637,6 +646,14 @@ export default function VibesPage() {
     setFailedShareAvatarIds({})
     setShareBusy(false)
   }
+
+  const shareDecisionSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(shareDraft),
+    threshold: 35,
+    axisLockRatio: 1.2,
+    directions: ['down'],
+    onSwipe: closeShareDecision,
+  })
 
   const buildShareCreditText = (caption: string, sourceAuthor?: ShareDraft['sourceAuthor']) => {
     const creditSource = sourceAuthor?.username
@@ -924,8 +941,16 @@ export default function VibesPage() {
       </div>
 
       {shareDraft && (
-        <div className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={closeShareDecision}>
-          <div className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm flex items-end justify-center"
+          onClick={closeShareDecision}
+          {...shareDecisionSwipeHandlers}
+        >
+          <div
+            className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+            onClick={(event) => event.stopPropagation()}
+            data-gesture-ignore="true"
+          >
             <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-slate-600/80" />
 
             <div className="flex items-center gap-2 rounded-xl bg-slate-800/90 px-3 h-11">
@@ -1017,10 +1042,12 @@ export default function VibesPage() {
         <div
           className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={closeVibeCommentsModal}
+          {...vibeCommentsSwipeHandlers}
         >
           <div
             className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
             onClick={(event) => event.stopPropagation()}
+            data-gesture-ignore="true"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <div>

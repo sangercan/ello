@@ -3,6 +3,7 @@ import { MapPin, Navigation, Eye, EyeOff, Users, Loader, AlertCircle, Info, Mess
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import apiClient from '@services/api'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 interface NearbyUser {
   id: number
@@ -500,17 +501,57 @@ export default function NearbyPage() {
     void loadPostAuthor(post.user_id)
   }
 
-  const handleGoToAuthorProfile = (userId: number) => {
+  const closeExpandedPost = () => {
+    setExpandedPost(null)
+  }
+
+  const closeExpandedOverlays = () => {
     setExpandedPost(null)
     setExpandedPlace(null)
+  }
+
+  const handleGoToAuthorProfile = (userId: number) => {
+    closeExpandedOverlays()
     navigate(`/profile/${userId}`)
   }
 
   const handleMessageAuthor = (userId: number) => {
-    setExpandedPost(null)
-    setExpandedPlace(null)
+    closeExpandedOverlays()
     navigate(`/chat/${userId}`)
   }
+
+  const nearbyTabSwipeHandlers = useSwipeGesture({
+    enabled: !expandedPlace && !expandedPost && !showInfoPopover,
+    threshold: 55,
+    axisLockRatio: 1.25,
+    ignoreFrom: 'input, textarea, select, [contenteditable="true"], [data-gesture-ignore="true"]',
+    directions: ['left', 'right'],
+    onSwipe: ({ direction }) => {
+      if (direction === 'left' && nearbyTab === 'users') {
+        setNearbyTab('places')
+        return
+      }
+      if (direction === 'right' && nearbyTab === 'places') {
+        setNearbyTab('users')
+      }
+    },
+  })
+
+  const expandedPlaceSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(expandedPlace) && !expandedPost,
+    threshold: 70,
+    axisLockRatio: 1.35,
+    directions: ['down'],
+    onSwipe: closeExpandedOverlays,
+  })
+
+  const expandedPostSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(expandedPost),
+    threshold: 65,
+    axisLockRatio: 1.3,
+    directions: ['down'],
+    onSwipe: closeExpandedPost,
+  })
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -643,7 +684,7 @@ export default function NearbyPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-8" {...nearbyTabSwipeHandlers}>
         {nearbyTab === 'places' ? (
           <>
             {!hasLocation ? (
@@ -912,7 +953,7 @@ export default function NearbyPage() {
         )}
 
         {expandedPlace && (
-          <div className="fixed inset-0 z-[75] bg-slate-950/95 backdrop-blur-md">
+          <div className="fixed inset-0 z-[75] bg-slate-950/95 backdrop-blur-md" {...expandedPlaceSwipeHandlers}>
             <div className="h-full max-w-6xl mx-auto flex flex-col">
               <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-4 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -920,10 +961,7 @@ export default function NearbyPage() {
                   <h3 className="text-white font-semibold truncate">{expandedPlace.location_label}</h3>
                 </div>
                 <button
-                  onClick={() => {
-                    setExpandedPost(null)
-                    setExpandedPlace(null)
-                  }}
+                  onClick={closeExpandedOverlays}
                   className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition"
                   title="Fechar"
                 >
@@ -958,7 +996,7 @@ export default function NearbyPage() {
         )}
 
         {expandedPost && expandedPlace && (
-          <div className="fixed inset-0 z-[85] bg-slate-950/98 backdrop-blur-lg">
+          <div className="fixed inset-0 z-[85] bg-slate-950/98 backdrop-blur-lg" {...expandedPostSwipeHandlers}>
             <div className="h-full max-w-4xl mx-auto flex flex-col">
               <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-4 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -966,7 +1004,7 @@ export default function NearbyPage() {
                   <p className="text-white text-sm font-semibold">{expandedPost.kind === 'vibe' ? 'Vibe' : 'Moment'} #{expandedPost.id}</p>
                 </div>
                 <button
-                  onClick={() => setExpandedPost(null)}
+                  onClick={closeExpandedPost}
                   className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition"
                   title="Fechar publicação"
                 >

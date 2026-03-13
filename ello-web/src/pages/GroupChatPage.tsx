@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { resolveMediaUrl } from '@utils/mediaUrl'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 interface Group {
   id: number
@@ -154,6 +155,13 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
   const [messageActionMenuId, setMessageActionMenuId] = useState<number | null>(null)
+  const settingsModalSwipeHandlers = useSwipeGesture({
+    enabled: showSettings,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setShowSettings(false),
+  })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mediaInputRef = useRef<HTMLInputElement | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -766,8 +774,8 @@ export default function GroupChatPage() {
       </div>
 
       {showSettings && group && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl space-y-3 p-4">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" {...settingsModalSwipeHandlers}>
+          <div className="w-full max-w-lg bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl space-y-3 p-4" data-gesture-ignore="true">
             <div className="flex items-center justify-between">
               <div className="text-white font-semibold text-sm">Gerenciar grupo</div>
               <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">×</button>

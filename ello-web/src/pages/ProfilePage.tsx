@@ -7,7 +7,9 @@ import type { User, Moment } from '@/types'
 import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Edit3, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const PROFILE_CACHE_PREFIX = 'ello:cache:profile:v1:'
+const PROFILE_TAB_ORDER: Array<'moments' | 'vibes' | 'musica' | 'salvos'> = ['moments', 'vibes', 'musica', 'salvos']
 
 interface EditFormData {
   full_name: string
@@ -338,6 +340,43 @@ export default function ProfilePage() {
 
   const closePostModal = () => setSelectedPost(null)
 
+  const profileContentSwipeHandlers = useSwipeGesture({
+    enabled: !selectedPost && !showEditModal,
+    threshold: 50,
+    axisLockRatio: 1.25,
+    ignoreFrom: 'input, textarea, select, [contenteditable="true"], [data-gesture-ignore="true"]',
+    directions: ['left', 'right'],
+    onSwipe: ({ direction }) => {
+      const currentIndex = PROFILE_TAB_ORDER.indexOf(activeTab)
+      if (currentIndex < 0) return
+
+      if (direction === 'left' && currentIndex < PROFILE_TAB_ORDER.length - 1) {
+        setActiveTab(PROFILE_TAB_ORDER[currentIndex + 1])
+        return
+      }
+
+      if (direction === 'right' && currentIndex > 0) {
+        setActiveTab(PROFILE_TAB_ORDER[currentIndex - 1])
+      }
+    },
+  })
+
+  const selectedPostSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(selectedPost),
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: closePostModal,
+  })
+
+  const editProfileSwipeHandlers = useSwipeGesture({
+    enabled: showEditModal,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setShowEditModal(false),
+  })
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Cover Banner */}
@@ -529,7 +568,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Content Grid */}
-        <div className="mt-8">
+        <div className="mt-8" {...profileContentSwipeHandlers}>
           {activeItems.length === 0 ? (
             <div className="text-center py-16">
               <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -611,7 +650,10 @@ export default function ProfilePage() {
         </div>
 
         {selectedPost && (
-          <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+          <div
+            className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+            {...selectedPostSwipeHandlers}
+          >
             <button
               onClick={closePostModal}
               className="absolute top-4 right-4 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
@@ -619,7 +661,10 @@ export default function ProfilePage() {
               <X size={22} />
             </button>
 
-            <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl">
+            <div
+              className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl"
+              data-gesture-ignore="true"
+            >
               <div className="p-4 sm:p-5 border-b border-slate-800">
                 <div className="flex items-center gap-3">
                   <img
@@ -677,8 +722,8 @@ export default function ProfilePage() {
 
         {/* Edit Profile Modal */}
         {showEditModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 p-6">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" {...editProfileSwipeHandlers}>
+            <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 p-6" data-gesture-ignore="true">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">Editar Perfil</h2>

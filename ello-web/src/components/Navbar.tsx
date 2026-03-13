@@ -6,6 +6,9 @@ import { createPortal } from 'react-dom'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import { useI18n } from '@/i18n/i18n'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
+
+const PUBLISH_MODE_ORDER: Array<'moment' | 'vibe' | 'story'> = ['moment', 'vibe', 'story']
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
@@ -138,6 +141,35 @@ export default function Navbar() {
     setPublishLongitude(null)
     setPublishLocationLabel('')
   }
+
+  const publisherSwipeHandlers = useSwipeGesture({
+    enabled: showPublisher,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: closePublisher,
+  })
+
+  const publisherModeSwipeHandlers = useSwipeGesture({
+    enabled: showPublisher,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    ignoreFrom: 'input, textarea, select, [contenteditable="true"], [data-gesture-ignore="true"]',
+    directions: ['left', 'right'],
+    onSwipe: ({ direction }) => {
+      const currentIndex = PUBLISH_MODE_ORDER.indexOf(publishMode)
+      if (currentIndex < 0) return
+
+      if (direction === 'left' && currentIndex < PUBLISH_MODE_ORDER.length - 1) {
+        setPublishMode(PUBLISH_MODE_ORDER[currentIndex + 1])
+        return
+      }
+
+      if (direction === 'right' && currentIndex > 0) {
+        setPublishMode(PUBLISH_MODE_ORDER[currentIndex - 1])
+      }
+    },
+  })
 
   const abbreviateStateOrProvince = (value: string) => {
     const normalized = value
@@ -551,8 +583,8 @@ export default function Navbar() {
       </div>
 
       {showPublisher && createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl p-5 sm:p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" {...publisherSwipeHandlers}>
+          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl p-5 sm:p-6 shadow-2xl" {...publisherModeSwipeHandlers}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-white">{t('nav.createPost')}</h2>
               <button onClick={closePublisher} className="text-gray-400 hover:text-white transition">

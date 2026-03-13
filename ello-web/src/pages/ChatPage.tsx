@@ -12,6 +12,7 @@ import { Send, ArrowLeft, Phone, Video, MoreVertical, Paperclip, MapPin, Mic, Im
 import type { CallType } from '@/types/call'
 import type { User as AppUser } from '@/types'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 type ChatUser = AppUser & {
   last_seen_at?: string
@@ -324,6 +325,25 @@ export default function ChatPage() {
   const closeForwardModal = () => {
     setIsForwardModalOpen(false)
     setForwardMessageIds([])
+  }
+
+  const closeExpandedImage = () => {
+    setExpandedImage(null)
+    setExpandedImageIndex(-1)
+  }
+
+  const goToPreviousExpandedImage = () => {
+    if (expandedImageIndex <= 0) return
+    const newIndex = expandedImageIndex - 1
+    setExpandedImageIndex(newIndex)
+    setExpandedImage(allImages[newIndex] ?? null)
+  }
+
+  const goToNextExpandedImage = () => {
+    if (expandedImageIndex < 0 || expandedImageIndex >= allImages.length - 1) return
+    const newIndex = expandedImageIndex + 1
+    setExpandedImageIndex(newIndex)
+    setExpandedImage(allImages[newIndex] ?? null)
   }
 
   const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
@@ -708,17 +728,29 @@ export default function ChatPage() {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [recipientId, currentPage, isLoadingMore, messages.length])
 
-  // Handle ESC key to close expanded image
+  // Keyboard navigation for expanded image preview.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && expandedImage) {
-        setExpandedImage(null)
+      if (!expandedImage) return
+
+      if (e.key === 'Escape') {
+        closeExpandedImage()
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
+        goToPreviousExpandedImage()
+        return
+      }
+
+      if (e.key === 'ArrowRight') {
+        goToNextExpandedImage()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [expandedImage])
+  }, [expandedImage, closeExpandedImage, goToPreviousExpandedImage, goToNextExpandedImage])
 
   const handleSendMessage = async () => {
     const replyPrefix = replyTo ? `>> ${getReplyLabel()}: ${replyTo.content}\n` : ''
@@ -1260,6 +1292,48 @@ export default function ChatPage() {
     }
   }
 
+  const expandedImageSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(expandedImage),
+    threshold: 40,
+    axisLockRatio: 1.2,
+    directions: ['left', 'right', 'down'],
+    onSwipe: ({ direction }) => {
+      if (direction === 'left') {
+        goToNextExpandedImage()
+        return
+      }
+      if (direction === 'right') {
+        goToPreviousExpandedImage()
+        return
+      }
+      closeExpandedImage()
+    },
+  })
+
+  const cameraModalSwipeHandlers = useSwipeGesture({
+    enabled: isCameraOpen,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: handleCloseCamera,
+  })
+
+  const forwardModalSwipeHandlers = useSwipeGesture({
+    enabled: isForwardModalOpen,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: closeForwardModal,
+  })
+
+  const locationModalSwipeHandlers = useSwipeGesture({
+    enabled: Boolean(selectedLocation),
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setSelectedLocation(null),
+  })
+
   if (!recipientId || recipientId === 'undefined' || !currentUser) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
@@ -1776,12 +1850,14 @@ export default function ChatPage() {
       {expandedImage && (
         <div 
           className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
-          onClick={() => setExpandedImage(null)}
+          onClick={closeExpandedImage}
+          style={{ touchAction: 'none' }}
+          {...expandedImageSwipeHandlers}
         >
           <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
             {/* Close Button */}
             <button
-              onClick={() => setExpandedImage(null)}
+              onClick={closeExpandedImage}
               className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 p-3 rounded-full transition z-10"
               title="Fechar (ESC)"
             >
@@ -1793,9 +1869,7 @@ export default function ChatPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  const newIndex = expandedImageIndex - 1
-                  setExpandedImageIndex(newIndex)
-                  setExpandedImage(allImages[newIndex])
+                  goToPreviousExpandedImage()
                 }}
                 className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-purple-600 hover:bg-purple-700 p-3 rounded-full transition z-10"
                 title="Imagem anterior"
@@ -1809,9 +1883,7 @@ export default function ChatPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  const newIndex = expandedImageIndex + 1
-                  setExpandedImageIndex(newIndex)
-                  setExpandedImage(allImages[newIndex])
+                  goToNextExpandedImage()
                 }}
                 className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-purple-600 hover:bg-purple-700 p-3 rounded-full transition z-10"
                 title="Próxima imagem"
@@ -1840,8 +1912,8 @@ export default function ChatPage() {
 
       {/* Camera Modal */}
       {isCameraOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-md w-full border border-slate-700/50 shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" {...cameraModalSwipeHandlers}>
+          <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-md w-full border border-slate-700/50 shadow-2xl" data-gesture-ignore="true">
             <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
               <h2 className="text-white font-semibold">Cmera</h2>
               <button
@@ -1884,8 +1956,8 @@ export default function ChatPage() {
       )}
 
       {isForwardModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-md max-h-[80vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" {...forwardModalSwipeHandlers}>
+          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-md max-h-[80vh] overflow-hidden" data-gesture-ignore="true">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
               <h3 className="text-white font-semibold">
                 Compartilhar {forwardMessageIds.length > 1 ? `${forwardMessageIds.length} mensagens` : 'mensagem'}
@@ -1993,8 +2065,8 @@ export default function ChatPage() {
 
         {/* Map Selection Modal */}
         {selectedLocation && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-sm w-full border border-slate-700/50 shadow-2xl">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" {...locationModalSwipeHandlers}>
+            <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-sm w-full border border-slate-700/50 shadow-2xl" data-gesture-ignore="true">
               {/* Header */}
               <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
                 <h2 className="text-white font-semibold">Abrir em Mapa</h2>
