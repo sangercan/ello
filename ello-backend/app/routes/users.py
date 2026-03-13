@@ -72,29 +72,6 @@ def search_users_route(
 
 
 # ==========================================================
-# GET USER PROFILE
-# GET /users/{user_id}
-# ==========================================================
-
-@router.get("/{user_id}", response_model=UserResponse)
-def profile(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    profile_data = get_full_profile(
-        db=db,
-        user_id=user_id,
-        current_user_id=current_user.id
-    )
-
-    if not profile_data:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return profile_data
-
-
-# ==========================================================
 # UPDATE PROFILE
 # PUT /users/me
 # ==========================================================
@@ -187,6 +164,29 @@ def user_suggestions(
     current_user: User = Depends(get_current_user)
 ):
     return get_user_suggestions(db, current_user.id)
+
+
+# ==========================================================
+# GET USER PROFILE
+# GET /users/{user_id}
+# ==========================================================
+
+@router.get("/{user_id}", response_model=UserResponse)
+def profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    profile_data = get_full_profile(
+        db=db,
+        user_id=user_id,
+        current_user_id=current_user.id
+    )
+
+    if not profile_data:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return profile_data
 
 
 # ==========================================================
