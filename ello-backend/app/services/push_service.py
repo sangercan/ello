@@ -431,9 +431,6 @@ def send_push_to_user(
     data: dict[str, Any] | None = None,
     skip_if_online: bool = True,
 ) -> dict[str, int]:
-    if skip_if_online and manager.is_user_connected(int(user_id)):
-        return {"sent": 0, "failed": 0, "skipped": 1}
-
     devices = (
         db.query(PushDevice)
         .filter(PushDevice.user_id == int(user_id), PushDevice.enabled.is_(True))
@@ -446,6 +443,14 @@ def send_push_to_user(
     web_devices = [row for row in filtered if _is_web_push_device(row)]
     web_ids = {id(row) for row in web_devices}
     mobile_devices = [row for row in filtered if id(row) not in web_ids]
+    skipped = 0
+
+    # Keep mobile push delivery active even when user has an open websocket session.
+    # On mobile apps, websocket state can look "online" for a short period while the app
+    # is already backgrounded, which would suppress critical push notifications.
+    if skip_if_online and manager.is_user_connected(int(user_id)):
+        skipped = len(web_devices)
+        web_devices = []
 
     payload = _sanitize_data(data)
 
@@ -470,7 +475,7 @@ def send_push_to_user(
     return {
         "sent": mobile_sent + web_sent,
         "failed": mobile_failed + web_failed,
-        "skipped": 0,
+        "skipped": skipped,
     }
 
 

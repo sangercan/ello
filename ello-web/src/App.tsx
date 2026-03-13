@@ -443,6 +443,11 @@ function App() {
       const detail = custom.detail || {}
       const payload = (detail?.data && typeof detail.data === 'object' ? detail.data : detail) || {}
       const pushType = String(payload?.type || '').toLowerCase()
+      const appIsForeground = typeof document !== 'undefined' && document.visibilityState === 'visible'
+
+      if (appIsForeground && pushType !== 'incoming_call' && !pushType.startsWith('call_')) {
+        return
+      }
 
       if (pushType === 'incoming_call') {
         void handleIncomingCallPayload(payload)
