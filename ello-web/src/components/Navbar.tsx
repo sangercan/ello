@@ -9,6 +9,7 @@ import { useI18n } from '@/i18n/i18n'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 
 const PUBLISH_MODE_ORDER: Array<'moment' | 'vibe' | 'story'> = ['moment', 'vibe', 'story']
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
@@ -406,6 +407,11 @@ export default function Navbar() {
 
   const onPickFile = async (file?: File) => {
     if (!file) return
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error('Arquivo muito grande. Limite maximo de 50 MB.')
+      return
+    }
 
     if (publishMode === 'story' && file.type.startsWith('video/')) {
       const isValidStoryVideo = await validateStoryVideoDuration(file)

@@ -20,6 +20,8 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 MAX_IMAGE_DIMENSION = 1920
 MAX_VIDEO_WIDTH = 1280
 IMAGE_WEBP_QUALITY = 82
+MAX_UPLOAD_SIZE_MB = 50
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 MEDIA_PROFILE_SIZES: dict[str, tuple[int, int]] = {
     "moment": (1080, 1350),
@@ -211,6 +213,14 @@ def _decode_raw_base64_if_needed(file_bytes: bytes) -> bytes:
     return file_bytes
 
 
+def _enforce_upload_limit(file_bytes: bytes, stage: str) -> None:
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Arquivo excede limite de {MAX_UPLOAD_SIZE_MB}MB ({stage})",
+        )
+
+
 def _optimize_image_bytes(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
     """Optimize image size while keeping visual quality high."""
     # Prefer libvips for speed/compression ratio.
@@ -229,7 +239,7 @@ def _optimize_image_bytes(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
     return _optimize_image_bytes_ffmpeg(file_bytes, mime)
 
 
-def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
+def _optimize_image_bytes_vips(file_bytes: bytes, mime: str, quality: int = IMAGE_WEBP_QUALITY) -> tuple[bytes, str]:
     vipsthumbnail_bin = shutil.which("vipsthumbnail")
     if not vipsthumbnail_bin:
         raise RuntimeError("vipsthumbnail not found in runtime")
@@ -261,7 +271,7 @@ def _optimize_image_bytes_vips(file_bytes: bytes, mime: str) -> tuple[bytes, str
             "-s",
             str(MAX_IMAGE_DIMENSION),
             "-o",
-            f"{out_path}[Q={IMAGE_WEBP_QUALITY},strip]",
+            f"{out_path}[Q={quality},strip]",
         ]
 
         proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
@@ -315,7 +325,7 @@ def _optimize_image_bytes_pillow(file_bytes: bytes, mime: str) -> tuple[bytes, s
         return output.getvalue(), extension
 
 
-def _optimize_image_bytes_ffmpeg(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
+def _optimize_image_bytes_ffmpeg(file_bytes: bytes, mime: str, quality: int = IMAGE_WEBP_QUALITY) -> tuple[bytes, str]:
     ffmpeg_bin = shutil.which("ffmpeg")
     if not ffmpeg_bin:
         raise RuntimeError("ffmpeg not found in runtime")
@@ -351,7 +361,7 @@ def _optimize_image_bytes_ffmpeg(file_bytes: bytes, mime: str) -> tuple[bytes, s
             "-vcodec",
             "libwebp",
             "-quality",
-            "82",
+            str(quality),
             "-compression_level",
             "6",
             out_path,
@@ -421,6 +431,62 @@ def _compress_video_bytes(file_bytes: bytes) -> tuple[bytes, str]:
 
         with open(out_path, "rb") as f:
             compressed = f.read()
+
+        return compressed, "mp4"
+    finally:
+        for path in (in_path, out_path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _compress_video_bytes_aggressive(file_bytes: bytes) -> tuple[bytes, str]:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        raise RuntimeError("ffmpeg not found in runtime")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".input") as temp_in:
+        temp_in.write(file_bytes)
+        temp_in.flush()
+        in_path = temp_in.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_out:
+        out_path = temp_out.name
+
+    try:
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            in_path,
+            "-vf",
+            "scale='min(iw,960)':-2",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "32",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "96k",
+            "-movflags",
+            "+faststart",
+            out_path,
+        ]
+
+        proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="ignore")
+            raise RuntimeError(f"ffmpeg aggressive transcode failed: {stderr[:500]}")
+
+        with open(out_path, "rb") as f:
+            compressed = f.read()
+
+        if not compressed:
+            raise RuntimeError("ffmpeg aggressive transcode produced empty output")
 
         return compressed, "mp4"
     finally:
@@ -599,6 +665,104 @@ def _compress_audio_bytes(file_bytes: bytes) -> tuple[bytes, str]:
                 pass
 
 
+def _compress_audio_bytes_aggressive(file_bytes: bytes) -> tuple[bytes, str]:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        raise RuntimeError("ffmpeg not found in runtime")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".input") as temp_in:
+        temp_in.write(file_bytes)
+        temp_in.flush()
+        in_path = temp_in.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as temp_out:
+        out_path = temp_out.name
+
+    try:
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            in_path,
+            "-vn",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "96k",
+            "-movflags",
+            "+faststart",
+            out_path,
+        ]
+
+        proc = subprocess.run(cmd, capture_output=True, check=False, timeout=180)
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="ignore")
+            raise RuntimeError(f"ffmpeg aggressive audio transcode failed: {stderr[:500]}")
+
+        with open(out_path, "rb") as f:
+            compressed = f.read()
+
+        if not compressed:
+            raise RuntimeError("ffmpeg aggressive audio transcode produced empty output")
+
+        return compressed, "m4a"
+    finally:
+        for path in (in_path, out_path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _optimize_image_bytes_aggressive(file_bytes: bytes, mime: str) -> tuple[bytes, str]:
+    try:
+        return _optimize_image_bytes_vips(file_bytes, mime, quality=70)
+    except Exception:
+        pass
+
+    try:
+        with Image.open(BytesIO(file_bytes)) as img:
+            img = ImageOps.exif_transpose(img)
+            if max(img.size) > MAX_IMAGE_DIMENSION:
+                img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
+
+            output = BytesIO()
+            img.save(output, format="WEBP", quality=70, method=6)
+            return output.getvalue(), "webp"
+    except Exception:
+        pass
+
+    return _optimize_image_bytes_ffmpeg(file_bytes, mime, quality=70)
+
+
+def _ensure_effective_compression(
+    original_bytes: bytes,
+    payload: bytes,
+    extension: str,
+    media_type: str,
+    mime: str,
+) -> tuple[bytes, str]:
+    if len(payload) < len(original_bytes):
+        return payload, extension
+
+    try:
+        if media_type == "video":
+            candidate_payload, candidate_extension = _compress_video_bytes_aggressive(original_bytes)
+        elif media_type == "image":
+            candidate_payload, candidate_extension = _optimize_image_bytes_aggressive(original_bytes, mime)
+        elif media_type == "audio":
+            candidate_payload, candidate_extension = _compress_audio_bytes_aggressive(original_bytes)
+        else:
+            return payload, extension
+
+        if len(candidate_payload) < len(payload):
+            return candidate_payload, candidate_extension
+    except Exception:
+        return payload, extension
+
+    return payload, extension
+
+
 @router.post("/")
 def upload_file(
     file: UploadFile = File(...),
@@ -621,6 +785,7 @@ def upload_file(
     }
 
     file_bytes = file.file.read()
+    _enforce_upload_limit(file_bytes, "arquivo original")
     file_bytes, decoded_mime = _decode_data_url_if_needed(file_bytes)
     if decoded_mime:
         mime = decoded_mime
@@ -637,6 +802,7 @@ def upload_file(
 
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Arquivo vazio ou invalido")
+    _enforce_upload_limit(file_bytes, "arquivo decodificado")
 
     uploads_subdir = folder_by_media_type.get(media_type, "documents")
     uploads_dir = f"/app/uploads/{uploads_subdir}"
@@ -667,6 +833,14 @@ def upload_file(
             payload, extension = _compress_document_bytes(file_bytes, file.filename)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Falha ao comprimir arquivo: {exc}") from exc
+
+    payload, extension = _ensure_effective_compression(file_bytes, payload, extension, media_type, mime)
+    if media_type in {"image", "video", "audio"} and len(payload) >= len(file_bytes):
+        raise HTTPException(
+            status_code=422,
+            detail="Nao foi possivel comprimir o arquivo abaixo do tamanho original",
+        )
+    _enforce_upload_limit(payload, "arquivo comprimido")
 
     unique_filename = os.path.splitext(unique_filename)[0] + f".{extension}"
 
