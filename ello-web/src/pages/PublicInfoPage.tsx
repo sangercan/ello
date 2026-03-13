@@ -262,7 +262,7 @@ export default function PublicInfoPage({ pageKey }: PublicInfoPageProps) {
   const content = useMemo(() => contentByPage[pageKey], [pageKey])
 
   useEffect(() => {
-    document.title = `${content.title} | Ello Social`
+    document.title = 'Ello Social'
     return () => {
       document.title = 'Ello Social'
     }
