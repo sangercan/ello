@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
@@ -13,6 +14,23 @@ import type { CallType } from '@/types/call'
 import type { User as AppUser } from '@/types'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
+
+const REPLY_SWIPE_TRIGGER_PX = 78
+const REPLY_SWIPE_PREVIEW_MAX_PX = 72
+const REPLY_SWIPE_MIN_DISTANCE_PX = 8
+const REPLY_SWIPE_AXIS_LOCK_RATIO = 1.15
+const REPLY_SWIPE_IGNORE_SELECTOR = [
+  'button',
+  'a[href]',
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable="true"]',
+  'audio',
+  'video',
+  'iframe',
+  '[data-gesture-ignore="true"]',
+].join(', ')
 
 type ChatUser = AppUser & {
   last_seen_at?: string
@@ -46,6 +64,14 @@ interface ForwardTarget {
   full_name?: string
   avatar_url?: string
   mood?: string | null
+}
+
+type MessageReplySwipeState = {
+  messageId: number
+  pointerId: number
+  startX: number
+  startY: number
+  isOwnMessage: boolean
 }
 
 export default function ChatPage() {
@@ -111,6 +137,8 @@ export default function ChatPage() {
   const videoCameraRef = useRef<HTMLVideoElement | null>(null)
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const replySwipeStateRef = useRef<MessageReplySwipeState | null>(null)
+  const [replySwipePreview, setReplySwipePreview] = useState<{ messageId: number; offsetX: number } | null>(null)
 
   useEffect(() => {
     if (!headerMenuOpen) return
@@ -156,6 +184,111 @@ export default function ChatPage() {
     }
     setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
   }
+
+  const shouldIgnoreReplySwipeTarget = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return false
+    return Boolean(target.closest(REPLY_SWIPE_IGNORE_SELECTOR))
+  }
+
+  const getDirectionalSwipeDistance = (deltaX: number, isOwnMessage: boolean) => {
+    if (isOwnMessage) {
+      return Math.min(0, deltaX)
+    }
+    return Math.max(0, deltaX)
+  }
+
+  const handleReplySwipePointerDown = useCallback(
+    (message: Message, isOwnMessage: boolean, event: ReactPointerEvent<HTMLElement>) => {
+      if (!event.isPrimary) return
+      if (event.pointerType === 'mouse') return
+      if (shouldIgnoreReplySwipeTarget(event.target)) return
+
+      replySwipeStateRef.current = {
+        messageId: message.id,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        isOwnMessage,
+      }
+
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        // Some devices/browsers do not support pointer capture.
+      }
+    },
+    []
+  )
+
+  const handleReplySwipePointerMove = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const state = replySwipeStateRef.current
+    if (!state || state.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - state.startX
+    const deltaY = event.clientY - state.startY
+    const directionalDistance = getDirectionalSwipeDistance(deltaX, state.isOwnMessage)
+    const absDirectionalDistance = Math.abs(directionalDistance)
+    const absDeltaY = Math.abs(deltaY)
+
+    if (absDirectionalDistance < REPLY_SWIPE_MIN_DISTANCE_PX) {
+      if (replySwipePreview?.messageId === state.messageId) {
+        setReplySwipePreview(null)
+      }
+      return
+    }
+
+    if (absDirectionalDistance / Math.max(absDeltaY, 1) < REPLY_SWIPE_AXIS_LOCK_RATIO) {
+      if (replySwipePreview?.messageId === state.messageId) {
+        setReplySwipePreview(null)
+      }
+      return
+    }
+
+    event.preventDefault()
+    const clampedOffset = Math.max(
+      -REPLY_SWIPE_PREVIEW_MAX_PX,
+      Math.min(REPLY_SWIPE_PREVIEW_MAX_PX, directionalDistance)
+    )
+    setReplySwipePreview({ messageId: state.messageId, offsetX: clampedOffset })
+  }, [replySwipePreview?.messageId])
+
+  const resetReplySwipe = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const state = replySwipeStateRef.current
+    if (state && state.pointerId === event.pointerId) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      } catch {
+        // Ignore pointer capture release errors.
+      }
+    }
+    replySwipeStateRef.current = null
+    setReplySwipePreview(null)
+  }, [])
+
+  const handleReplySwipePointerUp = useCallback(
+    (message: Message, event: ReactPointerEvent<HTMLElement>) => {
+      const state = replySwipeStateRef.current
+      if (!state || state.pointerId !== event.pointerId || state.messageId !== message.id) {
+        return
+      }
+
+      const deltaX = event.clientX - state.startX
+      const deltaY = event.clientY - state.startY
+      const directionalDistance = getDirectionalSwipeDistance(deltaX, state.isOwnMessage)
+      const absDirectionalDistance = Math.abs(directionalDistance)
+      const absDeltaY = Math.abs(deltaY)
+      const isHorizontalSwipe =
+        absDirectionalDistance >= REPLY_SWIPE_TRIGGER_PX &&
+        absDirectionalDistance / Math.max(absDeltaY, 1) >= REPLY_SWIPE_AXIS_LOCK_RATIO
+
+      if (isHorizontalSwipe) {
+        setReplyTo(message)
+      }
+
+      resetReplySwipe(event)
+    },
+    [resetReplySwipe]
+  )
 
   const resolveApiMessage = (responseData: any): Message => {
     const payload = responseData?.message || responseData || {}
@@ -1486,13 +1619,28 @@ export default function ChatPage() {
           const isOwnMessage = message.sender_id === currentUser?.id
           const canEditThisMessage = isOwnMessage && canEditMessage(message)
           const isEditingThisMessage = editingMessageId === message.id
+          const isReplySwipeEnabled = !isEditingThisMessage && !isForwardModalOpen && !isCameraOpen && !selectedLocation
+          const swipeOffsetX = replySwipePreview?.messageId === message.id ? replySwipePreview.offsetX : 0
+          const swipeProgress = Math.min(1, Math.abs(swipeOffsetX) / REPLY_SWIPE_TRIGGER_PX)
+          const showSwipeHint = swipeProgress > 0
 
           return (
           <div
             key={message.id}
             className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
           >
-            <div
+            <div className="relative">
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-150 ${
+                  isOwnMessage ? 'right-full mr-2' : 'left-full ml-2'
+                } ${showSwipeHint ? 'opacity-100' : 'opacity-0'}`}
+                style={{ pointerEvents: 'none' }}
+              >
+                <span className="text-[11px] px-2 py-1 rounded-full bg-primary/20 border border-primary/40 text-primary whitespace-nowrap">
+                  Responder
+                </span>
+              </div>
+              <div
               className={`max-w-xs sm:max-w-sm md:max-w-md text-sm sm:text-base ${
                 isVisualMessage
                   ? (message.sender_id === currentUser?.id ? 'text-white' : 'text-gray-100')
@@ -1500,6 +1648,27 @@ export default function ChatPage() {
                     ? 'px-3 sm:px-4 py-2 rounded-2xl bg-purple-700 text-white'
                     : 'px-3 sm:px-4 py-2 rounded-2xl bg-slate-800 text-gray-100')
               }`}
+              style={{
+                transform: swipeOffsetX !== 0 ? `translateX(${swipeOffsetX}px)` : undefined,
+                transition: swipeOffsetX === 0 ? 'transform 0.16s ease-out' : undefined,
+                touchAction: isReplySwipeEnabled ? 'pan-y' : undefined,
+              }}
+              onPointerDown={(event) => {
+                if (!isReplySwipeEnabled) return
+                handleReplySwipePointerDown(message, isOwnMessage, event)
+              }}
+              onPointerMove={(event) => {
+                if (!isReplySwipeEnabled) return
+                handleReplySwipePointerMove(event)
+              }}
+              onPointerUp={(event) => {
+                if (!isReplySwipeEnabled) return
+                handleReplySwipePointerUp(message, event)
+              }}
+              onPointerCancel={(event) => {
+                if (!isReplySwipeEnabled) return
+                resetReplySwipe(event)
+              }}
             >
               {/* Áudio */}
               {isAudio && (
@@ -1692,6 +1861,12 @@ export default function ChatPage() {
                     Selecionada
                   </span>
                 )}
+                <button
+                  onClick={() => setReplyTo(message)}
+                  className="text-xs text-gray-300 hover:text-white transition"
+                >
+                  Responder
+                </button>
                 <div className="relative">
                   <button
                     onClick={() => handleOpenMessageActions(message)}
@@ -1789,6 +1964,7 @@ export default function ChatPage() {
                   </>
                 )}
               </div>
+            </div>
             </div>
           </div>
           )

@@ -475,6 +475,9 @@ export default function ConversationsPage() {
           <div className="divide-y divide-slate-800">
             {filteredConversations.map((conversation) => {
               const preview = getConversationPreview(conversation.last_message)
+              const unreadCount = Number(conversation.unread_count ?? 0)
+              const hasLastMessage = typeof conversation.last_message === 'string' && conversation.last_message.trim().length > 0
+              const shouldShowUnreadBadge = Number.isFinite(unreadCount) && unreadCount > 0 && hasLastMessage
               return (
               <div key={conversation.id} className="w-full p-3 sm:p-4 hover:bg-slate-900/30 transition text-left flex gap-2 sm:gap-3 items-start">
                 <button
@@ -495,42 +498,43 @@ export default function ConversationsPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-white text-sm sm:text-base truncate">
-                            {conversation.full_name || conversation.username}
-                          </h3>
-                          <p className="text-xs text-gray-500 truncate">@{conversation.username}</p>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-white text-sm sm:text-base truncate">
+                          {conversation.full_name || conversation.username}
+                        </h3>
+                        <p className="text-xs text-gray-500 truncate">@{conversation.username}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 text-right flex-shrink-0 min-w-[110px]">
+                        <div className="flex items-center gap-1 text-gray-500 text-xs">
+                          <Clock size={13} />
+                          <span>{formatTime(conversation.last_message_time)}</span>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1 max-w-[150px]">
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             conversation.is_online ? 'bg-green-500' : 'bg-gray-500'
                           }`}></span>
-                          <span className={`text-xs flex-shrink-0 ${
+                          <span className={`text-xs truncate ${
                             conversation.is_online ? 'text-green-400' : 'text-gray-500'
                           }`}>
                             {conversation.is_online ? t('conversations.online') : formatLastSeen(conversation.last_seen_at)}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-gray-500 text-xs flex-shrink-0">
-                        <Clock size={14} />
-                        {formatTime(conversation.last_message_time)}
-                      </div>
                     </div>
 
                     {/* Last Message */}
-                    <p className="text-gray-400 text-xs sm:text-sm truncate inline-flex items-center gap-1.5">
-                      <span className="truncate">{preview.text}</span>
-                    </p>
-                  </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex-1 min-w-0 text-gray-400 text-xs sm:text-sm truncate inline-flex items-center gap-1.5">
+                        <span className="truncate">{preview.text}</span>
+                      </p>
 
-                  {/* Unread Badge */}
-                  {conversation.unread_count && conversation.unread_count > 0 && (
-                    <div className="bg-primary text-white text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center flex-shrink-0">
-                      {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
+                      {shouldShowUnreadBadge && (
+                        <div className="bg-primary text-white text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center flex-shrink-0">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </button>
 
                 <div className="relative flex-shrink-0">
