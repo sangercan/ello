@@ -88,6 +88,7 @@ export default function ChatPage() {
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
   const startOutgoingCall = useCallStore((state) => state.startOutgoingCall)
+  const activeCall = useCallStore((state) => state.activeCall)
   const [recipientUser, setRecipientUser] = useState<ChatUser | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
@@ -529,6 +530,14 @@ export default function ChatPage() {
 
   const handleStartCall = async (callType: CallType) => {
     if (!recipientUser || callLoading) return
+    if (activeCall) {
+      const isSamePeer = Number(activeCall.user?.id) === Number(recipientUser.id)
+      const samePeerMessage = activeCall.callType === callType
+        ? 'Voce ja possui uma chamada ativa com este contato.'
+        : 'Voce ja possui uma chamada ativa com este contato. Finalize-a antes de trocar o tipo de chamada.'
+      toast.error(isSamePeer ? samePeerMessage : 'Finalize a chamada atual antes de iniciar uma nova.')
+      return
+    }
     setCallLoading(callType)
     try {
       const isHttpPage =
@@ -573,7 +582,6 @@ export default function ChatPage() {
         user: recipientUser,
       })
     } catch (error: any) {
-      console.error('Erro ao iniciar chamada:', error)
       const detailPayload = error?.response?.data?.detail
       const detailMessage =
         typeof detailPayload === 'string'
@@ -585,15 +593,46 @@ export default function ChatPage() {
         typeof detailPayload === 'object' && detailPayload
           ? String(detailPayload.code || '')
           : ''
+      const detailCodeLower = detailCode.toLowerCase()
       const isBusy = Boolean(
         error?.response?.status === 409 &&
-          (detailCode.toLowerCase().includes('busy') || /ocupad/i.test(detailMessage))
+          (detailCodeLower.includes('busy') || /ocupad/i.test(detailMessage))
       )
 
       if (isBusy) {
+        console.warn('Conflito ao iniciar chamada (usuario ocupado):', detailPayload || error?.response?.data || error)
         playAlertSound('busy')
-        toast.error('Usuario ocupado em outra ligacao')
+        if (detailCodeLower === 'caller_busy') {
+          const activeCallId = Number(detailPayload?.call_id)
+          if (Number.isFinite(activeCallId) && activeCallId > 0 && recipientUser) {
+            try {
+              // Auto-recuperacao para chamadas presas no backend.
+              await apiClient.endCall(activeCallId)
+              const retryResponse = await apiClient.startCall(recipientUser.id, callType)
+              const retryCallId = retryResponse.data?.id || Date.now()
+              const retryLabel = callType === 'video' ? 'vÃ­deo' : 'voz'
+              toast.success(`Chamada de ${retryLabel} iniciada`)
+              startOutgoingCall({
+                callId: retryCallId,
+                callType,
+                user: recipientUser,
+              })
+              return
+            } catch (recoveryError: any) {
+              console.warn(
+                'Falha ao tentar liberar chamada ativa presa:',
+                recoveryError?.response?.data || recoveryError
+              )
+              toast.error(`Voce ja possui uma ligacao ativa (#${activeCallId}). Finalize-a antes de iniciar outra.`)
+            }
+          } else {
+            toast.error('Voce ja esta em uma ligacao ativa. Finalize-a antes de iniciar outra.')
+          }
+        } else {
+          toast.error('Usuario ocupado em outra ligacao')
+        }
       } else {
+        console.error('Erro ao iniciar chamada:', error)
         toast.error(detailMessage)
       }
     } finally {

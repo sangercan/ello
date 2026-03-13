@@ -216,7 +216,7 @@ def _emit_call_control_pushes(db: Session, *, call: CallSession, status: str, pr
             logger.warning("Falha ao enviar push de controle da chamada user=%s: %s", user_id, exc)
 
 
-def is_user_busy_in_call(db: Session, user_id: int, *, exclude_call_id: int | None = None) -> bool:
+def _cleanup_stale_accepted_calls(db: Session, user_id: int, *, exclude_call_id: int | None = None) -> None:
     now = datetime.now(timezone.utc)
     stale_limit = now - timedelta(hours=BUSY_ACCEPTED_STALE_HOURS)
 
@@ -241,16 +241,32 @@ def is_user_busy_in_call(db: Session, user_id: int, *, exclude_call_id: int | No
         )
         .all()
     )
-    if stale_accepted:
-        for call in stale_accepted:
-            call.status = "ended"
-            call.ended_at = now
-        db.commit()
-        logger.info(
-            "Encerradas %d chamadas stale para liberar estado ocupado do usuario %s",
-            len(stale_accepted),
-            user_id,
-        )
+    if not stale_accepted:
+        return
+
+    for call in stale_accepted:
+        call.status = "ended"
+        call.ended_at = now
+    db.commit()
+    logger.info(
+        "Encerradas %d chamadas stale para liberar estado ocupado do usuario %s",
+        len(stale_accepted),
+        user_id,
+    )
+
+
+def get_user_active_call(db: Session, user_id: int, *, exclude_call_id: int | None = None) -> CallSession | None:
+    _cleanup_stale_accepted_calls(db, user_id, exclude_call_id=exclude_call_id)
+
+    now = datetime.now(timezone.utc)
+    stale_limit = now - timedelta(hours=BUSY_ACCEPTED_STALE_HOURS)
+
+    base_filters = [
+        or_(CallSession.caller_id == int(user_id), CallSession.receiver_id == int(user_id)),
+        CallSession.ended_at.is_(None),
+    ]
+    if exclude_call_id is not None:
+        base_filters.append(CallSession.id != int(exclude_call_id))
 
     # Regra de ocupado: somente chamada efetivamente em andamento (accepted).
     active_query = db.query(CallSession).filter(
@@ -261,7 +277,11 @@ def is_user_busy_in_call(db: Session, user_id: int, *, exclude_call_id: int | No
             and_(CallSession.started_at.is_(None), CallSession.created_at >= stale_limit),
         ),
     )
-    return active_query.first() is not None
+    return active_query.order_by(CallSession.created_at.desc(), CallSession.id.desc()).first()
+
+
+def is_user_busy_in_call(db: Session, user_id: int, *, exclude_call_id: int | None = None) -> bool:
+    return get_user_active_call(db, user_id, exclude_call_id=exclude_call_id) is not None
 
 
 def initiate_call(db: Session, caller_id: int, receiver_id: int, call_type: str):
