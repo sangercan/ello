@@ -185,16 +185,16 @@ export default function LandingPage() {
                 <h4 className="font-bold mb-4">Product</h4>
                 <ul className="space-y-2 text-gray-400">
                   <li><a href="#features" className="hover:text-purple-400 transition">Features</a></li>
-                  <li><a href="#stats" className="hover:text-purple-400 transition">Pricing</a></li>
-                  <li><a href="#status" className="hover:text-purple-400 transition">Status</a></li>
+                  <li><Link to="/community-guidelines" className="hover:text-purple-400 transition">Community Guidelines</Link></li>
+                  <li><Link to="/report" className="hover:text-purple-400 transition">Report</Link></li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-bold mb-4">Company</h4>
                 <ul className="space-y-2 text-gray-400">
-                  <li><a href="#" className="hover:text-purple-400 transition">About</a></li>
-                  <li><a href="#" className="hover:text-purple-400 transition">Blog</a></li>
-                  <li><a href="#" className="hover:text-purple-400 transition">Contact</a></li>
+                  <li><Link to="/legal" className="hover:text-purple-400 transition">Legal</Link></li>
+                  <li><Link to="/privacy" className="hover:text-purple-400 transition">Privacy</Link></li>
+                  <li><Link to="/terms" className="hover:text-purple-400 transition">Terms</Link></li>
                 </ul>
               </div>
               <div>
@@ -216,9 +216,9 @@ export default function LandingPage() {
             <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center text-gray-400">
               <p>&copy; 2026 ℯ𝓁𝓁ℴ. All rights reserved.</p>
               <div className="flex gap-6 mt-4 md:mt-0">
-                <a href="#" className="hover:text-purple-400 transition">Privacy</a>
-                <a href="#" className="hover:text-purple-400 transition">Terms</a>
-                <a href="#" className="hover:text-purple-400 transition">Cookies</a>
+                <Link to="/privacy" className="hover:text-purple-400 transition">Privacy</Link>
+                <Link to="/terms" className="hover:text-purple-400 transition">Terms</Link>
+                <Link to="/delete-account" className="hover:text-purple-400 transition">Delete Account</Link>
               </div>
             </div>
           </div>

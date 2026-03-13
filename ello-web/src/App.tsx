@@ -71,6 +71,7 @@ const GroupChatPage = lazyWithPreload(() => import('./pages/GroupChatPage'))
 const NotificationsPage = lazyWithPreload(() => import('./pages/NotificationsPage'))
 const AdminLoginPage = lazyWithPreload(() => import('./pages/AdminLoginPage'))
 const AdminPanelPage = lazyWithPreload(() => import('./pages/AdminPanelPage'))
+const PublicInfoPage = lazyWithPreload(() => import('./pages/PublicInfoPage'))
 
 const preloadablePages = [
   LandingPage,
@@ -89,6 +90,7 @@ const preloadablePages = [
   NotificationsPage,
   AdminLoginPage,
   AdminPanelPage,
+  PublicInfoPage,
 ]
 
 function App() {
@@ -444,6 +446,14 @@ function App() {
           {/* Auth Routes */}
           <Route path="/login" element={isAuthenticated ? <Navigate to="/moments" /> : <LoginPage />} />
           <Route path="/register" element={isAuthenticated ? <Navigate to="/moments" /> : <RegisterPage />} />
+
+          {/* Public Info Routes */}
+          <Route path="/legal" element={<PublicInfoPage pageKey="legal" />} />
+          <Route path="/privacy" element={<PublicInfoPage pageKey="privacy" />} />
+          <Route path="/terms" element={<PublicInfoPage pageKey="terms" />} />
+          <Route path="/community-guidelines" element={<PublicInfoPage pageKey="community-guidelines" />} />
+          <Route path="/report" element={<PublicInfoPage pageKey="report" />} />
+          <Route path="/delete-account" element={<PublicInfoPage pageKey="delete-account" />} />
 
           {/* Admin Panel Routes */}
           <Route path="/painel/login" element={<AdminLoginPage />} />
