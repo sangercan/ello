@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState, useEffect, useRef, useCallback, type ComponentType } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
+import { App as CapacitorApp } from '@capacitor/app'
 import { useAuthStore } from '@store/authStore'
 import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
 import api from '@services/api'
@@ -93,6 +94,81 @@ const preloadablePages = [
   AdminPanelPage,
   PublicInfoPage,
 ]
+
+const getRouteKey = (pathname: string, search: string, hash: string) => `${pathname}${search}${hash}`
+
+function NativeAndroidBackHandler({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const routeHistoryRef = useRef<string[]>([
+    getRouteKey(location.pathname, location.search, location.hash),
+  ])
+  const currentRouteRef = useRef(routeHistoryRef.current[0])
+  const isInternalBackNavigationRef = useRef(false)
+  const isAuthenticatedRef = useRef(isAuthenticated)
+
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated
+    routeHistoryRef.current = [currentRouteRef.current]
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    const nextRoute = getRouteKey(location.pathname, location.search, location.hash)
+    currentRouteRef.current = nextRoute
+
+    if (isInternalBackNavigationRef.current) {
+      isInternalBackNavigationRef.current = false
+      return
+    }
+
+    const history = routeHistoryRef.current
+    const current = history[history.length - 1]
+    if (current === nextRoute) return
+
+    const previous = history[history.length - 2]
+    if (previous === nextRoute) {
+      history.pop()
+      return
+    }
+
+    history.push(nextRoute)
+  }, [location.pathname, location.search, location.hash])
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return
+
+    const listenerPromise = CapacitorApp.addListener('backButton', () => {
+      const history = routeHistoryRef.current
+      const currentRoute = currentRouteRef.current
+      const homeRoute = isAuthenticatedRef.current ? '/moments' : '/'
+
+      if (history.length > 1) {
+        const previousRoute = history[history.length - 2]
+        history.pop()
+        isInternalBackNavigationRef.current = true
+        navigate(previousRoute, { replace: true })
+        return
+      }
+
+      if (currentRoute !== homeRoute) {
+        routeHistoryRef.current = [homeRoute]
+        isInternalBackNavigationRef.current = true
+        navigate(homeRoute, { replace: true })
+        return
+      }
+
+      void CapacitorApp.minimizeApp().catch(() => {
+        CapacitorApp.exitApp()
+      })
+    })
+
+    return () => {
+      void listenerPromise.then((listener) => listener.remove())
+    }
+  }, [navigate])
+
+  return null
+}
 
 function App() {
   const resolvedApiBase = RESOLVED_API_BASE_URL
@@ -519,6 +595,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <NativeAndroidBackHandler isAuthenticated={isAuthenticated} />
       <Toaster position="top-right" />
       {isAuthenticated && <CallScreen />}
       
