@@ -7,6 +7,7 @@ import { PlayerTrack, useMusicPlayerStore } from '@store/musicPlayerStore'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const MUSIC_CACHE_KEY = 'ello:cache:music:v1'
+const getMusicCacheKey = (userId?: number | null) => `${MUSIC_CACHE_KEY}:user:${userId ?? 'guest'}`
 
 type MusicTrack = {
   id: number
@@ -64,9 +65,10 @@ export default function MusicPage() {
   const togglePlayPause = useMusicPlayerStore((state) => state.togglePlayPause)
 
   useEffect(() => {
+    const cacheKey = getMusicCacheKey(user?.id)
     let hasHydratedCache = false
     try {
-      const rawCache = window.sessionStorage.getItem(MUSIC_CACHE_KEY)
+      const rawCache = window.sessionStorage.getItem(cacheKey)
       if (rawCache) {
         const parsed = JSON.parse(rawCache)
         const cachedTracks = Array.isArray(parsed?.tracks) ? parsed.tracks : []
@@ -86,15 +88,16 @@ export default function MusicPage() {
 
   useEffect(() => {
     if (tracks.length === 0) return
+    const cacheKey = getMusicCacheKey(user?.id)
     try {
       window.sessionStorage.setItem(
-        MUSIC_CACHE_KEY,
+        cacheKey,
         JSON.stringify({ tracks, favoriteIds: Array.from(favoriteIds), ts: Date.now() })
       )
     } catch {
       // Ignore storage quota errors.
     }
-  }, [tracks, favoriteIds])
+  }, [tracks, favoriteIds, user?.id])
 
   useEffect(() => {
     setArtist(user?.full_name || user?.username || '')

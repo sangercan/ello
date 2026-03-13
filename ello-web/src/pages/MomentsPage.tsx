@@ -12,6 +12,7 @@ import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const PAGE_SIZE = 10
 const STORY_SEEN_STORAGE_KEY = 'ello:stories-seen-by-user'
 const MOMENTS_CACHE_KEY = 'ello:cache:moments:v1'
+const getMomentsCacheKey = (userId?: number | null) => `${MOMENTS_CACHE_KEY}:user:${userId ?? 'guest'}`
 
 type SeenStoryMap = Record<number, string>
 type LoadMomentsOptions = {
@@ -105,9 +106,10 @@ export default function MomentsPage() {
   const lockedScrollYRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const cacheKey = getMomentsCacheKey(user?.id)
     let hasHydratedCache = false
     try {
-      const rawCache = window.sessionStorage.getItem(MOMENTS_CACHE_KEY)
+      const rawCache = window.sessionStorage.getItem(cacheKey)
       if (rawCache) {
         const parsed = JSON.parse(rawCache)
         const cachedMoments = Array.isArray(parsed?.moments) ? parsed.moments : []
@@ -136,19 +138,20 @@ export default function MomentsPage() {
     } catch {
       setSeenStoriesByUser({})
     }
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     if (moments.length === 0 && stories.length === 0) return
+    const cacheKey = getMomentsCacheKey(user?.id)
     try {
       window.sessionStorage.setItem(
-        MOMENTS_CACHE_KEY,
+        cacheKey,
         JSON.stringify({ moments, stories, ts: Date.now() })
       )
     } catch {
       // Ignore storage quota errors.
     }
-  }, [moments, stories])
+  }, [moments, stories, user?.id])
 
   useEffect(() => {
     const refreshAll = () => {

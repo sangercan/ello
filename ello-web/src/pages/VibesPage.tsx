@@ -9,6 +9,7 @@ import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const VIBES_CACHE_KEY = 'ello:cache:vibes:v1'
+const getVibesCacheKey = (userId?: number | null) => `${VIBES_CACHE_KEY}:user:${userId ?? 'guest'}`
 
 type ContentComment = {
   id: number
@@ -177,9 +178,10 @@ export default function VibesPage() {
   }
 
   useEffect(() => {
+    const cacheKey = getVibesCacheKey(user?.id)
     let hasHydratedCache = false
     try {
-      const rawCache = window.sessionStorage.getItem(VIBES_CACHE_KEY)
+      const rawCache = window.sessionStorage.getItem(cacheKey)
       if (rawCache) {
         const parsed = JSON.parse(rawCache)
         const cachedVibes = Array.isArray(parsed?.vibes) ? parsed.vibes : []
@@ -193,16 +195,17 @@ export default function VibesPage() {
       // Ignore invalid cache.
     }
     void loadVibes(hasHydratedCache)
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     if (vibes.length === 0) return
+    const cacheKey = getVibesCacheKey(user?.id)
     try {
-      window.sessionStorage.setItem(VIBES_CACHE_KEY, JSON.stringify({ vibes, ts: Date.now() }))
+      window.sessionStorage.setItem(cacheKey, JSON.stringify({ vibes, ts: Date.now() }))
     } catch {
       // Ignore storage quota errors.
     }
-  }, [vibes])
+  }, [vibes, user?.id])
 
   useEffect(() => {
     if (vibes.length === 0) return

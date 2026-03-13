@@ -102,19 +102,35 @@ def get_moments_intelligence(
         .all()
     )
 
+    moment_ids = [moment.id for moment in moments]
+    likes_count_map: dict[int, int] = {}
+    comments_count_map: dict[int, int] = {}
+    liked_moment_ids: set[int] = set()
+
+    if moment_ids:
+        like_rows = db.query(Like.content_id, func.count(Like.id)).filter(
+            Like.content_type == "moment",
+            Like.content_id.in_(moment_ids)
+        ).group_by(Like.content_id).all()
+        likes_count_map = {int(content_id): int(count) for content_id, count in like_rows}
+
+        comment_rows = db.query(Comment.content_id, func.count(Comment.id)).filter(
+            Comment.content_type == "moment",
+            Comment.content_id.in_(moment_ids)
+        ).group_by(Comment.content_id).all()
+        comments_count_map = {int(content_id): int(count) for content_id, count in comment_rows}
+
+        if current_user is not None:
+            liked_rows = db.query(Like.content_id).filter(
+                Like.content_type == "moment",
+                Like.user_id == current_user.id,
+                Like.content_id.in_(moment_ids)
+            ).all()
+            liked_moment_ids = {int(content_id) for (content_id,) in liked_rows}
+
     result = []
 
     for moment in moments:
-        likes_count = db.query(func.count(Like.id)).filter(
-            Like.content_type == "moment",
-            Like.content_id == moment.id
-        ).scalar()
-
-        comments_count = db.query(func.count(Comment.id)).filter(
-            Comment.content_type == "moment",
-            Comment.content_id == moment.id
-        ).scalar()
-
         # Build moment response with author data
         moment_data = {
             "id": moment.id,
@@ -124,8 +140,9 @@ def get_moments_intelligence(
             "longitude": moment.longitude,
             "location_label": moment.location_label,
             "created_at": moment.created_at,
-            "likes_count": likes_count,
-            "comments_count": comments_count,
+            "likes_count": likes_count_map.get(moment.id, 0),
+            "comments_count": comments_count_map.get(moment.id, 0),
+            "is_liked": moment.id in liked_moment_ids,
             "user_id": moment.user_id,
             "author": {
                 "id": moment.author.id,
