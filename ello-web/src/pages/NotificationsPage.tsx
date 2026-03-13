@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCheck, Heart, MessageCircle, Radio, Trash2, UserPlus } from 'lucide-react'
+import { Bell, Eye, Heart, MessageCircle, Radio, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import apiClient from '@services/api'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
@@ -169,16 +169,20 @@ export default function NotificationsPage() {
             <button
               onClick={markAllAsRead}
               disabled={unreadCount === 0}
-              className="h-9 px-3 rounded-full border border-slate-700 text-xs text-slate-200 disabled:text-slate-500 disabled:border-slate-800 hover:bg-slate-800 transition inline-flex items-center gap-1.5"
+              className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 disabled:text-slate-500 disabled:border-slate-800 hover:bg-slate-800 transition inline-flex items-center justify-center"
+              title="Marcar todas como lidas"
+              aria-label="Marcar todas como lidas"
             >
-              <CheckCheck size={14} /> Marcar todas como lidas
+              <Eye size={16} />
             </button>
             <button
               onClick={clearAllNotifications}
               disabled={items.length === 0}
-              className="h-9 px-3 rounded-full border border-slate-700 text-xs text-red-300 disabled:text-slate-500 disabled:border-slate-800 hover:bg-red-500/10 transition inline-flex items-center gap-1.5"
+              className="h-9 w-9 rounded-full border border-slate-700 text-red-300 disabled:text-slate-500 disabled:border-slate-800 hover:bg-red-500/10 transition inline-flex items-center justify-center"
+              title="Limpar notificacoes"
+              aria-label="Limpar notificacoes"
             >
-              <Trash2 size={14} /> Limpar notificacoes
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
