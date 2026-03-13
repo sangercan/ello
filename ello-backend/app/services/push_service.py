@@ -279,6 +279,16 @@ def _send_mobile_pushes(
 
     for device in devices:
         notification_payload = None if is_call_push else messaging.Notification(title=title, body=body)
+        android_notification = (
+            None
+            if is_call_push
+            else messaging.AndroidNotification(
+                sound=android_sound,
+                channel_id=android_channel_id,
+                priority="high",
+                visibility="public",
+            )
+        )
         apns_aps = (
             messaging.Aps(
                 alert=messaging.ApsAlert(title=title, body=body),
@@ -287,6 +297,11 @@ def _send_mobile_pushes(
             if is_call_push
             else messaging.Aps(sound=apns_sound)
         )
+        apns_headers = {"apns-priority": "10"}
+        if is_call_push:
+            # Call pushes are sent as data-only on Android so our custom messaging
+            # service can ring/show full-screen even when app is minimized.
+            apns_headers["apns-push-type"] = "alert"
 
         message = messaging.Message(
             token=device.token,
@@ -294,15 +309,10 @@ def _send_mobile_pushes(
             data=message_data,
             android=messaging.AndroidConfig(
                 priority="high",
-                notification=messaging.AndroidNotification(
-                    sound=android_sound,
-                    channel_id=android_channel_id,
-                    priority="max" if is_call_push else "high",
-                    visibility="public",
-                ),
+                notification=android_notification,
             ),
             apns=messaging.APNSConfig(
-                headers={"apns-priority": "10"},
+                headers=apns_headers,
                 payload=messaging.APNSPayload(aps=apns_aps),
             ),
         )
