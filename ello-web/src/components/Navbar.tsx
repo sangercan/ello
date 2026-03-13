@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
-import { LogOut, Menu, X, Grid3x3, LayoutDashboard, Sparkles, Music, MapPin, User, Bell, Plus, MessageCircle, Image, Camera } from 'lucide-react'
+import { LogOut, Menu, X, Grid3x3, LayoutDashboard, Sparkles, Music, MapPin, User, Bell, Plus, MessageCircle, Image, Camera, Settings as SettingsIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import apiClient from '@services/api'
@@ -118,6 +118,7 @@ export default function Navbar() {
   const rightActionItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard'), title: t('nav.dashboard') },
     { path: '/notifications', icon: Bell, label: t('nav.notifications'), title: t('nav.notifications') },
+    { path: '/settings', icon: SettingsIcon, label: 'Config', title: 'Configuracoes' },
   ]
 
   const openPublisher = () => {
