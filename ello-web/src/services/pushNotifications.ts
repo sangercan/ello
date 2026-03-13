@@ -106,6 +106,42 @@ const bindNativeListeners = () => {
   nativeListenersBound = true
 }
 
+const ensureNativeNotificationChannels = async () => {
+  const plugin = PushNotifications as any
+  if (typeof plugin.createChannel !== 'function') return
+
+  const channels = [
+    {
+      id: 'ello_general',
+      name: 'Ello Notificacoes',
+      description: 'Notificacoes gerais do Ello',
+      importance: 5,
+      visibility: 1,
+      sound: 'notificacao',
+      vibration: true,
+      lights: true,
+    },
+    {
+      id: 'ello_calls',
+      name: 'Ello Chamadas',
+      description: 'Alertas de chamadas recebidas',
+      importance: 5,
+      visibility: 1,
+      sound: 'recebida',
+      vibration: true,
+      lights: true,
+    },
+  ]
+
+  for (const channel of channels) {
+    try {
+      await plugin.createChannel(channel)
+    } catch (error) {
+      console.warn('[Push] Could not create notification channel:', channel.id, error)
+    }
+  }
+}
+
 const bindWebListeners = () => {
   if (webListenersBound || !('serviceWorker' in navigator)) return
 
@@ -145,6 +181,7 @@ export const registerNativePushDevice = async () => {
   if (!isNativeApp()) return
 
   bindNativeListeners()
+  await ensureNativeNotificationChannels()
 
   let permissions = await PushNotifications.checkPermissions()
   if (permissions.receive === 'prompt') {

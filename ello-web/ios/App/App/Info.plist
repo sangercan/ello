@@ -53,6 +53,10 @@
 	<string>Precisamos da sua localizacao para recursos de mapa e compartilhamento de local.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localizacao para recursos de mapa e compartilhamento de local.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

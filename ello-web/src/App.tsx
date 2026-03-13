@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef, type ComponentType } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Capacitor } from '@capacitor/core'
@@ -6,6 +6,7 @@ import { useAuthStore } from '@store/authStore'
 import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
 import api from '@services/api'
 import { registerPushDevice } from '@services/pushNotifications'
+import { playNotificationSound } from '@services/alertSounds'
 import CallScreen from './components/CallScreen'
 import { useCallStore } from '@store/callStore'
 
@@ -118,6 +119,7 @@ function App() {
   const appWsRef = useRef<WebSocket | null>(null)
   const chunksPreloadedRef = useRef(false)
   const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall)
+  const activeCall = useCallStore((state) => state.activeCall)
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -187,6 +189,36 @@ function App() {
       console.error('[App] Erro ao registrar push notifications:', error)
     })
   }, [isAuthenticated, loading])
+
+  const handleIncomingCallPayload = useCallback(
+    async (payload: any) => {
+      if (!payload) return
+
+      const callId = Number(payload.call_id)
+      const fromUserId = Number(payload.from_user_id)
+      const callType = payload.call_type === 'video' ? 'video' : 'voice'
+
+      if (!Number.isFinite(callId) || !Number.isFinite(fromUserId)) {
+        return
+      }
+
+      if (activeCall?.callId === callId) {
+        return
+      }
+
+      try {
+        const userPayload = await api.getUser(fromUserId)
+        receiveIncomingCall({
+          callId,
+          callType,
+          user: userPayload,
+        })
+      } catch (error) {
+        console.error('Erro ao carregar dados da chamada recebida:', error)
+      }
+    },
+    [activeCall?.callId, receiveIncomingCall]
+  )
 
   // Global WebSocket for realtime events across pages (moments/stories/chat/presence).
   useEffect(() => {
@@ -320,6 +352,7 @@ function App() {
           }
 
           if (data.type === 'notification_created') {
+            playNotificationSound()
             window.dispatchEvent(new CustomEvent('ello:ws:notification-created', { detail: data }))
           }
 
@@ -372,26 +405,54 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    const handleIncomingCall = async (event: Event) => {
+    const handleIncomingCall = (event: Event) => {
       const custom = event as CustomEvent<any>
       const data = custom.detail
-      if (!data) return
-
-      try {
-        const user = await api.getUser(data.from_user_id)
-      receiveIncomingCall({
-        callId: data.call_id,
-        callType: data.call_type,
-        user,
-      })
-      } catch (error) {
-        console.error('Erro ao carregar dados da chamada recebida:', error)
-      }
+      void handleIncomingCallPayload(data)
     }
 
     window.addEventListener('ello:ws:incoming-call', handleIncomingCall)
     return () => window.removeEventListener('ello:ws:incoming-call', handleIncomingCall)
-  }, [isAuthenticated, receiveIncomingCall])
+  }, [isAuthenticated, handleIncomingCallPayload])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const handlePushReceived = (event: Event) => {
+      const custom = event as CustomEvent<any>
+      const detail = custom.detail || {}
+      const payload = (detail?.data && typeof detail.data === 'object' ? detail.data : detail) || {}
+      const pushType = String(payload?.type || '').toLowerCase()
+
+      if (pushType === 'incoming_call') {
+        void handleIncomingCallPayload(payload)
+        return
+      }
+
+      playNotificationSound()
+      window.dispatchEvent(new CustomEvent('ello:ws:notification-refresh'))
+    }
+
+    const handlePushAction = (event: Event) => {
+      const custom = event as CustomEvent<any>
+      const detail = custom.detail || {}
+      const payload = (detail?.notification?.data && typeof detail.notification.data === 'object'
+        ? detail.notification.data
+        : detail?.data && typeof detail.data === 'object'
+          ? detail.data
+          : {}) || {}
+      if (String(payload?.type || '').toLowerCase() === 'incoming_call') {
+        void handleIncomingCallPayload(payload)
+      }
+    }
+
+    window.addEventListener('ello:push:received', handlePushReceived as EventListener)
+    window.addEventListener('ello:push:action', handlePushAction as EventListener)
+    return () => {
+      window.removeEventListener('ello:push:received', handlePushReceived as EventListener)
+      window.removeEventListener('ello:push:action', handlePushAction as EventListener)
+    }
+  }, [isAuthenticated, handleIncomingCallPayload])
 
   useEffect(() => {
     if (loading || chunksPreloadedRef.current) return

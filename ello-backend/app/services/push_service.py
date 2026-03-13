@@ -255,6 +255,7 @@ def _send_mobile_pushes(
     user_id: int,
     title: str,
     body: str,
+    category: str,
     payload: dict[str, str],
 ) -> tuple[int, int]:
     if not devices:
@@ -269,15 +270,27 @@ def _send_mobile_pushes(
     failed = 0
     now = datetime.now(timezone.utc)
 
+    push_type = str(payload.get("type", "")).strip().lower()
+    is_call_push = category == "call" or push_type == "incoming_call"
+    android_channel_id = "ello_calls" if is_call_push else "ello_general"
+    android_sound = "recebida" if is_call_push else "notificacao"
+    apns_sound = "default"
+
     for device in devices:
         message = messaging.Message(
             token=device.token,
             notification=messaging.Notification(title=title, body=body),
             data=payload,
-            android=messaging.AndroidConfig(priority="high"),
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    sound=android_sound,
+                    channel_id=android_channel_id,
+                ),
+            ),
             apns=messaging.APNSConfig(
                 headers={"apns-priority": "10"},
-                payload=messaging.APNSPayload(aps=messaging.Aps(sound="default")),
+                payload=messaging.APNSPayload(aps=messaging.Aps(sound=apns_sound)),
             ),
         )
 
@@ -404,6 +417,7 @@ def send_push_to_user(
         user_id=int(user_id),
         title=title,
         body=body,
+        category=category,
         payload=payload,
     )
     web_sent, web_failed = _send_web_pushes(

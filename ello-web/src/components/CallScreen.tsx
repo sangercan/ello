@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
 import { useCallStore } from '@store/callStore'
 import api from '@services/api'
+import { startLoopingAlertSound } from '@services/alertSounds'
+import { disableCallMode, enableCallMode } from '@services/callMode'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 type SignalPayload = {
@@ -15,11 +17,7 @@ type SignalPayload = {
 type CallTone = 'incoming' | 'outgoing'
 
 type RingtoneHandle = {
-  ctx: AudioContext | null
-  osc: OscillatorNode | { stop?: () => void }
-  gain: GainNode | null
-  intervalId: number
-  dummy?: boolean
+  stop: () => void
 }
 
 const unlockAudioContext = (ctx: AudioContext) => {
@@ -187,11 +185,11 @@ const CallScreen = () => {
   const ringtoneRef = useRef<RingtoneHandle | null>(null)
   const currentToneRef = useRef<CallTone | null>(null)
 
-const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandle => {
-    // Sem gesto: retorna handle inerte (sem áudio) para evitar erros no console.
+  const createFallbackRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandle => {
     if (!userGesture.resolved) {
-      return { ctx: null, osc: {}, gain: null, intervalId: -1, dummy: true }
+      return { stop: () => {} }
     }
+
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
@@ -213,21 +211,35 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     }
 
     pulse()
-    const intervalId: number = window.setInterval(pulse, cadenceMs)
+    const intervalId = window.setInterval(pulse, cadenceMs)
 
-    return { ctx, osc, gain, intervalId }
+    return {
+      stop: () => {
+        window.clearInterval(intervalId)
+        try {
+          osc.stop()
+        } catch {
+          // Oscillator may already be stopped.
+        }
+        ctx.close().catch(() => {})
+      },
+    }
+  }
+
+  const createRingtoneHandle = (tone: CallTone): RingtoneHandle => {
+    const loopingHandle = startLoopingAlertSound(tone === 'incoming' ? 'incomingCall' : 'outgoingCall', 1)
+    if (loopingHandle) {
+      return { stop: loopingHandle.stop }
+    }
+
+    const { tones, cadenceMs } = RING_CONFIG[tone]
+    return createFallbackRingtoneHandle(tones, cadenceMs)
   }
 
   const stopRingtone = useCallback(() => {
     const handle = ringtoneRef.current
     if (!handle) return
-    if (handle.intervalId >= 0) clearInterval(handle.intervalId)
-    if (!handle.dummy && typeof handle.osc.stop === 'function') {
-      handle.osc.stop()
-    }
-    if (!handle.dummy && handle.ctx) {
-      handle.ctx.close().catch(() => {})
-    }
+    handle.stop()
     ringtoneRef.current = null
     currentToneRef.current = null
   }, [])
@@ -236,8 +248,7 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
     if (currentToneRef.current === tone) return
     stopRingtone()
     try {
-      const { tones, cadenceMs } = RING_CONFIG[tone]
-      ringtoneRef.current = createRingtoneHandle(tones, cadenceMs)
+      ringtoneRef.current = createRingtoneHandle(tone)
       currentToneRef.current = tone
     } catch (error) {
       console.error('Não foi possível iniciar o toque de chamada:', error)
@@ -712,6 +723,16 @@ const createRingtoneHandle = (tones: number[], cadenceMs: number): RingtoneHandl
   }, [isRinging, isIncoming, startRingtone, stopRingtone])
 
   useEffect(() => stopRingtone, [stopRingtone])
+
+  useEffect(() => {
+    if (!activeCallId) return
+
+    void enableCallMode()
+
+    return () => {
+      void disableCallMode()
+    }
+  }, [activeCallId])
 
   useEffect(() => {
     if (!isMinimized) return
