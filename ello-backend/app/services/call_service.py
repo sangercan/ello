@@ -4,9 +4,9 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.websocket_manager import manager
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 RING_TIMEOUT_SECONDS = 60
 ACTIVE_CALL_STATUSES = {"ringing", "accepted"}
 TERMINAL_CALL_STATUSES = {"ended", "missed", "rejected", "busy", "canceled", "cancelled"}
+BUSY_ACCEPTED_STALE_HOURS = 6
 CALL_CONTROL_PUSH_TYPES = {
     "call_ended",
     "call_missed",
@@ -216,14 +217,51 @@ def _emit_call_control_pushes(db: Session, *, call: CallSession, status: str, pr
 
 
 def is_user_busy_in_call(db: Session, user_id: int, *, exclude_call_id: int | None = None) -> bool:
-    query = db.query(CallSession).filter(
+    now = datetime.now(timezone.utc)
+    stale_limit = now - timedelta(hours=BUSY_ACCEPTED_STALE_HOURS)
+
+    base_filters = [
         or_(CallSession.caller_id == int(user_id), CallSession.receiver_id == int(user_id)),
-        CallSession.status.in_(tuple(ACTIVE_CALL_STATUSES)),
         CallSession.ended_at.is_(None),
-    )
+    ]
     if exclude_call_id is not None:
-        query = query.filter(CallSession.id != int(exclude_call_id))
-    return query.first() is not None
+        base_filters.append(CallSession.id != int(exclude_call_id))
+
+    # Cleanup automatico: sessoes antigas travadas como "accepted" nao devem
+    # manter usuario ocupado para sempre.
+    stale_accepted = (
+        db.query(CallSession)
+        .filter(
+            *base_filters,
+            CallSession.status == "accepted",
+            or_(
+                and_(CallSession.started_at.is_not(None), CallSession.started_at < stale_limit),
+                and_(CallSession.started_at.is_(None), CallSession.created_at < stale_limit),
+            ),
+        )
+        .all()
+    )
+    if stale_accepted:
+        for call in stale_accepted:
+            call.status = "ended"
+            call.ended_at = now
+        db.commit()
+        logger.info(
+            "Encerradas %d chamadas stale para liberar estado ocupado do usuario %s",
+            len(stale_accepted),
+            user_id,
+        )
+
+    # Regra de ocupado: somente chamada efetivamente em andamento (accepted).
+    active_query = db.query(CallSession).filter(
+        *base_filters,
+        CallSession.status == "accepted",
+        or_(
+            and_(CallSession.started_at.is_not(None), CallSession.started_at >= stale_limit),
+            and_(CallSession.started_at.is_(None), CallSession.created_at >= stale_limit),
+        ),
+    )
+    return active_query.first() is not None
 
 
 def initiate_call(db: Session, caller_id: int, receiver_id: int, call_type: str):
