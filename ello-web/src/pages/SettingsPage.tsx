@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
-import { Save, Trash2 } from 'lucide-react'
+import { Save, Trash2, UserX } from 'lucide-react'
 
 const DELETE_CONFIRMATION_TEXT = 'EXCLUIR'
+
+type BlockedUser = {
+  id: number
+  blocked_id: number
+  username: string
+  full_name: string
+  avatar_url?: string | null
+  created_at?: string | null
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -17,12 +26,32 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(true)
+  const [unblockingUserId, setUnblockingUserId] = useState<number | null>(null)
 
   const [formData, setFormData] = useState({
     full_name: user?.full_name || '',
     bio: user?.bio || '',
     link: user?.link || '',
   })
+
+  useEffect(() => {
+    const loadBlockedUsers = async () => {
+      setLoadingBlockedUsers(true)
+      try {
+        const response = await apiClient.getBlockedUsers()
+        const list = Array.isArray(response?.data?.data) ? response.data.data : []
+        setBlockedUsers(list)
+      } catch {
+        toast.error('Erro ao carregar usuarios bloqueados')
+      } finally {
+        setLoadingBlockedUsers(false)
+      }
+    }
+
+    void loadBlockedUsers()
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -73,6 +102,24 @@ export default function SettingsPage() {
       toast.error(error.response?.data?.detail || 'Erro ao excluir conta')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleUnblockUser = async (blockedId: number) => {
+    const targetUser = blockedUsers.find((item) => item.blocked_id === blockedId)
+    const userLabel = targetUser?.full_name || targetUser?.username || `ID ${blockedId}`
+
+    if (!window.confirm(`Deseja desbloquear ${userLabel}?`)) return
+
+    setUnblockingUserId(blockedId)
+    try {
+      await apiClient.unblockUser(blockedId)
+      setBlockedUsers((prev) => prev.filter((item) => item.blocked_id !== blockedId))
+      toast.success('Usuario desbloqueado')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Erro ao desbloquear usuario')
+    } finally {
+      setUnblockingUserId(null)
     }
   }
 
@@ -165,6 +212,66 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 bg-slate-800 rounded-lg p-8 border border-slate-700">
+          <div className="flex items-center gap-3 mb-2">
+            <UserX size={20} className="text-red-400" />
+            <h2 className="text-xl font-bold text-white">Usuarios bloqueados</h2>
+          </div>
+          <p className="text-sm text-gray-400 mb-6">
+            Gerencie quem esta bloqueado e desbloqueie quando quiser.
+          </p>
+
+          {loadingBlockedUsers ? (
+            <p className="text-gray-400">Carregando lista...</p>
+          ) : blockedUsers.length === 0 ? (
+            <p className="text-gray-400">Voce nao bloqueou nenhum usuario.</p>
+          ) : (
+            <div className="space-y-3">
+              {blockedUsers.map((blockedUser) => (
+                <div
+                  key={blockedUser.id}
+                  className="flex items-center justify-between gap-3 bg-slate-900/60 border border-slate-700 rounded-lg px-4 py-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex items-center justify-center">
+                      {blockedUser.avatar_url ? (
+                        <img
+                          src={blockedUser.avatar_url}
+                          alt={blockedUser.full_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-sm font-semibold text-gray-200">
+                          {(blockedUser.full_name || blockedUser.username || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-white font-semibold truncate">{blockedUser.full_name}</p>
+                      <p className="text-sm text-gray-400 truncate">@{blockedUser.username}</p>
+                      {blockedUser.created_at && (
+                        <p className="text-xs text-gray-500">
+                          Bloqueado em {new Date(blockedUser.created_at).toLocaleDateString('pt-BR')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUnblockUser(blockedUser.blocked_id)}
+                    disabled={unblockingUserId === blockedUser.blocked_id}
+                    className="px-3 py-1.5 rounded-lg bg-red-900/40 text-red-300 hover:bg-red-900/60 transition disabled:opacity-50"
+                  >
+                    {unblockingUserId === blockedUser.blocked_id ? 'Desbloqueando...' : 'Desbloquear'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 bg-red-900/10 rounded-lg p-8 border border-red-900/20">

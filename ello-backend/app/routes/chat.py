@@ -10,7 +10,7 @@
 # - Add reaction
 # ==========================================================
 
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 
@@ -40,6 +40,8 @@ from app.services.chat_service import (
     delete_message,
     has_block_between,
     block_user,
+    list_blocked_users,
+    unblock_user,
     delete_conversation_for_user,
 )
 from app.core.websocket_manager import manager
@@ -956,4 +958,32 @@ def block_user_route(
         "id": row.id,
         "blocker_id": row.blocker_id,
         "blocked_id": row.blocked_id,
+    }
+
+
+@router.get("/blocked-users")
+def list_blocked_users_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    data = list_blocked_users(db=db, blocker_id=current_user.id)
+    return {
+        "data": data,
+        "total": len(data),
+    }
+
+
+@router.delete("/block/{user_id}")
+def unblock_user_route(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    removed = unblock_user(db=db, blocker_id=current_user.id, blocked_id=user_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Block relation not found")
+
+    return {
+        "message": "User unblocked",
+        "blocked_id": user_id,
     }

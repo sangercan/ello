@@ -330,6 +330,8 @@ const api = apiClient as AxiosInstance & {
   getConversations: (page?: number, limit?: number) => Promise<any>
   deleteConversation: (conversationId: string | number) => Promise<any>
   blockUser: (userId: string | number) => Promise<any>
+  getBlockedUsers: () => Promise<any>
+  unblockUser: (userId: string | number) => Promise<any>
   getMessages: (userId: string | number, page?: number, limit?: number) => Promise<any>
   sendMessage: (userId: string | number, content: string) => Promise<any>
   sendAudio: (data: any) => Promise<any>
@@ -672,6 +674,14 @@ api.deleteConversation = async (conversationId: string | number) => {
 
 api.blockUser = async (userId: string | number) => {
   return apiClient.post(`/chat/block/${userId}`)
+}
+
+api.getBlockedUsers = async () => {
+  return apiClient.get('/chat/blocked-users')
+}
+
+api.unblockUser = async (userId: string | number) => {
+  return apiClient.delete(`/chat/block/${userId}`)
 }
 
 api.getMessages = async (userId: string | number, page = 1, limit = 50) => {

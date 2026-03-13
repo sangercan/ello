@@ -435,6 +435,43 @@ def block_user(db: Session, blocker_id: int, blocked_id: int):
     return row
 
 
+def list_blocked_users(db: Session, blocker_id: int):
+    rows = db.query(UserBlock, User).join(
+        User, User.id == UserBlock.blocked_id
+    ).filter(
+        UserBlock.blocker_id == blocker_id
+    ).order_by(
+        desc(UserBlock.created_at)
+    ).all()
+
+    result = []
+    for block_row, blocked_user in rows:
+        result.append({
+            "id": block_row.id,
+            "blocked_id": blocked_user.id,
+            "username": blocked_user.username,
+            "full_name": blocked_user.full_name,
+            "avatar_url": blocked_user.avatar_url,
+            "created_at": block_row.created_at.isoformat() if block_row.created_at else None,
+        })
+
+    return result
+
+
+def unblock_user(db: Session, blocker_id: int, blocked_id: int):
+    row = db.query(UserBlock).filter(
+        UserBlock.blocker_id == blocker_id,
+        UserBlock.blocked_id == blocked_id,
+    ).first()
+
+    if not row:
+        return False
+
+    db.delete(row)
+    db.commit()
+    return True
+
+
 def delete_conversation_for_user(db: Session, current_user_id: int, conversation_id: int):
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
