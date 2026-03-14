@@ -8,6 +8,7 @@ type NativeCallPiPResult = {
 type NativeCallPiPPlugin = {
   isSupported: () => Promise<NativeCallPiPResult>
   enter: (options?: { width?: number; height?: number; autoEnter?: boolean }) => Promise<NativeCallPiPResult>
+  setAutoEnterOnUserLeave: (options?: { enabled?: boolean }) => Promise<{ enabled?: boolean }>
 }
 
 const NativeCallPiP = registerPlugin<NativeCallPiPPlugin>('CallPiP')
@@ -49,6 +50,16 @@ export const enterCallPictureInPicture = async (video: HTMLVideoElement | null) 
     await targetVideo.play().catch(() => {})
     await targetVideo.requestPictureInPicture()
     return true
+  } catch {
+    return false
+  }
+}
+
+export const setCallPictureInPictureAutoEnter = async (enabled: boolean) => {
+  if (Capacitor.getPlatform() === 'web') return false
+  try {
+    const result = await NativeCallPiP.setAutoEnterOnUserLeave({ enabled })
+    return Boolean(result?.enabled)
   } catch {
     return false
   }

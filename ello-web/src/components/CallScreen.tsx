@@ -5,7 +5,11 @@ import { useCallStore } from '@store/callStore'
 import api from '@services/api'
 import { playAlertSound, startLoopingAlertSound } from '@services/alertSounds'
 import { disableCallMode, enableCallMode } from '@services/callMode'
-import { enterCallPictureInPicture, isCallPictureInPictureSupported } from '@services/callPictureInPicture'
+import {
+  enterCallPictureInPicture,
+  isCallPictureInPictureSupported,
+  setCallPictureInPictureAutoEnter,
+} from '@services/callPictureInPicture'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 type SignalPayload = {
@@ -116,6 +120,8 @@ const CallScreen = () => {
   const answerCall = useCallStore((state) => state.answerCall)
   const endCall = useCallStore((state) => state.endCall)
   const markCallActive = useCallStore((state) => state.markActive)
+  const autoAnswerCallId = useCallStore((state) => state.autoAnswerCallId)
+  const consumeAutoAnswer = useCallStore((state) => state.consumeAutoAnswer)
   const isMinimized = useCallStore((state) => state.isMinimized)
   const restoreCall = useCallStore((state) => state.restoreCall)
   const toggleMinimize = useCallStore((state) => state.toggleMinimize)
@@ -837,11 +843,12 @@ const CallScreen = () => {
   }, [activeCallId, finalizeCallLocally, sendCallSignal])
 
   const handleToggleMinimize = useCallback(async () => {
-    if (isVideoCall && activeCall?.status === 'active') {
-      await enterCallPictureInPicture(remoteVideoRef.current)
+    if (isVideoCall) {
+      const videoForPip = remoteVideoRef.current || localVideoRef.current
+      await enterCallPictureInPicture(videoForPip)
     }
     toggleMinimize()
-  }, [isVideoCall, activeCall?.status, toggleMinimize])
+  }, [isVideoCall, toggleMinimize])
 
   useEffect(() => {
     return () => cleanupCall()
@@ -892,15 +899,24 @@ const CallScreen = () => {
 
   useEffect(() => {
     if (!activeCallId || !isVideoCall) return
+
+    void setCallPictureInPictureAutoEnter(true)
+    return () => {
+      void setCallPictureInPictureAutoEnter(false)
+    }
+  }, [activeCallId, isVideoCall])
+
+  useEffect(() => {
+    if (!activeCallId || !isVideoCall) return
     const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) return
-      if (activeCall?.status !== 'active') return
-      void enterCallPictureInPicture(remoteVideoRef.current)
+      const videoForPip = remoteVideoRef.current || localVideoRef.current
+      void enterCallPictureInPicture(videoForPip)
     })
     return () => {
       void appStateListener.then((listener) => listener.remove()).catch(() => {})
     }
-  }, [activeCallId, isVideoCall, activeCall?.status])
+  }, [activeCallId, isVideoCall])
 
   const isIncomingRinging = isIncoming && isRinging
 
@@ -921,6 +937,14 @@ const CallScreen = () => {
       navigator.vibrate(0)
     }
   }, [isIncomingRinging])
+
+  useEffect(() => {
+    if (!activeCallId || !isIncoming || !isRinging) return
+    if (autoAnswerCallId !== activeCallId) return
+
+    consumeAutoAnswer(activeCallId)
+    void performAccept()
+  }, [activeCallId, autoAnswerCallId, consumeAutoAnswer, isIncoming, isRinging, performAccept])
 
   if (!activeCall) return null
 

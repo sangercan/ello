@@ -16,11 +16,14 @@ export interface CallSessionState {
 interface CallStore {
   activeCall: CallSessionState | null
   isMinimized: boolean
+  autoAnswerCallId: number | null
   startOutgoingCall: (call: Omit<CallSessionState, 'direction' | 'status'>) => void
   receiveIncomingCall: (call: Omit<CallSessionState, 'direction' | 'status'>) => void
   answerCall: () => void
   endCall: () => void
   markActive: () => void
+  requestAutoAnswer: (callId: number) => void
+  consumeAutoAnswer: (callId?: number) => void
   minimizeCall: () => void
   restoreCall: () => void
   toggleMinimize: () => void
@@ -29,6 +32,7 @@ interface CallStore {
 export const useCallStore = create<CallStore>((set) => ({
   activeCall: null,
   isMinimized: false,
+  autoAnswerCallId: null,
   startOutgoingCall: (call) =>
     set({
       activeCall: {
@@ -63,7 +67,20 @@ export const useCallStore = create<CallStore>((set) => ({
           : state.activeCall,
       isMinimized: state.isMinimized,
     })),
-  endCall: () => set({ activeCall: null, isMinimized: false }),
+  requestAutoAnswer: (callId) =>
+    set({
+      autoAnswerCallId: Number.isFinite(callId) ? callId : null,
+    }),
+  consumeAutoAnswer: (callId) =>
+    set((state) => {
+      if (typeof callId === 'number' && state.autoAnswerCallId !== callId) {
+        return {}
+      }
+      return {
+        autoAnswerCallId: null,
+      }
+    }),
+  endCall: () => set({ activeCall: null, isMinimized: false, autoAnswerCallId: null }),
   minimizeCall: () => set({ isMinimized: true }),
   restoreCall: () => set({ isMinimized: false }),
   toggleMinimize: () => set((s) => ({ isMinimized: !s.isMinimized })),

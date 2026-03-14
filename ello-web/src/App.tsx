@@ -7,6 +7,7 @@ import { useAuthStore } from '@store/authStore'
 import apiClient, { RESOLVED_API_BASE_URL } from '@services/api'
 import api from '@services/api'
 import { registerPushDevice } from '@services/pushNotifications'
+import { bindNativeCallNotificationActions, type NativeCallActionPayload } from '@services/callNotificationActions'
 import { playNotificationSound } from '@services/alertSounds'
 import CallScreen from './components/CallScreen'
 import { useCallStore } from '@store/callStore'
@@ -25,6 +26,7 @@ type LazyWithPreload<T extends ComponentType<any>> = ReturnType<typeof lazy<T>> 
 
 const CHUNK_RELOAD_KEY = '__ello_chunk_reload__'
 const INCOMING_CALL_DEDUP_TTL_MS = 30_000
+const NATIVE_CALL_ACTION_DEDUP_TTL_MS = 45_000
 
 const isChunkLoadError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error)
@@ -210,7 +212,9 @@ function App() {
   const appWsRef = useRef<WebSocket | null>(null)
   const chunksPreloadedRef = useRef(false)
   const recentIncomingCallsRef = useRef<Map<number, number>>(new Map())
+  const recentNativeCallActionsRef = useRef<Map<string, number>>(new Map())
   const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall)
+  const requestAutoAnswer = useCallStore((state) => state.requestAutoAnswer)
   const activeCall = useCallStore((state) => state.activeCall)
 
   // Initialize auth state on mount
@@ -324,6 +328,63 @@ function App() {
       }
     },
     [activeCall?.callId, receiveIncomingCall]
+  )
+
+  const handleNativeCallAction = useCallback(
+    async (nativePayload: NativeCallActionPayload) => {
+      const now = Date.now()
+      const dedupMap = recentNativeCallActionsRef.current
+      for (const [eventId, seenAt] of dedupMap.entries()) {
+        if (now - seenAt > NATIVE_CALL_ACTION_DEDUP_TTL_MS) {
+          dedupMap.delete(eventId)
+        }
+      }
+
+      const eventId = String(nativePayload?.event_id || '').trim()
+      if (eventId) {
+        const seenAt = dedupMap.get(eventId)
+        if (typeof seenAt === 'number') {
+          return
+        }
+        dedupMap.set(eventId, now)
+      }
+
+      const action = String(nativePayload?.action || '').toLowerCase()
+      const payload = (nativePayload?.data && typeof nativePayload.data === 'object'
+        ? nativePayload.data
+        : {}) as Record<string, unknown>
+      const pushType = String(payload?.type || '').toLowerCase()
+
+      if (pushType !== 'incoming_call') {
+        return
+      }
+
+      const callId = Number(payload.call_id)
+      if (!Number.isFinite(callId)) {
+        return
+      }
+
+      if (action === 'decline') {
+        window.dispatchEvent(
+          new CustomEvent('ello:call:status', {
+            detail: {
+              call_id: callId,
+              status: 'rejected',
+              source: 'native_notification',
+            },
+          })
+        )
+        return
+      }
+
+      await handleIncomingCallPayload(payload)
+
+      if (action === 'answer') {
+        requestAutoAnswer(callId)
+        return
+      }
+    },
+    [handleIncomingCallPayload, requestAutoAnswer]
   )
 
   // Global WebSocket for realtime events across pages (moments/stories/chat/presence).
@@ -593,6 +654,34 @@ function App() {
       window.removeEventListener('ello:push:action', handlePushAction as EventListener)
     }
   }, [isAuthenticated, handleIncomingCallPayload])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    let cancelled = false
+    let removeListener: (() => void) | null = null
+
+    void bindNativeCallNotificationActions((payload) => {
+      void handleNativeCallAction(payload)
+    })
+      .then((cleanup) => {
+        if (cancelled) {
+          cleanup()
+          return
+        }
+        removeListener = cleanup
+      })
+      .catch((error) => {
+        console.warn('[App] Native call notification actions unavailable:', error)
+      })
+
+    return () => {
+      cancelled = true
+      if (removeListener) {
+        removeListener()
+      }
+    }
+  }, [isAuthenticated, handleNativeCallAction])
 
   useEffect(() => {
     if (loading || chunksPreloadedRef.current) return

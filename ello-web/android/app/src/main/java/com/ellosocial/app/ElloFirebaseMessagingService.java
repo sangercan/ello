@@ -86,20 +86,17 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
 
         final int notificationId = resolveCallNotificationId(data.get("call_id"));
 
+        final String messageId = remoteMessage.getMessageId();
         final Intent callIntent = new Intent(this, MainActivity.class);
         callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            callIntent.putExtra(entry.getKey(), entry.getValue());
-        }
-        final String messageId = remoteMessage.getMessageId();
-        if (!TextUtils.isEmpty(messageId)) {
-            callIntent.putExtra("google.message_id", messageId);
-        }
+        attachCallPayloadExtras(callIntent, data, messageId, notificationId, CallNotificationsPlugin.ACTION_ANSWER);
 
         final int pendingFlags =
             PendingIntent.FLAG_UPDATE_CURRENT |
             (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
         final PendingIntent contentIntent = PendingIntent.getActivity(this, notificationId, callIntent, pendingFlags);
+        final PendingIntent declineIntent = buildCallActionIntent(notificationId + 1, data, messageId, notificationId, CallNotificationsPlugin.ACTION_DECLINE);
+        final PendingIntent answerIntent = buildCallActionIntent(notificationId + 2, data, messageId, notificationId, CallNotificationsPlugin.ACTION_ANSWER);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALLS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_ello)
@@ -113,6 +110,8 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
             .setTimeoutAfter(60_000)
             .setContentIntent(contentIntent)
             .setFullScreenIntent(contentIntent, true)
+            .addAction(R.drawable.ic_stat_ello, "Recusar", declineIntent)
+            .addAction(R.drawable.ic_stat_ello, "Atender", answerIntent)
             .setVibrate(new long[] {0, 300, 250, 300, 250, 450});
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -120,6 +119,41 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         }
 
         NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+    }
+
+    @NonNull
+    private PendingIntent buildCallActionIntent(
+        int requestCode,
+        @NonNull Map<String, String> data,
+        String messageId,
+        int notificationId,
+        @NonNull String action
+    ) {
+        Intent intent = new Intent(this, CallNotificationActionReceiver.class);
+        intent.setAction("com.ellosocial.app.call_action." + action + "." + requestCode);
+        attachCallPayloadExtras(intent, data, messageId, notificationId, action);
+        final int pendingFlags =
+            PendingIntent.FLAG_UPDATE_CURRENT |
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+        return PendingIntent.getBroadcast(this, requestCode, intent, pendingFlags);
+    }
+
+    private void attachCallPayloadExtras(
+        @NonNull Intent targetIntent,
+        @NonNull Map<String, String> data,
+        String messageId,
+        int notificationId,
+        @NonNull String action
+    ) {
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            targetIntent.putExtra(entry.getKey(), entry.getValue());
+        }
+        if (!TextUtils.isEmpty(messageId)) {
+            targetIntent.putExtra("google.message_id", messageId);
+        }
+        targetIntent.putExtra(CallNotificationsPlugin.EXTRA_CALL_ACTION, action);
+        targetIntent.putExtra(CallNotificationsPlugin.EXTRA_CALL_NOTIFICATION_ID, notificationId);
+        targetIntent.putExtra(CallNotificationsPlugin.EXTRA_FROM_CALL_NOTIFICATION, true);
     }
 
     private void maybeShowFallbackDataNotification(@NonNull RemoteMessage remoteMessage, @NonNull Map<String, String> data) {
