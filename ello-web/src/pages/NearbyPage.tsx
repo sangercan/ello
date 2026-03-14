@@ -554,18 +554,18 @@ export default function NearbyPage() {
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Header Section */}
       <div className="sticky top-0 z-40 bg-gradient-to-b from-slate-900/98 to-slate-900/95 backdrop-blur-xl border-b border-slate-700/50 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 py-4 sm:py-6">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
           <div className="mb-3 sm:mb-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 w-full sm:flex-1 min-w-0">
                 <div className="p-2 bg-blue-500/20 rounded-lg shrink-0">
                   <MapPin className="text-blue-400" size={22} />
                 </div>
                 <label htmlFor="nearby-user-search" className="sr-only">Buscar usuários</label>
-                <div className="relative flex-1 min-w-0 max-w-[230px] sm:max-w-[280px]">
+                <div className="relative flex-1 min-w-0">
                   <Search
                     size={14}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -584,7 +584,7 @@ export default function NearbyPage() {
 
               <button
                 onClick={handleToggleVisibility}
-                className={`h-9 px-2.5 inline-flex items-center gap-1.5 rounded-full text-xs sm:text-sm font-semibold transition focus:outline-none shrink-0 ${
+                className={`h-9 w-full sm:w-auto px-2.5 inline-flex items-center justify-center gap-1.5 rounded-full text-xs sm:text-sm font-semibold transition focus:outline-none shrink-0 whitespace-nowrap ${
                   isVisible
                     ? 'text-emerald-400 hover:text-emerald-300'
                     : 'text-gray-400 hover:text-gray-300'
@@ -655,7 +655,7 @@ export default function NearbyPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setNearbyTab('users')}
                 className={`h-9 px-2.5 inline-flex items-center gap-1.5 rounded-full text-xs sm:text-sm font-semibold transition focus:outline-none shrink-0 ${
@@ -684,7 +684,7 @@ export default function NearbyPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8" {...nearbyTabSwipeHandlers}>
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8" {...nearbyTabSwipeHandlers}>
         {nearbyTab === 'places' ? (
           <>
             {!hasLocation ? (
@@ -772,7 +772,7 @@ export default function NearbyPage() {
                 <p className="text-gray-300">Nenhum usuário encontrado para "{searchQuery}".</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
                 {searchResults.map((user) => (
                   <button
                     key={`search-${user.id}`}
@@ -818,7 +818,7 @@ export default function NearbyPage() {
               Voce ainda nao adicionou favoritos.
             </p>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
               {favoriteUsers.map((user) => (
                 <button
                   key={`fav-${user.id}`}
@@ -887,7 +887,7 @@ export default function NearbyPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
             {regularNearbyUsers.map((user) => (
               <button
                 key={user.id}
@@ -970,7 +970,7 @@ export default function NearbyPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
                   {expandedPlace.posts.map((post) => (
                     <button
                       key={`expanded-${post.kind}-${post.id}`}
@@ -1062,7 +1062,7 @@ export default function NearbyPage() {
         )}
 
         {/* Info Icon - Fixed bottom */}
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40">
+        <div className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 transform -translate-x-1/2 z-40">
           <div className="relative">
             <button
               onClick={() => setShowInfoPopover(!showInfoPopover)}
@@ -1074,7 +1074,7 @@ export default function NearbyPage() {
 
             {/* Popover */}
             {showInfoPopover && (
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-4 w-80 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-4 shadow-lg z-50">
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-4 w-[min(92vw,20rem)] bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-4 shadow-lg z-50">
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-blue-500/10 border-r border-b border-blue-500/30 rotate-45"></div>
                 
                 <h4 className="text-sm font-bold text-white mb-3">Como funciona "Próximo a Você"</h4>

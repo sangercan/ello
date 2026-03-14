@@ -1327,7 +1327,7 @@ export default function MomentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen overflow-x-hidden bg-slate-950">
       {/* Stories */}
       <div className="bg-gradient-to-r from-primary/10 to-transparent py-3 sm:py-4">
         <div className="max-w-3xl mx-auto px-3 sm:px-4">
@@ -1450,7 +1450,7 @@ export default function MomentsPage() {
                         <MoreVertical size={16} />
                       </button>
                       {momentActionMenuId === moment.id && (
-                        <div className="absolute right-0 mt-1 min-w-[140px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                        <div className="absolute right-0 mt-1 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
                           <button
                             onClick={() => handleStartEditMoment(moment)}
                             className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition inline-flex items-center gap-2"
@@ -1539,7 +1539,7 @@ export default function MomentsPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-8 text-gray-500 pt-2">
+                <div className="flex flex-wrap items-center gap-5 sm:gap-8 text-gray-500 pt-2">
                   <button
                     onClick={() => handleLikeMoment(moment.id)}
                     className={`flex items-center gap-2 hover:text-primary transition ${
@@ -1598,7 +1598,7 @@ export default function MomentsPage() {
                 <MoreVertical size={18} />
               </button>
               {storyActionMenuOpen && (
-                <div className="absolute right-0 mt-2 min-w-[140px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                <div className="absolute right-0 mt-2 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
                   <button
                     onClick={handleStartEditStory}
                     className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"
@@ -1621,7 +1621,7 @@ export default function MomentsPage() {
           {groupedStories.length > 1 && (
             <button
               onClick={goToPrevStory}
-              className="absolute left-3 sm:left-6 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
+              className="hidden sm:flex absolute left-3 sm:left-6 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
             >
               <ChevronLeft size={24} />
             </button>
@@ -1629,7 +1629,7 @@ export default function MomentsPage() {
 
           <button
             onClick={() => navigateToUserProfile(selectedStoryGroup?.userId)}
-            className="absolute top-4 left-4 z-40 text-white bg-black/40 px-3 py-2 rounded-xl hover:bg-black/60 transition flex items-center gap-2"
+            className="absolute top-4 left-4 z-40 text-white bg-black/40 px-3 py-2 rounded-xl hover:bg-black/60 transition flex items-center gap-2 max-w-[72vw]"
           >
             <img
               src={selectedStoryGroup?.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedStoryGroup?.author?.username || `story-user-${selectedStoryGroup?.userId}`}`}
@@ -1637,9 +1637,9 @@ export default function MomentsPage() {
               className="w-8 h-8 rounded-full object-cover"
               style={getMoodAvatarRingStyle(selectedStoryGroup?.author?.mood)}
             />
-            <div className="text-left">
-              <p className="text-sm font-semibold leading-tight">{selectedStoryGroup?.author?.full_name || 'Usuario'}</p>
-              <p className="text-xs text-gray-200 leading-tight">@{selectedStoryGroup?.author?.username || `user${selectedStoryGroup?.userId}`}</p>
+            <div className="text-left min-w-0">
+              <p className="text-sm font-semibold leading-tight truncate">{selectedStoryGroup?.author?.full_name || 'Usuario'}</p>
+              <p className="text-xs text-gray-200 leading-tight truncate">@{selectedStoryGroup?.author?.username || `user${selectedStoryGroup?.userId}`}</p>
             </div>
           </button>
 
@@ -1789,7 +1789,7 @@ export default function MomentsPage() {
           {groupedStories.length > 1 && (
             <button
               onClick={goToNextStory}
-              className="absolute right-3 sm:right-6 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
+              className="hidden sm:flex absolute right-3 sm:right-6 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
             >
               <ChevronRight size={24} />
             </button>
@@ -1891,7 +1891,7 @@ export default function MomentsPage() {
           {...shareDecisionSwipeHandlers}
         >
           <div
-            className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+            className="w-full max-w-xl max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-3 sm:px-5 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
             onClick={(event) => event.stopPropagation()}
             data-gesture-ignore="true"
           >
@@ -1911,7 +1911,7 @@ export default function MomentsPage() {
               {filteredShareConversations.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-10">Nenhum contato encontrado.</p>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
                   {filteredShareConversations.slice(0, 15).map((item) => {
                     const isSelected = shareDestination === 'chat' && selectedShareRecipientId === item.userId
                     return (
@@ -1923,7 +1923,7 @@ export default function MomentsPage() {
                         }}
                         className="flex flex-col items-center text-center"
                       >
-                        <span className={`relative inline-flex items-center justify-center w-16 h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
+                        <span className={`relative inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
                           {item.avatarUrl && !failedShareAvatarIds[item.userId] ? (
                             <img
                               src={item.avatarUrl}
@@ -1939,7 +1939,7 @@ export default function MomentsPage() {
                             />
                           )}
                         </span>
-                        <span className="mt-2 text-xs text-gray-200 leading-tight line-clamp-2 max-w-[76px]">{item.fullName}</span>
+                        <span className="mt-2 text-[11px] sm:text-xs text-gray-200 leading-tight line-clamp-2 max-w-[70px] sm:max-w-[76px]">{item.fullName}</span>
                       </button>
                     )
                   })}
@@ -1947,7 +1947,7 @@ export default function MomentsPage() {
               )}
             </div>
 
-            <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-5 gap-1.5">
+            <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-3 sm:grid-cols-5 gap-2">
               <button onClick={() => setShareDestination('story')} className="flex flex-col items-center gap-1 text-gray-200 hover:text-white transition-colors">
                 <span className={`w-12 h-12 rounded-full inline-flex items-center justify-center ${shareDestination === 'story' ? 'bg-primary text-white' : 'bg-slate-800 text-gray-200'}`}><PlusCircle size={18} /></span>
                 <span className="text-[11px] leading-tight text-center">Story</span>
@@ -1970,14 +1970,14 @@ export default function MomentsPage() {
               </button>
             </div>
 
-            <div className="mt-4 flex justify-between items-center">
-              <button onClick={closeShareDecision} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200">
+            <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
+              <button onClick={closeShareDecision} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 whitespace-nowrap">
                 <span className="inline-flex items-center gap-2"><X size={14} />Cancelar</span>
               </button>
               <button
                 onClick={handleConfirmShareDecision}
                 disabled={!shareDestination || shareBusy || (shareDestination === 'chat' && !selectedShareRecipientId)}
-                className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50"
+                className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50 whitespace-nowrap"
               >
                 <span className="inline-flex items-center gap-2"><Send size={14} />{shareBusy ? 'Enviando...' : 'Enviar'}</span>
               </button>
@@ -1993,7 +1993,7 @@ export default function MomentsPage() {
           {...momentCommentsSwipeHandlers}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
+            className="w-full max-w-xl max-h-[88vh] rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
             onClick={(event) => event.stopPropagation()}
             data-gesture-ignore="true"
           >
@@ -2010,7 +2010,7 @@ export default function MomentsPage() {
               </button>
             </div>
 
-            <div className="px-4 py-3 max-h-80 overflow-y-auto space-y-2">
+            <div className="px-4 py-3 max-h-[52vh] sm:max-h-80 overflow-y-auto space-y-2">
               {momentCommentsLoading ? (
                 <div className="flex justify-center py-6">
                   <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -2079,7 +2079,7 @@ export default function MomentsPage() {
                                       <MoreVertical size={13} />
                                     </button>
                                     {commentActionMenuId === comment.id && (
-                                      <div className="absolute right-0 mt-1 min-w-[130px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                                      <div className="absolute right-0 mt-1 min-w-[120px] max-w-[70vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
                                         <button onClick={() => handleStartEditComment(comment)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>
                                         <button onClick={() => handleDeleteComment(comment.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>
                                       </div>
@@ -2148,7 +2148,7 @@ export default function MomentsPage() {
                                             <MoreVertical size={13} />
                                           </button>
                                           {commentActionMenuId === reply.id && (
-                                            <div className="absolute right-0 mt-1 min-w-[130px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                                            <div className="absolute right-0 mt-1 min-w-[120px] max-w-[70vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
                                               <button onClick={() => handleStartEditComment(reply)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>
                                               <button onClick={() => handleDeleteComment(reply.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>
                                             </div>
@@ -2168,7 +2168,7 @@ export default function MomentsPage() {
               )}
             </div>
 
-            <div className="px-4 py-3 border-t border-slate-800 flex items-center gap-2">
+            <div className="px-4 py-3 border-t border-slate-800 flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
                 {filteredMentionCandidates.length > 0 && (
                   <div className="absolute bottom-full mb-2 left-0 right-0 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl z-10">

@@ -1048,26 +1048,26 @@ out center 8;
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-8">
+    <div className="min-h-screen overflow-x-hidden bg-slate-950 pb-8">
       <section className="relative overflow-hidden border-b border-slate-800/80 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
         <div className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-cyan-500/15 blur-3xl" />
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-7 sm:py-9">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+        <div className="relative max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-9">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="min-w-0">
               <p className="text-xs text-slate-400">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
               <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-white">
                 {greetingByHour()}, {user?.full_name?.split(' ')[0] || ''}
               </h1>
-              <p className="mt-2 text-sm text-slate-300 max-w-2xl">
+              <p className="mt-2 text-sm text-slate-300 max-w-2xl break-words">
                 {weather ? `${weather.weatherLabel} em ${weather.city}, ${Math.round(weather.temperature)}Â°C. ` : ''}
                 {weather ? `Aproveite o dia em ${weather.city} e compartilhe sua vibe.` : 'Seu centro de controle: acompanhe atividade, mensagens e atalhos em um unico lugar.'}
               </p>
             </div>
             <button
               onClick={handleRefresh}
-              className="h-10 px-4 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 hover:bg-slate-700 transition"
+              className="h-10 w-full sm:w-auto px-4 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 hover:bg-slate-700 transition whitespace-nowrap"
               disabled={refreshing}
             >
               {refreshing ? 'Atualizando...' : 'Atualizar'}
@@ -1076,8 +1076,8 @@ out center 8;
         </div>
       </section>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 pt-5 sm:pt-6 space-y-5 sm:space-y-6">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
             <p className="text-xs text-slate-400">Moments</p>
             <p className="mt-2 text-2xl font-bold text-white">{stats.momentsCount}</p>
@@ -1094,7 +1094,7 @@ out center 8;
             <p className="text-xs text-slate-400">Notificacoes</p>
             <p className="mt-2 text-2xl font-bold text-white">{stats.unreadNotifications}</p>
           </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 col-span-2 lg:col-span-1">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:col-span-2 lg:col-span-1">
             <p className="text-xs text-slate-400">Music Feed</p>
             <p className="mt-2 text-2xl font-bold text-white">{stats.musicCount}</p>
           </div>
@@ -1152,7 +1152,7 @@ out center 8;
           </article>
         </section>
 
-        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {quickActions.map((action) => {
             const Icon = action.icon
             return (
@@ -1177,12 +1177,12 @@ out center 8;
               <span className="text-xs text-slate-400">{planCompleted}/{dailyPlan.length} concluidas</span>
             </div>
 
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
               <input
                 type="time"
                 value={planTimeInput}
                 onChange={(event) => setPlanTimeInput(event.target.value)}
-                className="h-10 rounded-lg bg-slate-950/70 border border-slate-700 px-2 text-xs text-slate-100 w-24"
+                className="h-10 rounded-lg bg-slate-950/70 border border-slate-700 px-2 text-xs text-slate-100 w-full sm:w-24"
               />
               <input
                 type="text"
@@ -1193,7 +1193,7 @@ out center 8;
               />
               <button
                 onClick={addPlanItem}
-                className="h-10 px-3 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 inline-flex items-center gap-1 text-xs"
+                className="h-10 w-full sm:w-auto px-3 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 inline-flex items-center justify-center gap-1 text-xs"
               >
                 <Plus size={14} /> Adicionar
               </button>
@@ -1239,7 +1239,7 @@ out center 8;
               <span className="text-xs text-slate-400">{goalsCompletion}% concluidas</span>
             </div>
 
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={goalTitleInput}
@@ -1252,11 +1252,11 @@ out center 8;
                 value={goalTargetInput}
                 min={1}
                 onChange={(event) => setGoalTargetInput(event.target.value)}
-                className="h-10 w-20 rounded-lg bg-slate-950/70 border border-slate-700 px-2 text-xs text-slate-100"
+                className="h-10 w-full sm:w-20 rounded-lg bg-slate-950/70 border border-slate-700 px-2 text-xs text-slate-100"
               />
               <button
                 onClick={addPersonalGoal}
-                className="h-10 px-3 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 inline-flex items-center gap-1 text-xs"
+                className="h-10 w-full sm:w-auto px-3 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 inline-flex items-center justify-center gap-1 text-xs"
               >
                 <Plus size={14} /> Meta
               </button>
@@ -1320,7 +1320,7 @@ out center 8;
               </span>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr,120px,120px,auto] gap-2">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr,120px,120px,auto] gap-2">
               <input
                 type="text"
                 value={expenseLabelInput}
@@ -1378,7 +1378,7 @@ out center 8;
               <div className={`h-full ${spendingSummary.usage >= 85 ? 'bg-rose-500' : 'bg-primary'}`} style={{ width: `${spendingSummary.usage}%` }} />
             </div>
 
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <label htmlFor="spending-limit-input" className="text-[11px] text-slate-400">Limite diario:</label>
               <input
                 id="spending-limit-input"
@@ -1436,7 +1436,7 @@ out center 8;
             {nearbyLoading ? (
               <p className="text-xs text-slate-400 mt-3">Carregando locais proximos...</p>
             ) : (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
                   <p className="text-xs text-slate-200 inline-flex items-center gap-1"><Coffee size={13} /> Cafes proximos</p>
                   {nearbyCafes.length === 0 ? (
@@ -1530,17 +1530,17 @@ out center 8;
                 <div key={person.id} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
                   <p className="text-xs text-white font-medium truncate">{person.fullName}</p>
                   <p className="text-[11px] text-slate-400 truncate">@{person.username}</p>
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       onClick={() => navigate(`/profile/${person.id}`)}
-                      className="h-8 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200"
+                      className="h-8 flex-1 min-w-[88px] px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200"
                     >
                       Ver perfil
                     </button>
                     <button
                       onClick={() => void followSuggestedPerson(person.id)}
                       disabled={followLoadingId === person.id}
-                      className="h-8 px-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-[11px] disabled:opacity-60"
+                      className="h-8 flex-1 min-w-[88px] px-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-[11px] disabled:opacity-60"
                     >
                       {followLoadingId === person.id ? 'Seguindo...' : 'Seguir'}
                     </button>

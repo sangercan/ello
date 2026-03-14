@@ -822,8 +822,8 @@ export default function VibesPage() {
   }
 
   return (
-    <div className="h-screen bg-slate-950 overflow-hidden">
-      <div className="h-screen overflow-y-auto snap-y snap-mandatory">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-slate-950">
+      <div className="min-h-[100dvh] overflow-y-auto snap-y snap-mandatory">
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -835,7 +835,7 @@ export default function VibesPage() {
         ) : (
           <div>
             {vibes.map((vibe) => (
-              <section key={vibe.id} className="snap-start h-screen">
+              <section key={vibe.id} className="snap-start min-h-[100dvh]">
                 <div className="relative w-full h-full bg-black overflow-hidden">
                   <video
                     ref={(el) => {
@@ -858,7 +858,7 @@ export default function VibesPage() {
                         <MoreVertical size={16} />
                       </button>
                       {vibeActionMenuId === vibe.id && (
-                        <div className="absolute right-0 mt-2 min-w-[140px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                        <div className="absolute right-0 mt-2 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
                           <button onClick={() => handleStartEditVibe(vibe)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={13} />Editar</button>
                           <button onClick={() => handleDeleteVibe(vibe.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={13} />Excluir</button>
                         </div>
@@ -866,7 +866,7 @@ export default function VibesPage() {
                     </div>
                   )}
 
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4">
+                  <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3 sm:gap-4">
                     <button
                       onClick={() => handleLikeVibe(vibe.id)}
                       className={`flex flex-col items-center gap-1 text-xs hover:text-primary transition ${
@@ -891,7 +891,7 @@ export default function VibesPage() {
                     </button>
                   </div>
 
-                  <div className="absolute inset-x-0 bottom-0 p-4 pr-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent">
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 pr-16 sm:pr-20 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 bg-gradient-to-t from-black/85 via-black/45 to-transparent">
                     <div className="flex items-center gap-3 mb-2">
                       <button
                         onClick={() => navigateToUserProfile(vibe.author?.id || vibe.author_id)}
@@ -950,7 +950,7 @@ export default function VibesPage() {
           {...shareDecisionSwipeHandlers}
         >
           <div
-            className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+            className="w-full max-w-xl max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-3 sm:px-5 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
             onClick={(event) => event.stopPropagation()}
             data-gesture-ignore="true"
           >
@@ -970,7 +970,7 @@ export default function VibesPage() {
               {filteredShareConversations.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-10">Nenhum contato encontrado.</p>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
                   {filteredShareConversations.slice(0, 15).map((item) => {
                     const isSelected = shareDestination === 'chat' && selectedShareRecipientId === item.userId
                     return (
@@ -982,7 +982,7 @@ export default function VibesPage() {
                         }}
                         className="flex flex-col items-center text-center"
                       >
-                        <span className={`relative inline-flex items-center justify-center w-16 h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
+                        <span className={`relative inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
                           {item.avatarUrl && !failedShareAvatarIds[item.userId] ? (
                             <img
                               src={item.avatarUrl}
@@ -998,7 +998,7 @@ export default function VibesPage() {
                             />
                           )}
                         </span>
-                        <span className="mt-2 text-xs text-gray-200 leading-tight line-clamp-2 max-w-[76px]">{item.fullName}</span>
+                        <span className="mt-2 text-[11px] sm:text-xs text-gray-200 leading-tight line-clamp-2 max-w-[70px] sm:max-w-[76px]">{item.fullName}</span>
                       </button>
                     )
                   })}
@@ -1006,7 +1006,7 @@ export default function VibesPage() {
               )}
             </div>
 
-            <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-5 gap-1.5">
+            <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-3 sm:grid-cols-5 gap-2">
               <button onClick={() => setShareDestination('story')} className="flex flex-col items-center gap-1 text-gray-200 hover:text-white transition-colors">
                 <span className={`w-12 h-12 rounded-full inline-flex items-center justify-center ${shareDestination === 'story' ? 'bg-primary text-white' : 'bg-slate-800 text-gray-200'}`}><PlusCircle size={18} /></span>
                 <span className="text-[11px] leading-tight text-center">Story</span>
@@ -1029,11 +1029,11 @@ export default function VibesPage() {
               </button>
             </div>
 
-            <div className="mt-4 flex justify-between items-center">
-              <button onClick={closeShareDecision} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200">
+            <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
+              <button onClick={closeShareDecision} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 whitespace-nowrap">
                 <span className="inline-flex items-center gap-2"><X size={14} />Cancelar</span>
               </button>
-              <button onClick={handleConfirmShareDecision} disabled={!shareDestination || shareBusy || (shareDestination === 'chat' && !selectedShareRecipientId)} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50">
+              <button onClick={handleConfirmShareDecision} disabled={!shareDestination || shareBusy || (shareDestination === 'chat' && !selectedShareRecipientId)} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50 whitespace-nowrap">
                 <span className="inline-flex items-center gap-2"><Send size={14} />{shareBusy ? 'Enviando...' : 'Enviar'}</span>
               </button>
             </div>
@@ -1048,7 +1048,7 @@ export default function VibesPage() {
           {...vibeCommentsSwipeHandlers}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
+            className="w-full max-w-xl max-h-[88vh] rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl overflow-hidden"
             onClick={(event) => event.stopPropagation()}
             data-gesture-ignore="true"
           >
@@ -1065,7 +1065,7 @@ export default function VibesPage() {
               </button>
             </div>
 
-            <div className="px-4 py-3 max-h-80 overflow-y-auto space-y-2">
+            <div className="px-4 py-3 max-h-[52vh] sm:max-h-80 overflow-y-auto space-y-2">
               {vibeCommentsLoading ? (
                 <div className="flex justify-center py-6">
                   <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -1134,7 +1134,7 @@ export default function VibesPage() {
                                       <MoreVertical size={13} />
                                     </button>
                                     {commentActionMenuId === comment.id && (
-                                      <div className="absolute right-0 mt-1 min-w-[130px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                                      <div className="absolute right-0 mt-1 min-w-[120px] max-w-[70vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
                                         <button onClick={() => handleStartEditComment(comment)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>
                                         <button onClick={() => handleDeleteComment(comment.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>
                                       </div>
@@ -1203,7 +1203,7 @@ export default function VibesPage() {
                                             <MoreVertical size={13} />
                                           </button>
                                           {commentActionMenuId === reply.id && (
-                                            <div className="absolute right-0 mt-1 min-w-[130px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                                            <div className="absolute right-0 mt-1 min-w-[120px] max-w-[70vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
                                               <button onClick={() => handleStartEditComment(reply)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>
                                               <button onClick={() => handleDeleteComment(reply.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>
                                             </div>
@@ -1223,7 +1223,7 @@ export default function VibesPage() {
               )}
             </div>
 
-            <div className="px-4 py-3 border-t border-slate-800 flex items-center gap-2">
+            <div className="px-4 py-3 border-t border-slate-800 flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
                 {filteredMentionCandidates.length > 0 && (
                   <div className="absolute bottom-full mb-2 left-0 right-0 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl z-10">
