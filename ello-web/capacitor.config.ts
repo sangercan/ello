@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.ellosocial.app',
-  appName: 'Ello',
+  appName: 'Ello Social',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {

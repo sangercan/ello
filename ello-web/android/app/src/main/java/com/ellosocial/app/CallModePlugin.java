@@ -94,7 +94,7 @@ public class CallModePlugin extends Plugin {
         if (powerManager == null) return;
 
         if (wakeLock == null) {
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Ello:CallModeWakeLock");
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ElloSocial:CallModeWakeLock");
             wakeLock.setReferenceCounted(false);
         }
 
@@ -109,4 +109,3 @@ public class CallModePlugin extends Plugin {
         }
     }
 }
-

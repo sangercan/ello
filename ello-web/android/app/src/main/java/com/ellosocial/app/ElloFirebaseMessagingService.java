@@ -25,11 +25,11 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "ElloFcmService";
     private static final String GENERAL_CHANNEL_ID = "ello_general";
-    private static final String GENERAL_CHANNEL_NAME = "Ello Notificacoes";
-    private static final String GENERAL_CHANNEL_DESCRIPTION = "Notificacoes gerais do Ello";
+    private static final String GENERAL_CHANNEL_NAME = "Ello Social Notificacoes";
+    private static final String GENERAL_CHANNEL_DESCRIPTION = "Notificacoes gerais do Ello Social";
     private static final int GENERAL_NOTIFICATION_BASE_ID = 810000;
     private static final String CALLS_CHANNEL_ID = "ello_calls";
-    private static final String CALLS_CHANNEL_NAME = "Ello Chamadas";
+    private static final String CALLS_CHANNEL_NAME = "Ello Social Chamadas";
     private static final String CALLS_CHANNEL_DESCRIPTION = "Alertas de chamadas recebidas";
     private static final int CALL_NOTIFICATION_BASE_ID = 700000;
 
@@ -161,7 +161,7 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         // This fallback is for data-only pushes (for example, custom message payloads).
         if (remoteMessage.getNotification() != null) return;
 
-        final String title = firstNonEmpty(data.get("title"), "Ello");
+        final String title = firstNonEmpty(data.get("title"), "Ello Social");
         final String body = firstNonEmpty(data.get("body"), data.get("message"), data.get("content"));
         if (TextUtils.isEmpty(body)) return;
 

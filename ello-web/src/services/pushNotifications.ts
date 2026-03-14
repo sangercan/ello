@@ -113,8 +113,8 @@ const ensureNativeNotificationChannels = async () => {
   const channels = [
     {
       id: 'ello_general',
-      name: 'Ello Notificacoes',
-      description: 'Notificacoes gerais do Ello',
+      name: 'Ello Social Notificacoes',
+      description: 'Notificacoes gerais do Ello Social',
       importance: 5,
       visibility: 1,
       sound: 'notificacao',
@@ -123,7 +123,7 @@ const ensureNativeNotificationChannels = async () => {
     },
     {
       id: 'ello_calls',
-      name: 'Ello Chamadas',
+      name: 'Ello Social Chamadas',
       description: 'Alertas de chamadas recebidas',
       importance: 5,
       visibility: 1,

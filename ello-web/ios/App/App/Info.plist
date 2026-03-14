@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Ello</string>
+        <string>Ello Social</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,9 +46,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Precisamos da camera para chamadas de video no Ello.</string>
+	<string>Precisamos da camera para chamadas de video no Ello Social.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Precisamos do microfone para chamadas de voz e video no Ello.</string>
+	<string>Precisamos do microfone para chamadas de voz e video no Ello Social.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localizacao para recursos de mapa e compartilhamento de local.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

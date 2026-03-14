@@ -1,4 +1,4 @@
-# 🧪 Guia de Teste - Autenticação Ello
+# 🧪 Guia de Teste - Autenticação Ello Social
 
 ## ⚡ Teste Rápido (Recomendado)
 
@@ -152,3 +152,4 @@ Se algo não funcionar:
 2. ⚠️ Procure por logs com 🔐 📝 👤 ✅ ❌
 3. ⚠️ Procure por mensagens de erro vermelhas
 4. ⚠️ Verifique Network tab para requisições HTTP
+

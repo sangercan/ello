@@ -497,7 +497,7 @@ def send_push_for_notification(db: Session, *, user_id: int, actor_id: int, noti
     return send_push_to_user(
         db,
         user_id=user_id,
-        title="Ello",
+        title="Ello Social",
         body=body,
         category=category,
         data={

@@ -8,7 +8,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = String(payload.title || 'Ello')
+  const title = String(payload.title || 'Ello Social')
   const body = String(payload.body || 'Nova notificacao')
   const data = payload.data && typeof payload.data === 'object' ? payload.data : {}
   const pushType = String(data.type || '').toLowerCase()
