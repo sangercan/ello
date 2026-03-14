@@ -557,9 +557,9 @@ export default function MusicPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-8">
+    <div className="min-h-screen overflow-x-hidden bg-slate-950">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-5 sm:py-6 space-y-5 sm:space-y-6">
+        <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4 sm:p-8">
           <div className="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full bg-primary/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-cyan-500/15 blur-3xl" />
 
@@ -569,8 +569,8 @@ export default function MusicPage() {
                 <Music2 size={14} />
                 Music para artistas independentes
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">Publique sua música e ganhe visibilidade</h1>
-              <p className="text-sm text-gray-300 mt-2 max-w-2xl">
+              <h1 className="text-xl sm:text-3xl font-bold text-white">Publique sua música e ganhe visibilidade</h1>
+              <p className="text-xs sm:text-sm text-gray-300 mt-2 max-w-2xl">
                 Espaço oficial da comunidade Ello Social, onde cantores independentes divulgam faixas autorais e alcançam novos ouvintes.
               </p>
               <div className="mt-4">
@@ -585,8 +585,8 @@ export default function MusicPage() {
             </div>
 
             {showPublisher && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+                <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
                   <label className="block text-xs text-gray-400">Título da música</label>
                   <input
                     value={title}
@@ -620,7 +620,7 @@ export default function MusicPage() {
                   <button
                     onClick={handlePublish}
                     disabled={publishing}
-                    className="h-11 px-5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/85 disabled:opacity-60 transition inline-flex items-center gap-2"
+                    className="h-11 w-full sm:w-auto px-5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/85 disabled:opacity-60 transition inline-flex items-center justify-center gap-2"
                   >
                     <Upload size={16} />
                     {publishing ? 'Publicando...' : 'Publicar Música'}
@@ -642,9 +642,9 @@ export default function MusicPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-4" {...filterSwipeHandlers}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 sm:p-4 space-y-4" {...filterSwipeHandlers}>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               {([
                 { id: 'all', label: 'Descobrir' },
                 { id: 'mine', label: 'Minhas Publicações' },
@@ -653,27 +653,27 @@ export default function MusicPage() {
                 <button
                   key={item.id}
                   onClick={() => setFilter(item.id)}
-                  className={`h-9 px-3 rounded-full text-xs font-medium transition ${filter === item.id ? 'bg-primary text-white' : 'bg-slate-800 text-gray-300 hover:bg-slate-700'}`}
+                  className={`h-9 px-2.5 sm:px-3 rounded-full text-[11px] sm:text-xs font-medium transition whitespace-nowrap ${filter === item.id ? 'bg-primary text-white' : 'bg-slate-800 text-gray-300 hover:bg-slate-700'}`}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="h-9 px-3 rounded-full border border-slate-700 bg-slate-950 inline-flex items-center gap-2">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="h-9 flex-1 min-w-0 sm:min-w-[240px] px-3 rounded-full border border-slate-700 bg-slate-950 inline-flex items-center gap-2">
                 <Search size={14} className="text-gray-500" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Buscar música ou artista"
-                  className="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none"
+                  className="w-full min-w-0 bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none"
                 />
               </div>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="h-9 px-3 rounded-full bg-slate-800 text-gray-200 hover:bg-slate-700 text-xs inline-flex items-center gap-2 transition"
+                className="h-9 px-3 rounded-full bg-slate-800 text-gray-200 hover:bg-slate-700 text-xs inline-flex items-center gap-2 transition whitespace-nowrap"
               >
                 <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 Atualizar
@@ -721,7 +721,7 @@ export default function MusicPage() {
                           <MoreVertical size={14} />
                         </button>
                         {actionMenuTrackId === track.id && (
-                          <div className="absolute left-0 mt-1 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20">
+                          <div className="absolute left-0 mt-1 min-w-[140px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20">
                             <button onClick={() => openShareMenu(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2">Compartilhar</button>
                             {isOwner && <button onClick={() => handleStartEdit(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>}
                             {isOwner && <button onClick={() => handleDeleteTrack(track.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>}
@@ -741,7 +741,7 @@ export default function MusicPage() {
 
                       <button
                         onClick={() => handlePlayFromCard(track)}
-                        className="h-10 px-3 rounded-lg bg-slate-800 text-gray-100 hover:bg-slate-700 text-xs inline-flex items-center gap-2 transition"
+                        className="h-10 w-full sm:w-auto px-3 rounded-lg bg-slate-800 text-gray-100 hover:bg-slate-700 text-xs inline-flex items-center justify-center gap-2 transition"
                       >
                         {isCurrentPlaying ? <Pause size={14} /> : <Play size={14} />}
                         {isCurrentPlaying ? 'Pausar' : isCurrent ? 'Retomar' : 'Tocar'}
@@ -761,7 +761,7 @@ export default function MusicPage() {
             {...editTrackSwipeHandlers}
           >
             <div
-              className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3"
+              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3"
               onClick={(event) => event.stopPropagation()}
               data-gesture-ignore="true"
             >
@@ -786,7 +786,7 @@ export default function MusicPage() {
             {...shareMenuSwipeHandlers}
           >
             <div
-              className="w-full max-w-xl rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-4 pt-2 pb-4 sm:px-5"
+              className="w-full max-w-xl max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-slate-700/60 border-b-0 bg-slate-900/95 px-3 sm:px-5 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
               onClick={(event) => event.stopPropagation()}
               data-gesture-ignore="true"
             >
@@ -806,7 +806,7 @@ export default function MusicPage() {
                 {filteredShareConversations.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-10">Nenhum contato encontrado.</p>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
                     {filteredShareConversations.slice(0, 15).map((item) => {
                       const isSelected = shareDestination === 'chat' && selectedRecipientId === item.userId
                       return (
@@ -818,7 +818,7 @@ export default function MusicPage() {
                           }}
                           className="flex flex-col items-center text-center"
                         >
-                          <span className={`relative inline-flex items-center justify-center w-16 h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
+                          <span className={`relative inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-700 text-white text-sm font-semibold ${isSelected ? 'ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900' : ''}`}>
                             {item.avatarUrl && !failedShareAvatarIds[item.userId] ? (
                               <img
                                 src={item.avatarUrl}
@@ -834,7 +834,7 @@ export default function MusicPage() {
                               />
                             )}
                           </span>
-                          <span className="mt-2 text-xs text-gray-200 leading-tight line-clamp-2 max-w-[76px]">{item.fullName}</span>
+                          <span className="mt-2 text-[11px] sm:text-xs text-gray-200 leading-tight line-clamp-2 max-w-[70px] sm:max-w-[76px]">{item.fullName}</span>
                         </button>
                       )
                     })}
@@ -842,7 +842,7 @@ export default function MusicPage() {
                 )}
               </div>
 
-              <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-5 gap-1.5">
+              <div className="mt-3 border-t border-slate-800 pt-3 grid grid-cols-3 sm:grid-cols-5 gap-2">
                 <button onClick={() => setShareDestination('story')} className="flex flex-col items-center gap-1 text-gray-200 hover:text-white transition-colors">
                   <span className={`w-12 h-12 rounded-full inline-flex items-center justify-center ${shareDestination === 'story' ? 'bg-primary text-white' : 'bg-slate-800 text-gray-200'}`}><PlusCircle size={18} /></span>
                   <span className="text-[11px] leading-tight text-center">Story</span>
@@ -865,14 +865,14 @@ export default function MusicPage() {
                 </button>
               </div>
 
-              <div className="mt-4 flex justify-between items-center">
-                <button onClick={closeShareMenu} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200">
+              <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
+                <button onClick={closeShareMenu} className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 whitespace-nowrap">
                   <span className="inline-flex items-center gap-2"><X size={14} />Cancelar</span>
                 </button>
                 <button
                   onClick={handleConfirmShare}
                   disabled={!shareDestination || shareBusy || (shareDestination === 'chat' && !selectedRecipientId)}
-                  className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50"
+                  className="h-9 px-3 inline-flex items-center rounded-full text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-200 disabled:opacity-50 whitespace-nowrap"
                 >
                   <span className="inline-flex items-center gap-2"><Send size={14} />{shareBusy ? 'Enviando...' : 'Enviar'}</span>
                 </button>

@@ -504,12 +504,12 @@ export default function ConversationsPage() {
                         </h3>
                         <p className="text-xs text-gray-500 truncate">@{conversation.username}</p>
                       </div>
-                      <div className="flex flex-col items-end gap-0.5 text-right flex-shrink-0 min-w-[110px]">
+                      <div className="flex flex-col items-end gap-0.5 text-right flex-shrink-0 min-w-0 sm:min-w-[110px]">
                         <div className="flex items-center gap-1 text-gray-500 text-xs">
                           <Clock size={13} />
                           <span>{formatTime(conversation.last_message_time)}</span>
                         </div>
-                        <div className="flex items-center gap-1 max-w-[150px]">
+                        <div className="flex items-center gap-1 max-w-[120px] sm:max-w-[150px]">
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             conversation.is_online ? 'bg-green-500' : 'bg-gray-500'
                           }`}></span>

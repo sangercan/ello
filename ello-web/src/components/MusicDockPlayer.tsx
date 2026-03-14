@@ -211,14 +211,14 @@ export default function MusicDockPlayer() {
       />
 
       {isMusicRoute && !hidden && (
-        <div className="fixed bottom-3 left-3 right-3 sm:left-6 sm:right-6 z-[170] rounded-2xl border border-slate-700 bg-slate-900/95 backdrop-blur p-3 shadow-2xl">
+        <div className="fixed bottom-2 left-2 right-2 sm:bottom-3 sm:left-6 sm:right-6 z-[170] rounded-2xl border border-slate-700 bg-slate-900/95 backdrop-blur p-2.5 sm:p-3 shadow-2xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-white text-sm font-semibold truncate">{currentTrack.title}</p>
               <p className="text-xs text-slate-300 truncate">{currentTrack.artist}</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button onClick={playPrevious} className="h-9 w-9 rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700 inline-flex items-center justify-center" title="Anterior">
                 <SkipBack size={15} />
               </button>
@@ -240,7 +240,7 @@ export default function MusicDockPlayer() {
           </div>
 
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 w-10 text-right">{formatTime(currentTime)}</span>
+            <span className="text-[11px] text-slate-400 w-9 sm:w-10 text-right">{formatTime(currentTime)}</span>
             <input
               type="range"
               min={0}
@@ -250,11 +250,11 @@ export default function MusicDockPlayer() {
               onChange={(event) => useMusicPlayerStore.getState().requestSeek(Number(event.target.value))}
               className="flex-1 accent-sky-500"
             />
-            <span className="text-[11px] text-slate-400 w-10">{formatTime(duration)}</span>
+            <span className="text-[11px] text-slate-400 w-9 sm:w-10">{formatTime(duration)}</span>
           </div>
 
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-slate-400">Volume</span>
+            <span className="text-[11px] text-slate-400 whitespace-nowrap">Volume</span>
             <input
               type="range"
               min={0}
@@ -262,7 +262,7 @@ export default function MusicDockPlayer() {
               step={0.01}
               value={volume}
               onChange={(event) => setVolume(Number(event.target.value))}
-              className="w-28 accent-sky-500"
+              className="flex-1 sm:flex-none sm:w-28 accent-sky-500"
             />
           </div>
         </div>

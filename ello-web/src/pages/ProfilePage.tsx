@@ -378,37 +378,37 @@ export default function ProfilePage() {
   const activeItems = activeTab === 'moments' ? moments : activeTab === 'vibes' ? vibes : []
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Cover Banner */}
-      <div className="relative h-56 bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-pink-600/20 border-b border-slate-800/50">
+      <div className="relative h-44 sm:h-56 bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-pink-600/20 border-b border-slate-800/50">
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
       </div>
 
       {/* Profile Container */}
-      <div className="max-w-4xl mx-auto px-4 pb-12">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 pb-10 sm:pb-12">
         {/* Avatar Section */}
-        <div className="relative -mt-28 mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:gap-6">
+        <div className="relative -mt-20 sm:-mt-28 mb-6 sm:mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
             {/* Avatar */}
             <div className="relative">
               <img
                 src={user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.username}
                 alt={user.username}
-                className="w-40 h-40 rounded-full border-4 border-slate-950 object-cover shadow-2xl"
+                className="w-28 h-28 sm:w-40 sm:h-40 rounded-full border-4 border-slate-950 object-cover shadow-2xl"
                 style={getMoodAvatarRingStyle(user.mood)}
               />
               {user.is_online && (
-                <div className="absolute bottom-4 right-4 w-5 h-5 bg-green-500 rounded-full border-4 border-slate-950 animate-pulse"></div>
+                <div className="absolute bottom-1 right-1 sm:bottom-4 sm:right-4 w-4 h-4 sm:w-5 sm:h-5 bg-green-500 rounded-full border-2 sm:border-4 border-slate-950 animate-pulse"></div>
               )}
             </div>
 
             {/* User Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-4 sm:mt-0 sm:mb-4">
+            <div className="flex w-full flex-wrap sm:w-auto sm:flex-nowrap gap-2 sm:gap-3 sm:mt-0 sm:mb-4">
               {isOwnProfile ? (
                 <>
                   <button 
                     onClick={handleOpenEditModal}
-                    className="px-6 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold rounded-full transition flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-5 sm:px-6 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold rounded-full transition flex items-center justify-center gap-2"
                   >
                     <Edit3 size={18} />
                     Editar Perfil
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                   <button
                     onClick={handleFollowClick}
                     disabled={isFollowLoading}
-                    className={`px-6 py-2.5 rounded-full font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`flex-1 sm:flex-none min-w-[150px] sm:min-w-0 px-4 sm:px-6 py-2.5 rounded-full font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
                       isFollowing
                         ? 'bg-slate-800 text-white hover:bg-slate-700 border border-slate-700'
                         : 'bg-primary text-white hover:bg-primary/80'
@@ -439,11 +439,11 @@ export default function ProfilePage() {
                   </button>
                   <button 
                     onClick={() => navigate(`/chat/${user.id}`)}
-                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-full transition"
+                    className="h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-full transition inline-flex items-center justify-center"
                   >
                     <MessageCircle size={18} />
                   </button>
-                  <button className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-full transition">
+                  <button className="h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-full transition inline-flex items-center justify-center">
                     <Share2 size={18} />
                   </button>
                 </>
@@ -453,29 +453,29 @@ export default function ProfilePage() {
         </div>
 
         {/* User Info Section */}
-        <div className="mb-8">
+        <div className="mb-7 sm:mb-8">
           <div className="mb-4">
-            <h1 className="text-4xl font-bold text-white mb-1">{user.full_name}</h1>
-            <p className="text-xl text-primary/80 mb-4">@{user.username}</p>
+            <h1 className="text-2xl sm:text-4xl font-bold text-white mb-1 break-words">{user.full_name}</h1>
+            <p className="text-base sm:text-xl text-primary/80 mb-3 sm:mb-4 break-all">@{user.username}</p>
 
             {user.bio && (
-              <p className="text-gray-300 text-lg leading-relaxed mb-4 max-w-2xl">
+              <p className="text-gray-300 text-base sm:text-lg leading-relaxed mb-4 max-w-2xl break-words">
                 {user.bio}
               </p>
             )}
 
             {/* Meta Info */}
-            <div className="flex flex-wrap gap-6 text-gray-400 text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-3 sm:gap-6 text-gray-400 text-sm">
               {user.location && (
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <MapPin size={16} className="text-primary/60" />
-                  {user.location}
+                  <span className="break-words">{user.location}</span>
                 </div>
               )}
               {user.category && (
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <Briefcase size={16} className="text-primary/60" />
-                  {user.category}
+                  <span className="break-words">{user.category}</span>
                 </div>
               )}
               {user.link && (
@@ -483,13 +483,13 @@ export default function ProfilePage() {
                   href={user.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 hover:text-primary transition"
+                  className="flex min-w-0 max-w-full items-center gap-2 hover:text-primary transition"
                 >
                   <LinkIcon size={16} className="text-primary/60" />
-                  {user.link}
+                  <span className="break-all">{user.link}</span>
                 </a>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <Calendar size={16} className="text-primary/60" />
                 Acesso em Mar 2026
               </div>
@@ -497,21 +497,21 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          <div className="flex gap-12 mt-8">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">{moments.length}</p>
+          <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
+              <p className="text-2xl sm:text-3xl font-bold text-primary">{moments.length}</p>
               <p className="text-gray-400 text-sm">Moments</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">{vibes.length}</p>
+            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
+              <p className="text-2xl sm:text-3xl font-bold text-primary">{vibes.length}</p>
               <p className="text-gray-400 text-sm">Vibes</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">{followers}</p>
+            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
+              <p className="text-2xl sm:text-3xl font-bold text-primary">{followers}</p>
               <p className="text-gray-400 text-sm">Seguidores</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">{following}</p>
+            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
+              <p className="text-2xl sm:text-3xl font-bold text-primary">{following}</p>
               <p className="text-gray-400 text-sm">Seguindo</p>
             </div>
           </div>
@@ -519,10 +519,10 @@ export default function ProfilePage() {
 
         {/* Tabs Section */}
         <div className="border-b border-slate-800/50">
-          <div className="flex gap-8 mb-0 overflow-x-auto">
+          <div className="flex gap-4 sm:gap-8 mb-0 overflow-x-auto whitespace-nowrap pr-2">
             <button
               onClick={() => setActiveTab('moments')}
-              className={`px-2 py-4 font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              className={`px-1.5 sm:px-2 py-3 sm:py-4 text-sm sm:text-base font-semibold transition border-b-2 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 activeTab === 'moments'
                   ? 'text-primary border-primary'
                   : 'text-gray-400 border-transparent hover:text-white'
@@ -533,7 +533,7 @@ export default function ProfilePage() {
             </button>
             <button
               onClick={() => setActiveTab('vibes')}
-              className={`px-2 py-4 font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              className={`px-1.5 sm:px-2 py-3 sm:py-4 text-sm sm:text-base font-semibold transition border-b-2 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 activeTab === 'vibes'
                   ? 'text-primary border-primary'
                   : 'text-gray-400 border-transparent hover:text-white'
@@ -544,7 +544,7 @@ export default function ProfilePage() {
             </button>
             <button
               onClick={() => setActiveTab('musica')}
-              className={`px-2 py-4 font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              className={`px-1.5 sm:px-2 py-3 sm:py-4 text-sm sm:text-base font-semibold transition border-b-2 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 activeTab === 'musica'
                   ? 'text-primary border-primary'
                   : 'text-gray-400 border-transparent hover:text-white'
@@ -555,7 +555,7 @@ export default function ProfilePage() {
             </button>
             <button
               onClick={() => setActiveTab('salvos')}
-              className={`px-2 py-4 font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              className={`px-1.5 sm:px-2 py-3 sm:py-4 text-sm sm:text-base font-semibold transition border-b-2 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                 activeTab === 'salvos'
                   ? 'text-primary border-primary'
                   : 'text-gray-400 border-transparent hover:text-white'
@@ -568,9 +568,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Content Grid */}
-        <div className="mt-8" {...profileContentSwipeHandlers}>
+        <div className="mt-6 sm:mt-8" {...profileContentSwipeHandlers}>
           {activeItems.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="text-center py-12 sm:py-16">
               <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
                 {activeTab === 'moments' ? (
                   <Grid3x3 size={32} className="text-gray-600" />
@@ -582,7 +582,7 @@ export default function ProfilePage() {
                   <Bookmark size={32} className="text-gray-600" />
                 )}
               </div>
-              <p className="text-gray-400 text-lg mb-2">
+              <p className="text-gray-400 text-base sm:text-lg mb-2">
                 {activeTab === 'moments'
                   ? 'Nenhum moment ainda'
                   : activeTab === 'vibes'
@@ -598,7 +598,7 @@ export default function ProfilePage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {activeItems.map((moment) => (
                 <div
                   key={moment.id}
@@ -610,7 +610,7 @@ export default function ProfilePage() {
                       <div className="relative">
                         <video
                           src={resolveMediaUrl(moment.media_url)}
-                          className="w-full h-56 object-cover"
+                          className="w-full h-52 sm:h-56 object-cover"
                           muted
                           playsInline
                           preload="metadata"
@@ -626,7 +626,7 @@ export default function ProfilePage() {
                         src={resolveMediaUrl(moment.media_url)}
                         alt="moment"
                         loading="lazy"
-                        className="w-full h-56 object-cover group-hover:scale-105 transition"
+                        className="w-full h-52 sm:h-56 object-cover group-hover:scale-105 transition"
                       />
                     )
                   )}
@@ -662,7 +662,7 @@ export default function ProfilePage() {
             </button>
 
             <div
-              className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl"
+              className="w-full max-w-4xl max-h-[96vh] sm:max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl sm:rounded-2xl"
               data-gesture-ignore="true"
             >
               <div className="p-4 sm:p-5 border-b border-slate-800">
@@ -688,14 +688,14 @@ export default function ProfilePage() {
                       controls
                       playsInline
                       preload="metadata"
-                      className="w-full max-h-[68vh] object-contain"
+                      className="w-full max-h-[62vh] sm:max-h-[68vh] object-contain"
                     />
                   ) : (
                     <img
                       src={resolveMediaUrl(selectedPost.media_url)}
                       alt="post"
                       loading="lazy"
-                      className="w-full max-h-[68vh] object-contain"
+                      className="w-full max-h-[62vh] sm:max-h-[68vh] object-contain"
                     />
                   )}
                 </div>
@@ -723,10 +723,10 @@ export default function ProfilePage() {
         {/* Edit Profile Modal */}
         {showEditModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" {...editProfileSwipeHandlers}>
-            <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 p-6" data-gesture-ignore="true">
+            <div className="bg-slate-800 rounded-2xl max-w-md w-full max-h-[88vh] overflow-y-auto border border-slate-700 p-4 sm:p-6" data-gesture-ignore="true">
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">Editar Perfil</h2>
+              <div className="flex items-center justify-between mb-5 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">Editar Perfil</h2>
                 <button
                   onClick={() => setShowEditModal(false)}
                   className="p-1 hover:bg-slate-700 rounded-lg transition"
