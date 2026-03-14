@@ -40,10 +40,18 @@ import {
 } from 'lucide-react'
 const DASHBOARD_CACHE_KEY = 'ello:cache:dashboard:v1'
 const DASHBOARD_REQUEST_TIMEOUT_MS = 4500
+const DASHBOARD_NOTIFICATIONS_TIMEOUT_MS = 7000
+const DASHBOARD_CONVERSATIONS_TIMEOUT_MS = 6500
 const DASHBOARD_PLAN_KEY = 'ello:dashboard:daily-plan:v1'
 const DASHBOARD_GOALS_KEY = 'ello:dashboard:personal-goals:v1'
 const DASHBOARD_EXPENSES_KEY = 'ello:dashboard:expenses:v1'
 const DASHBOARD_SPENDING_LIMIT_KEY = 'ello:dashboard:spending-limit:v1'
+const OVERPASS_REQUEST_TIMEOUT_MS = 7000
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+]
 
 type ConversationPreview = {
   id: number
@@ -165,6 +173,42 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs = DASHBOARD_REQUEST_TIME
         reject(error)
       })
   })
+}
+
+const fetchOverpassJson = async (queryBody: string) => {
+  const errors: string[] = []
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      controller.abort()
+    }, OVERPASS_REQUEST_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+        },
+        body: queryBody,
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        errors.push(`${endpoint}:${response.status}`)
+        continue
+      }
+
+      return await response.json()
+    } catch (error: any) {
+      const reason = String(error?.name || error?.message || 'request-failed')
+      errors.push(`${endpoint}:${reason}`)
+    } finally {
+      window.clearTimeout(timeoutId)
+    }
+  }
+
+  throw new Error(`overpass-unavailable:${errors.join('|')}`)
 }
 
 const formatRelative = (dateString?: string) => {
@@ -408,8 +452,8 @@ export default function DashboardPage() {
       const [momentsRes, vibesRes, conversationsRes, notificationsRes, musicRes] = await Promise.allSettled([
         withTimeout(apiClient.getMoments(1, 8)),
         withTimeout(apiClient.getVibes(1, 8)),
-        withTimeout(apiClient.getConversations(1, 12)),
-        withTimeout(apiClient.getNotifications(1, 12)),
+        withTimeout(apiClient.getConversations(1, 12), DASHBOARD_CONVERSATIONS_TIMEOUT_MS),
+        withTimeout(apiClient.getNotifications(1, 12), DASHBOARD_NOTIFICATIONS_TIMEOUT_MS),
         withTimeout(apiClient.getMusicFeed(1, 12)),
       ])
 
@@ -454,16 +498,20 @@ export default function DashboardPage() {
         createdAt: item.created_at,
       }))
 
-      setConversations(mappedConversations.slice(0, 6))
-      setNotifications(mappedNotifications.slice(0, 6))
-      setMusicItems(mappedMusic)
+      const nextConversations = conversationsRes.status === 'fulfilled' ? mappedConversations.slice(0, 6) : conversations
+      const nextNotifications = notificationsRes.status === 'fulfilled' ? mappedNotifications.slice(0, 6) : notifications
+      const nextMusic = musicRes.status === 'fulfilled' ? mappedMusic : musicItems
+
+      setConversations(nextConversations)
+      setNotifications(nextNotifications)
+      setMusicItems(nextMusic)
 
       setStats({
-        momentsCount: extractTotal(momentsPayload, momentsList.length),
-        vibesCount: extractTotal(vibesPayload, vibesList.length),
-        unreadMessages: mappedConversations.reduce((acc, item) => acc + Number(item.unreadCount || 0), 0),
-        unreadNotifications: mappedNotifications.filter((item) => !item.isRead).length,
-        musicCount: extractTotal(musicPayload, musicList.length),
+        momentsCount: momentsRes.status === 'fulfilled' ? extractTotal(momentsPayload, momentsList.length) : stats.momentsCount,
+        vibesCount: vibesRes.status === 'fulfilled' ? extractTotal(vibesPayload, vibesList.length) : stats.vibesCount,
+        unreadMessages: nextConversations.reduce((acc, item) => acc + Number(item.unreadCount || 0), 0),
+        unreadNotifications: nextNotifications.filter((item) => !item.isRead).length,
+        musicCount: musicRes.status === 'fulfilled' ? extractTotal(musicPayload, musicList.length) : stats.musicCount,
       })
 
       const myId = Number(user?.id)
@@ -493,19 +541,19 @@ export default function DashboardPage() {
         window.sessionStorage.setItem(
           DASHBOARD_CACHE_KEY,
           JSON.stringify({
-            stats: {
-              momentsCount: extractTotal(momentsPayload, momentsList.length),
-              vibesCount: extractTotal(vibesPayload, vibesList.length),
-              unreadMessages: mappedConversations.reduce((acc, item) => acc + Number(item.unreadCount || 0), 0),
-              unreadNotifications: mappedNotifications.filter((item) => !item.isRead).length,
-              musicCount: extractTotal(musicPayload, musicList.length),
-            },
-            conversations: mappedConversations.slice(0, 6),
-            notifications: mappedNotifications.slice(0, 6),
-            musicItems: mappedMusic,
-            weather,
-            insights,
-            events,
+              stats: {
+                momentsCount: momentsRes.status === 'fulfilled' ? extractTotal(momentsPayload, momentsList.length) : stats.momentsCount,
+                vibesCount: vibesRes.status === 'fulfilled' ? extractTotal(vibesPayload, vibesList.length) : stats.vibesCount,
+                unreadMessages: nextConversations.reduce((acc, item) => acc + Number(item.unreadCount || 0), 0),
+                unreadNotifications: nextNotifications.filter((item) => !item.isRead).length,
+                musicCount: musicRes.status === 'fulfilled' ? extractTotal(musicPayload, musicList.length) : stats.musicCount,
+              },
+              conversations: nextConversations,
+              notifications: nextNotifications,
+              musicItems: nextMusic,
+              weather,
+              insights,
+              events,
             ts: Date.now(),
           })
         )
@@ -514,7 +562,7 @@ export default function DashboardPage() {
       }
 
       if (notificationsRes.status === 'rejected') {
-        console.warn('[Dashboard] notificacoes indisponiveis neste momento')
+        console.info('[Dashboard] notificacoes temporariamente indisponiveis', notificationsRes.reason)
       }
     } catch (error) {
       console.error('[Dashboard] erro ao carregar dados:', error)
@@ -586,19 +634,7 @@ export default function DashboardPage() {
     queryBody: string,
     fallbackName: string
   ): Promise<NearbySpot[]> => {
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=UTF-8',
-      },
-      body: queryBody,
-    })
-
-    if (!response.ok) {
-      throw new Error(`overpass-${response.status}`)
-    }
-
-    const payload = await response.json()
+    const payload = await fetchOverpassJson(queryBody)
     const elements = Array.isArray(payload?.elements) ? payload.elements : []
 
     const spots = elements
@@ -682,7 +718,7 @@ export default function DashboardPage() {
       }
 
       const cafeQuery = `
-[out:json][timeout:25];
+[out:json][timeout:12];
 (
   node["amenity"="cafe"](around:5000,${latitude},${longitude});
   way["amenity"="cafe"](around:5000,${latitude},${longitude});
@@ -690,7 +726,7 @@ export default function DashboardPage() {
 out center 8;
 `
       const gymQuery = `
-[out:json][timeout:25];
+[out:json][timeout:12];
 (
   node["amenity"="gym"](around:7000,${latitude},${longitude});
   node["leisure"="fitness_centre"](around:7000,${latitude},${longitude});
