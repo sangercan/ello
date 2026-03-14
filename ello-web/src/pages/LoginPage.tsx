@@ -124,7 +124,7 @@ export default function LoginPage() {
                   <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
                   <span className="text-sm text-gray-300">Bem-vindo de volta</span>
                 </div>
-                <h1 className="text-4xl font-bold text-primary mb-2">ℯ𝓁𝓁ℴ</h1>
+                <h1 className="text-4xl font-bold text-primary mb-2">Ello Social</h1>
                 <p className="text-gray-400">Entre na sua conta para continuar</p>
               </div>
 
@@ -211,3 +211,4 @@ export default function LoginPage() {
     </div>
   )
 }
+

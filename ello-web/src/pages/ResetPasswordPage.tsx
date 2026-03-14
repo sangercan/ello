@@ -60,7 +60,7 @@ export default function ResetPasswordPage() {
           <div className="bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
             <h1 className="text-2xl font-bold text-primary">Nova senha</h1>
             <p className="text-gray-400 mt-2">
-              Escolha sua nova senha para acessar sua conta.
+              Escolha sua nova senha para acessar sua conta Ello Social.
             </p>
 
             {!token && (

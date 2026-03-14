@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
           <div className="bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
             <h1 className="text-2xl font-bold text-primary">Redefinir senha</h1>
             <p className="text-gray-400 mt-2">
-              Informe seu email ou usuario. Enviaremos um link para criar uma nova senha.
+              Informe seu email ou usuario da Ello Social. Enviaremos um link para criar uma nova senha.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">

@@ -704,7 +704,7 @@ function App() {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-primary mb-4">ℯ𝓁𝓁ℴ</h1>
+          <h1 className="text-4xl font-bold text-primary mb-4">Ello Social</h1>
           <p className="text-xs text-slate-400 mb-3">Carregando...</p>
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
@@ -779,3 +779,4 @@ function App() {
 }
 
 export default App
+
