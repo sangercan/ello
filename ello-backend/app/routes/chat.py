@@ -194,11 +194,17 @@ def get_messages_with_user(
             "limit": limit
         }
     
-    # Get messages for this conversation with pagination
+    # Get messages for this conversation with pagination.
+    # Page 1 must contain the newest messages to avoid opening chats at the
+    # beginning of long histories.
     skip = (page - 1) * limit
     messages = db.query(Message).filter(
         Message.conversation_id == conversation.id
-    ).order_by(Message.created_at.asc()).offset(skip).limit(limit).all()
+    ).order_by(
+        desc(Message.created_at),
+        desc(Message.id)
+    ).offset(skip).limit(limit).all()
+    messages = list(reversed(messages))
     
     total = db.query(Message).filter(
         Message.conversation_id == conversation.id

@@ -19,6 +19,8 @@ const REPLY_SWIPE_TRIGGER_PX = 78
 const REPLY_SWIPE_PREVIEW_MAX_PX = 72
 const REPLY_SWIPE_MIN_DISTANCE_PX = 8
 const REPLY_SWIPE_AXIS_LOCK_RATIO = 1.15
+const CHAT_PAGE_SIZE = 50
+const SCROLL_TOP_LOAD_THRESHOLD_PX = 8
 const REPLY_SWIPE_IGNORE_SELECTOR = [
   'button',
   'a[href]',
@@ -106,6 +108,7 @@ export default function ChatPage() {
   const [expandedImageIndex, setExpandedImageIndex] = useState<number>(-1)
   const [allImages, setAllImages] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [hasMoreHistory, setHasMoreHistory] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [newMessagesCount, setNewMessagesCount] = useState(0)
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -329,9 +332,9 @@ export default function ChatPage() {
   }
 
   // Auto-scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
 
   // Check if user is near the bottom
   const checkIfNearBottom = () => {
@@ -344,10 +347,10 @@ export default function ChatPage() {
   // Auto-scroll only if near bottom, otherwise show indicator
   useEffect(() => {
     if (isNearBottom && newMessagesCount > 0) {
-      scrollToBottom()
+      scrollToBottom('smooth')
       setNewMessagesCount(0)
     }
-  }, [messages, isNearBottom])
+  }, [messages, isNearBottom, newMessagesCount, scrollToBottom])
 
   // Scroll listener
   useEffect(() => {
@@ -720,14 +723,23 @@ export default function ChatPage() {
 
         const [userData, messagesResponse] = await Promise.all([
           apiClient.getUser(recipientId),
-          apiClient.getMessages(recipientId, 1, 50),
+          apiClient.getMessages(recipientId, 1, CHAT_PAGE_SIZE),
         ])
+        setCurrentPage(1)
+        setHasMoreHistory(true)
+        setIsLoadingMore(false)
+        setNewMessagesCount(0)
         setRecipientUser(userData)
         const loadedMessages = messagesResponse.data?.data || messagesResponse.data || []
         setMessages(dedupeMessages(loadedMessages))
+        const rawTotal = Number(messagesResponse.data?.total)
+        const total = Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : loadedMessages.length
+        setHasMoreHistory(loadedMessages.length > 0 && CHAT_PAGE_SIZE < total)
 
-        // Scroll to bottom after messages load
-        setTimeout(() => scrollToBottom(), 100)
+        // Scroll to bottom immediately after first paint (no animation jump).
+        window.requestAnimationFrame(() => {
+          scrollToBottom('auto')
+        })
 
         // Mark unread messages as read
         const unreadMessageIds = loadedMessages
@@ -744,7 +756,7 @@ export default function ChatPage() {
     }
 
     initChat()
-  }, [recipientId, currentUser])
+  }, [recipientId, currentUser, scrollToBottom])
 
   // Realtime updates from global websocket (created in App.tsx).
   useEffect(() => {
@@ -876,18 +888,31 @@ export default function ChatPage() {
 
     const handleScroll = async () => {
       // If scrolled to top and not loading more yet
-      if (container.scrollTop === 0 && !isLoadingMore && messages.length >= 50) {
+      if (container.scrollTop <= SCROLL_TOP_LOAD_THRESHOLD_PX && !isLoadingMore && hasMoreHistory) {
         setIsLoadingMore(true)
         try {
           const nextPage = currentPage + 1
-          const response = await apiClient.getMessages(recipientId as string, nextPage, 50)
+          const previousScrollHeight = container.scrollHeight
+          const response = await apiClient.getMessages(recipientId as string, nextPage, CHAT_PAGE_SIZE)
           const olderMessages = response.data?.data || response.data || []
-          
+          const rawTotal = Number(response.data?.total)
+          const total = Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : 0
+
           if (olderMessages.length > 0) {
             // Add older messages to the beginning
             setMessages(prev => prependUniqueMessages(prev, olderMessages))
             setCurrentPage(nextPage)
+            window.requestAnimationFrame(() => {
+              const nextScrollHeight = container.scrollHeight
+              container.scrollTop = Math.max(0, nextScrollHeight - previousScrollHeight)
+            })
           }
+
+          const hasMoreFromTotal =
+            total > 0
+              ? nextPage * CHAT_PAGE_SIZE < total
+              : olderMessages.length >= CHAT_PAGE_SIZE
+          setHasMoreHistory(hasMoreFromTotal)
         } catch (error) {
           console.error('Erro ao carregar mais mensagens:', error)
         } finally {
@@ -898,7 +923,7 @@ export default function ChatPage() {
 
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [recipientId, currentPage, isLoadingMore, messages.length])
+  }, [recipientId, currentPage, hasMoreHistory, isLoadingMore])
 
   // Keyboard navigation for expanded image preview.
   useEffect(() => {
