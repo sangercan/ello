@@ -1,7 +1,8 @@
 ﻿
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
+import { App as CapacitorApp } from '@capacitor/app'
 import apiClient from '@services/api'
 import { useAuthStore } from '@store/authStore'
 import {
@@ -61,6 +62,8 @@ const EMOJIS = [
   '\u{1F44D}', '\u{1F389}', '\u{1F525}', '\u2728', '\u{1F4AF}', '\u{1F384}',
   '\u{1F383}', '\u{1F44F}', '\u{1F64F}', '\u{1F605}', '\u{1F601}', '\u{1F609}',
 ]
+const GROUP_CHAT_PAGE_SIZE = 100
+const GROUP_CHAT_SYNC_MS = 3500
 
 const isImageFile = (name?: string) => !!name && /\.(png|jpe?g|gif|webp|bmp)$/i.test(name)
 const isVideoFile = (name?: string) => !!name && /\.(mp4|webm|ogg|mov|m4v)$/i.test(name)
@@ -132,6 +135,36 @@ const appendUniqueMessages = (existing: Message[], incoming: Message[]) => {
   return dedupeMessages([...existing, ...incoming])
 }
 
+const areMessageListsEquivalent = (left: Message[], right: Message[]) => {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    const a = left[index]
+    const b = right[index]
+    if (!a || !b) return false
+    if (Number(a.id) !== Number(b.id)) return false
+    if (Number(a.sender_id) !== Number(b.sender_id)) return false
+    if ((a.content || '') !== (b.content || '')) return false
+    if ((a.audio_url || '') !== (b.audio_url || '')) return false
+    if ((a.media_url || '') !== (b.media_url || '')) return false
+  }
+  return true
+}
+
+const normalizeGroupApiMessage = (rawPayload: any): Message => {
+  const payload = rawPayload?.message || rawPayload || {}
+  const normalizedId = Number(payload.id)
+  return {
+    id: Number.isFinite(normalizedId) && normalizedId > 0 ? normalizedId : Date.now(),
+    sender_id: Number(payload.sender_id) || 0,
+    content: String(payload.content || ''),
+    created_at: payload.created_at || new Date().toISOString(),
+    audio_url: payload.audio_url || '',
+    media_url: payload.media_url || '',
+    sender: payload.sender || null,
+  }
+}
+
 export default function GroupChatPage() {
   const { groupId } = useParams<{ groupId: string }>()
   const navigate = useNavigate()
@@ -152,6 +185,8 @@ export default function GroupChatPage() {
   const [isSending, setIsSending] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [isComposerFocused, setIsComposerFocused] = useState(false)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
   const [messageActionMenuId, setMessageActionMenuId] = useState<number | null>(null)
@@ -170,6 +205,7 @@ export default function GroupChatPage() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reactionFetchedRef = useRef<Set<number>>(new Set())
   const sendLockRef = useRef(false)
+  const messagesSnapshotRef = useRef<Message[]>([])
 
   const splitReplyContent = (text?: string) => {
     const content = text || ''
@@ -192,7 +228,7 @@ export default function GroupChatPage() {
       try {
         const [gRes, mRes, membersRes] = await Promise.all([
           apiClient.getGroup(groupId),
-          apiClient.getGroupMessages(groupId, 1, 100),
+          apiClient.getGroupMessages(groupId, 1, GROUP_CHAT_PAGE_SIZE),
           apiClient.listGroupMembers(groupId),
         ])
         setGroup(gRes.data)
@@ -210,6 +246,7 @@ export default function GroupChatPage() {
   }, [groupId, navigate])
 
   useEffect(() => {
+    messagesSnapshotRef.current = messages
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -220,6 +257,128 @@ export default function GroupChatPage() {
       document.body.style.overflow = previousOverflow
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const visualViewport = window.visualViewport
+    let keyboardEventInset = 0
+    const updateKeyboardOffset = () => {
+      const visualInset = visualViewport
+        ? Math.max(
+            0,
+            Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
+          )
+        : 0
+      const nextInset = Math.max(visualInset, keyboardEventInset)
+      const normalizedInset = nextInset > 70 ? nextInset : 0
+      setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
+    }
+
+    const readKeyboardHeightFromEvent = (event: Event) => {
+      const payload = event as Event & { keyboardHeight?: number; detail?: { keyboardHeight?: number } }
+      const keyboardHeight = Number(payload.keyboardHeight ?? payload.detail?.keyboardHeight ?? 0)
+      if (Number.isFinite(keyboardHeight) && keyboardHeight > 0) {
+        keyboardEventInset = Math.round(keyboardHeight)
+      }
+      updateKeyboardOffset()
+    }
+
+    const clearKeyboardInset = () => {
+      keyboardEventInset = 0
+      setKeyboardOffset(0)
+    }
+
+    updateKeyboardOffset()
+
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', updateKeyboardOffset)
+      visualViewport.addEventListener('scroll', updateKeyboardOffset)
+    }
+    window.addEventListener('resize', updateKeyboardOffset)
+    window.addEventListener('keyboardWillShow', readKeyboardHeightFromEvent as EventListener)
+    window.addEventListener('keyboardDidShow', readKeyboardHeightFromEvent as EventListener)
+    window.addEventListener('keyboardWillHide', clearKeyboardInset)
+    window.addEventListener('keyboardDidHide', clearKeyboardInset)
+
+    return () => {
+      if (visualViewport) {
+        visualViewport.removeEventListener('resize', updateKeyboardOffset)
+        visualViewport.removeEventListener('scroll', updateKeyboardOffset)
+      }
+      window.removeEventListener('resize', updateKeyboardOffset)
+      window.removeEventListener('keyboardWillShow', readKeyboardHeightFromEvent as EventListener)
+      window.removeEventListener('keyboardDidShow', readKeyboardHeightFromEvent as EventListener)
+      window.removeEventListener('keyboardWillHide', clearKeyboardInset)
+      window.removeEventListener('keyboardDidHide', clearKeyboardInset)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!(keyboardOffset > 0 || isComposerFocused)) return
+    const frame = window.requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: 'auto' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [keyboardOffset, isComposerFocused])
+
+  const syncLatestMessages = useCallback(async () => {
+    if (!groupId) return
+    try {
+      const response = await apiClient.getGroupMessages(groupId, 1, GROUP_CHAT_PAGE_SIZE)
+      const latestMessages = dedupeMessages(response.data?.data || [])
+      if (latestMessages.length === 0) return
+
+      const previousMessages = messagesSnapshotRef.current
+      const mergedMessages = appendUniqueMessages(previousMessages, latestMessages)
+      if (areMessageListsEquivalent(previousMessages, mergedMessages)) {
+        return
+      }
+
+      const previousIds = new Set(previousMessages.map((msg) => Number(msg.id)))
+      const incomingCount = latestMessages.filter((msg) => !previousIds.has(Number(msg.id))).length
+
+      setMessages(mergedMessages)
+      if (incomingCount > 0 || keyboardOffset > 0 || isComposerFocused) {
+        window.requestAnimationFrame(() => {
+          endRef.current?.scrollIntoView({ behavior: 'auto' })
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar mensagens do grupo:', error)
+    }
+  }, [groupId, isComposerFocused, keyboardOffset])
+
+  useEffect(() => {
+    if (!groupId) return
+
+    let disposed = false
+    const runSync = () => {
+      if (disposed) return
+      void syncLatestMessages()
+    }
+
+    runSync()
+    const intervalId = window.setInterval(runSync, GROUP_CHAT_SYNC_MS)
+    const handleFocus = () => runSync()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') runSync()
+    }
+    const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) runSync()
+    })
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      void appStateListener.then((listener) => listener.remove()).catch(() => {})
+    }
+  }, [groupId, syncLatestMessages])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -286,7 +445,12 @@ export default function GroupChatPage() {
           const file = new File([blob], `audio-${Date.now()}.webm`, { type: 'audio/webm' })
           const res = await apiClient.uploadFile(file)
           const url = res.data?.url || res?.url
-          await apiClient.sendGroupMessage(groupId || '', { audio_url: url })
+          const sent = await apiClient.sendGroupMessage(groupId || '', { audio_url: url })
+          const sentMessage = normalizeGroupApiMessage(sent?.data)
+          setMessages((prev) => appendUniqueMessages(prev, [sentMessage]))
+          window.requestAnimationFrame(() => {
+            endRef.current?.scrollIntoView({ behavior: 'smooth' })
+          })
         } catch (error) {
           console.error('Erro ao enviar áudio:', error)
           toast.error('Erro ao enviar áudio')
@@ -355,20 +519,27 @@ export default function GroupChatPage() {
         const replyPrefix = replyTo
           ? `>> ${replyTo.sender?.full_name || replyTo.sender?.username || `Usuário ${replyTo.sender_id}`}: ${replyTo.content}\n`
           : ''
-        await apiClient.sendGroupMessage(groupId, { content: `${replyPrefix}${trimmed}` })
+        const textResult = await apiClient.sendGroupMessage(groupId, { content: `${replyPrefix}${trimmed}` })
+        const textMessage = normalizeGroupApiMessage(textResult?.data)
+        setMessages((prev) => appendUniqueMessages(prev, [textMessage]))
       }
 
       if (mediaPreview.length > 0) {
         for (const preview of mediaPreview) {
           const res = await apiClient.uploadFile(preview.file)
           const url = res.data?.url || res?.url
-          await apiClient.sendGroupMessage(groupId, { media_url: url, content: preview.name || '' })
+          const mediaResult = await apiClient.sendGroupMessage(groupId, { media_url: url, content: preview.name || '' })
+          const mediaMessage = normalizeGroupApiMessage(mediaResult?.data)
+          setMessages((prev) => appendUniqueMessages(prev, [mediaMessage]))
         }
       }
 
       setInput('')
       setMediaPreview([])
       setReplyTo(null)
+      window.requestAnimationFrame(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth' })
+      })
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
       toast.error('Erro ao enviar')
@@ -385,9 +556,14 @@ export default function GroupChatPage() {
     }
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        await apiClient.sendGroupMessage(groupId, {
+        const result = await apiClient.sendGroupMessage(groupId, {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
+        })
+        const locationMessage = normalizeGroupApiMessage(result?.data)
+        setMessages((prev) => appendUniqueMessages(prev, [locationMessage]))
+        window.requestAnimationFrame(() => {
+          endRef.current?.scrollIntoView({ behavior: 'smooth' })
         })
         toast.success('Localização enviada')
       } catch (error) {
@@ -527,8 +703,14 @@ export default function GroupChatPage() {
                 )}
 
                 {audioUrl && (
-                  <div className="mb-2 w-full max-w-[min(80vw,30rem)] min-w-0 overflow-hidden">
-                    <audio controls className="block w-full min-w-0 max-w-full h-10" style={{ minWidth: 0 }}>
+                  <div
+                    className={`mb-2 w-full max-w-[min(72vw,17rem)] min-w-0 overflow-hidden rounded-2xl border px-2 py-1.5 ${
+                      isMine
+                        ? 'bg-white/10 border-white/20'
+                        : 'bg-slate-900/45 border-slate-600/70'
+                    }`}
+                  >
+                    <audio controls className="block w-full min-w-0 max-w-full h-9 accent-purple-600" style={{ minWidth: 0 }}>
                       <source src={audioUrl} />
                     </audio>
                   </div>
@@ -632,6 +814,8 @@ export default function GroupChatPage() {
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          marginBottom: keyboardOffset > 0 ? `${keyboardOffset}px` : undefined,
+          transition: 'margin-bottom 180ms ease-out',
         }}
       >
         {replyTo && (
@@ -733,6 +917,13 @@ export default function GroupChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+            onFocus={() => {
+              setIsComposerFocused(true)
+              window.requestAnimationFrame(() => {
+                endRef.current?.scrollIntoView({ behavior: 'auto' })
+              })
+            }}
+            onBlur={() => setIsComposerFocused(false)}
             placeholder="Digite sua mensagem..."
             className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={isSending}

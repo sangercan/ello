@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { App as CapacitorApp } from '@capacitor/app'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { ensureCallPermissions, ensureCameraPermission, ensureLocationPermission } from '@services/permissions'
@@ -8,7 +9,7 @@ import { playAlertSound } from '@services/alertSounds'
 import { resolveMediaUrl } from '@utils/mediaUrl'
 import { useCallStore } from '@store/callStore'
 import { toast } from 'react-hot-toast'
-// 🔒 ICON PATTERN LOCKED - Do not change Icon imports (Mic, FileText, Image, Video, MapPin, Smile, Send, Camera)
+// ðŸ”’ ICON PATTERN LOCKED - Do not change Icon imports (Mic, FileText, Image, Video, MapPin, Smile, Send, Camera)
 import { Send, ArrowLeft, Phone, Video, MoreVertical, Paperclip, MapPin, Mic, Image, Smile, X, FileText, PlayCircle, Camera, Pencil, Trash2 } from 'lucide-react'
 import type { CallType } from '@/types/call'
 import type { User as AppUser } from '@/types'
@@ -20,6 +21,7 @@ const REPLY_SWIPE_PREVIEW_MAX_PX = 72
 const REPLY_SWIPE_MIN_DISTANCE_PX = 8
 const REPLY_SWIPE_AXIS_LOCK_RATIO = 1.15
 const CHAT_PAGE_SIZE = 50
+const CHAT_REALTIME_SYNC_MS = 3500
 const SCROLL_TOP_LOAD_THRESHOLD_PX = 8
 const REPLY_SWIPE_IGNORE_SELECTOR = [
   'button',
@@ -149,6 +151,7 @@ export default function ChatPage() {
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLDivElement | null>(null)
+  const messagesSnapshotRef = useRef<Message[]>([])
   const replySwipeStateRef = useRef<MessageReplySwipeState | null>(null)
   const [replySwipePreview, setReplySwipePreview] = useState<{ messageId: number; offsetX: number } | null>(null)
 
@@ -184,6 +187,22 @@ export default function ChatPage() {
   const appendUniqueMessages = (existing: Message[], incoming: Message[]) => {
     if (incoming.length === 0) return sortMessagesChronologically(existing)
     return dedupeMessages([...existing, ...incoming])
+  }
+  const areMessageListsEquivalent = (left: Message[], right: Message[]) => {
+    if (left === right) return true
+    if (left.length !== right.length) return false
+    for (let index = 0; index < left.length; index += 1) {
+      const a = left[index]
+      const b = right[index]
+      if (!a || !b) return false
+      if (Number(a.id) !== Number(b.id)) return false
+      if ((a.content || '') !== (b.content || '')) return false
+      if (Boolean(a.is_read) !== Boolean(b.is_read)) return false
+      if (Boolean(a.is_delivered) !== Boolean(b.is_delivered)) return false
+      if ((a.media_url || '') !== (b.media_url || '')) return false
+      if ((a.audio_url || '') !== (b.audio_url || '')) return false
+    }
+    return true
   }
   const prependUniqueMessages = (existing: Message[], incoming: Message[]) => {
     if (incoming.length === 0) return sortMessagesChronologically(existing)
@@ -318,9 +337,6 @@ export default function ChatPage() {
       audio_url: payload.audio_url,
     }
   }
-
-  void resolveApiMessage
-
   const formatLastSeen = (lastSeen?: string) => {
     if (!lastSeen) return 'Visto por ultimo recentemente'
 
@@ -379,6 +395,10 @@ export default function ChatPage() {
     return () => container.removeEventListener('scroll', checkIfNearBottom)
   }, [])
 
+  useEffect(() => {
+    messagesSnapshotRef.current = messages
+  }, [messages])
+
   // Track composer height for positioning floating controls above input/keyboard.
   useEffect(() => {
     const composer = composerRef.current
@@ -399,31 +419,56 @@ export default function ChatPage() {
     if (typeof window === 'undefined') return
 
     const visualViewport = window.visualViewport
+    let keyboardEventInset = 0
     const updateKeyboardOffset = () => {
-      if (!visualViewport) {
-        setKeyboardOffset(0)
-        return
-      }
-
-      const rawInset = Math.max(
-        0,
-        Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
-      )
-      const normalizedInset = rawInset > 70 ? rawInset : 0
+      const visualInset = visualViewport
+        ? Math.max(
+            0,
+            Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
+          )
+        : 0
+      const normalizedInset = Math.max(visualInset, keyboardEventInset) > 70
+        ? Math.max(visualInset, keyboardEventInset)
+        : 0
       setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
     }
 
-    updateKeyboardOffset()
-    if (!visualViewport) return
+    const readKeyboardHeightFromEvent = (event: Event) => {
+      const payload = event as Event & { keyboardHeight?: number; detail?: { keyboardHeight?: number } }
+      const keyboardHeight = Number(payload.keyboardHeight ?? payload.detail?.keyboardHeight ?? 0)
+      if (Number.isFinite(keyboardHeight) && keyboardHeight > 0) {
+        keyboardEventInset = Math.round(keyboardHeight)
+      }
+      updateKeyboardOffset()
+    }
 
-    visualViewport.addEventListener('resize', updateKeyboardOffset)
-    visualViewport.addEventListener('scroll', updateKeyboardOffset)
+    const clearKeyboardInset = () => {
+      keyboardEventInset = 0
+      setKeyboardOffset(0)
+    }
+
+    updateKeyboardOffset()
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', updateKeyboardOffset)
+      visualViewport.addEventListener('scroll', updateKeyboardOffset)
+    }
+
     window.addEventListener('resize', updateKeyboardOffset)
+    window.addEventListener('keyboardWillShow', readKeyboardHeightFromEvent as EventListener)
+    window.addEventListener('keyboardDidShow', readKeyboardHeightFromEvent as EventListener)
+    window.addEventListener('keyboardWillHide', clearKeyboardInset)
+    window.addEventListener('keyboardDidHide', clearKeyboardInset)
 
     return () => {
-      visualViewport.removeEventListener('resize', updateKeyboardOffset)
-      visualViewport.removeEventListener('scroll', updateKeyboardOffset)
+      if (visualViewport) {
+        visualViewport.removeEventListener('resize', updateKeyboardOffset)
+        visualViewport.removeEventListener('scroll', updateKeyboardOffset)
+      }
       window.removeEventListener('resize', updateKeyboardOffset)
+      window.removeEventListener('keyboardWillShow', readKeyboardHeightFromEvent as EventListener)
+      window.removeEventListener('keyboardDidShow', readKeyboardHeightFromEvent as EventListener)
+      window.removeEventListener('keyboardWillHide', clearKeyboardInset)
+      window.removeEventListener('keyboardDidHide', clearKeyboardInset)
     }
   }, [])
 
@@ -531,8 +576,8 @@ export default function ChatPage() {
 
   const getReplyLabel = () => {
     if (!replyTo) return ''
-    if (replyTo.sender_id === currentUser?.id) return 'Você'
-    return recipientUser?.full_name || recipientUser?.username || `Usuário ${replyTo.sender_id}`
+    if (replyTo.sender_id === currentUser?.id) return 'VocÃª'
+    return recipientUser?.full_name || recipientUser?.username || `UsuÃ¡rio ${replyTo.sender_id}`
   }
 
   const splitReplyContent = (text?: string) => {
@@ -609,11 +654,11 @@ export default function ChatPage() {
     try {
       const conversationId = await resolveConversationId()
       if (!conversationId) {
-        toast.error('Conversa não encontrada')
+        toast.error('Conversa nÃ£o encontrada')
         return
       }
       await apiClient.deleteConversation(conversationId)
-      toast.success('Conversa excluída')
+      toast.success('Conversa excluÃ­da')
       navigate('/chat')
     } catch (error) {
       console.error('Erro ao excluir conversa:', error)
@@ -626,15 +671,15 @@ export default function ChatPage() {
 
   const handleBlockCurrentUser = async () => {
     if (!recipientNumericId || isHeaderActionLoading) return
-    if (!window.confirm(`Bloquear ${recipientUser?.full_name || recipientUser?.username || 'este usuário'}?`)) return
+    if (!window.confirm(`Bloquear ${recipientUser?.full_name || recipientUser?.username || 'este usuÃ¡rio'}?`)) return
     setIsHeaderActionLoading(true)
     try {
       await apiClient.blockUser(recipientNumericId)
-      toast.success('Usuário bloqueado')
+      toast.success('UsuÃ¡rio bloqueado')
       navigate('/chat')
     } catch (error) {
-      console.error('Erro ao bloquear usuário:', error)
-      toast.error('Erro ao bloquear usuário')
+      console.error('Erro ao bloquear usuÃ¡rio:', error)
+      toast.error('Erro ao bloquear usuÃ¡rio')
     } finally {
       setIsHeaderActionLoading(false)
       setHeaderMenuOpen(false)
@@ -687,7 +732,7 @@ export default function ChatPage() {
 
       const response = await apiClient.startCall(recipientUser.id, callType)
       const callId = response.data?.id || Date.now()
-      const label = callType === 'video' ? 'vídeo' : 'voz'
+      const label = callType === 'video' ? 'vÃ­deo' : 'voz'
       toast.success(`Chamada de ${label} iniciada`)
       startOutgoingCall({
         callId,
@@ -723,7 +768,7 @@ export default function ChatPage() {
               await apiClient.endCall(activeCallId)
               const retryResponse = await apiClient.startCall(recipientUser.id, callType)
               const retryCallId = retryResponse.data?.id || Date.now()
-              const retryLabel = callType === 'video' ? 'vÃ­deo' : 'voz'
+              const retryLabel = callType === 'video' ? 'vÃƒÂ­deo' : 'voz'
               toast.success(`Chamada de ${retryLabel} iniciada`)
               startOutgoingCall({
                 callId: retryCallId,
@@ -757,7 +802,7 @@ export default function ChatPage() {
     if (!message) return false
     if (message.media_url || message.audio_url) return false
     const content = message.content || ''
-    const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(content) || /Compartilhar Localiza[cç][aã]o/i.test(content)
+    const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(content) || /Compartilhar Localiza[cÃ§][aÃ£]o/i.test(content)
     return !isLocation
   }
 
@@ -780,7 +825,7 @@ export default function ChatPage() {
   const handleSaveEditedMessage = async (messageId: number) => {
     const nextContent = editingMessageText.trim()
     if (!nextContent) {
-      toast.error('Mensagem não pode ficar vazia')
+      toast.error('Mensagem nÃ£o pode ficar vazia')
       return
     }
 
@@ -808,16 +853,60 @@ export default function ChatPage() {
         setEditingMessageId(null)
         setEditingMessageText('')
       }
-      toast.success('Mensagem excluída')
+      toast.success('Mensagem excluÃ­da')
     } catch {
       toast.error('Erro ao excluir mensagem')
     }
   }
 
+  const syncLatestMessages = useCallback(async () => {
+    if (!recipientId || !currentUser) return
+
+    try {
+      const response = await apiClient.getMessages(recipientId, 1, CHAT_PAGE_SIZE)
+      const latestMessages = dedupeMessages(response.data?.data || response.data || [])
+      if (latestMessages.length === 0) return
+
+      const previousMessages = messagesSnapshotRef.current
+      const mergedMessages = appendUniqueMessages(previousMessages, latestMessages)
+      if (areMessageListsEquivalent(previousMessages, mergedMessages)) {
+        return
+      }
+
+      const previousIds = new Set(previousMessages.map((msg) => Number(msg.id)))
+      const incomingMessages = latestMessages.filter((msg) => !previousIds.has(Number(msg.id)))
+
+      setMessages(mergedMessages)
+
+      if (incomingMessages.length > 0) {
+        const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+        if (shouldStickToBottom) {
+          window.requestAnimationFrame(() => {
+            scrollToBottom('auto')
+          })
+          setNewMessagesCount(0)
+        } else {
+          setNewMessagesCount((prev) => prev + incomingMessages.length)
+        }
+
+        const unreadIncomingIds = incomingMessages
+          .filter((msg) => Number(msg.receiver_id) === Number(currentUser.id) && !msg.is_read)
+          .map((msg) => Number(msg.id))
+          .filter((id) => Number.isFinite(id))
+
+        if (unreadIncomingIds.length > 0) {
+          void markMessagesAsRead(unreadIncomingIds)
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar mensagens recentes:', error)
+    }
+  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom])
+
   // Load chat data once when recipient changes.
   useEffect(() => {
     if (!recipientId || !currentUser) {
-      toast.error('ID de usuário inválido')
+      toast.error('ID de usuÃ¡rio invÃ¡lido')
       navigate('/chat')
       return
     }
@@ -826,7 +915,7 @@ export default function ChatPage() {
       try {
         // Validate recipientId
         if (!recipientId || recipientId === 'undefined') {
-          toast.error('ID de usuário inválido')
+          toast.error('ID de usuÃ¡rio invÃ¡lido')
           navigate('/chat')
           return
         }
@@ -867,6 +956,41 @@ export default function ChatPage() {
 
     initChat()
   }, [recipientId, currentUser, scrollToBottom])
+
+  useEffect(() => {
+    if (!recipientId || !currentUser) return
+
+    let disposed = false
+    const runSync = () => {
+      if (disposed) return
+      void syncLatestMessages()
+    }
+
+    runSync()
+    const intervalId = window.setInterval(runSync, CHAT_REALTIME_SYNC_MS)
+    const handleFocus = () => runSync()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runSync()
+      }
+    }
+    const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        runSync()
+      }
+    })
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      void appStateListener.then((listener) => listener.remove()).catch(() => {})
+    }
+  }, [recipientId, currentUser, syncLatestMessages])
 
   // Realtime updates from global websocket (created in App.tsx).
   useEffect(() => {
@@ -1081,7 +1205,7 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     const replyPrefix = replyTo ? `>> ${getReplyLabel()}: ${replyTo.content}\n` : ''
 
-    // Se há mídia pendente, enviar junto com a legenda
+    // Se hÃ¡ mÃ­dia pendente, enviar junto com a legenda
     if (pendingMedia && pendingMedia.length > 0) {
       if (!recipientId || isSending) return
 
@@ -1109,29 +1233,16 @@ export default function ChatPage() {
 
                 console.log('Resposta send media:', response)
 
-                if (response?.data?.message) {
-                  const mediaMessage: Message = {
-                    id: response.data.message.id,
-                    sender_id: currentUser!.id,
-                    receiver_id: parseInt(recipientId),
-                    content: response.data.message.content || caption,
-                    created_at: new Date().toISOString(),
-                    is_read: false,
-                    is_delivered: true,
-                    media_url: response.data.message.media_url,
-                    audio_url: response.data.message.audio_url
-                  }
-                  
-                  appendMessageIfUnique(mediaMessage)
-                  window.requestAnimationFrame(() => {
-                    scrollToBottom('smooth')
-                  })
-                  
-                } else {
-                  toast.error('Resposta inválida do servidor')
-                }
+                const mediaMessage = resolveApiMessage(response?.data)
+                appendMessageIfUnique({
+                  ...mediaMessage,
+                  content: mediaMessage.content || caption,
+                })
+                window.requestAnimationFrame(() => {
+                  scrollToBottom('smooth')
+                })
               } catch (error) {
-                console.error('Erro ao enviar mídia:', error)
+                console.error('Erro ao enviar mÃ­dia:', error)
                 toast.error(`Erro ao enviar ${file.name}`)
               }
               
@@ -1141,7 +1252,7 @@ export default function ChatPage() {
           })
         }
 
-        // Limpar estados após envio
+        // Limpar estados apÃ³s envio
         setMessageInput('')
         setReplyTo(null)
         setMediaPreview(null)
@@ -1149,7 +1260,7 @@ export default function ChatPage() {
         toast.success('Arquivo(s) enviado(s)!')
         
       } catch (error) {
-        console.error('Erro ao enviar mídia:', error)
+        console.error('Erro ao enviar mÃ­dia:', error)
         toast.error('Erro ao enviar arquivo(s)')
       } finally {
         setIsSending(false)
@@ -1157,7 +1268,7 @@ export default function ChatPage() {
       return
     }
 
-    // Se não há mídia, enviar só a mensagem de texto
+    // Se nÃ£o hÃ¡ mÃ­dia, enviar sÃ³ a mensagem de texto
     if (!messageInput.trim() || !recipientId || isSending) return
 
     try {
@@ -1165,21 +1276,11 @@ export default function ChatPage() {
       const outgoingText = replyTo ? `${replyPrefix}${messageInput}` : messageInput
       const response = await apiClient.sendMessage(recipientId, outgoingText)
 
-      const serverMessage = response?.data
-      // Só faz render otimista se o servidor devolveu ID válido (evita duplicação com o WS).
-      if (serverMessage?.id) {
-        appendMessageIfUnique({
-          id: Number(serverMessage.id),
-          sender_id: currentUser?.id || 0,
-          receiver_id: parseInt(recipientId),
-          content: serverMessage.content ?? outgoingText,
-          created_at: serverMessage.created_at || new Date().toISOString(),
-          is_read: Boolean(serverMessage.is_read),
-          is_delivered: Boolean(serverMessage.is_delivered ?? true),
-          media_url: serverMessage.media_url,
-          audio_url: serverMessage.audio_url,
-        })
-      }
+      const serverMessage = resolveApiMessage(response?.data)
+      appendMessageIfUnique({
+        ...serverMessage,
+        content: serverMessage.content || outgoingText,
+      })
       window.requestAnimationFrame(() => {
         scrollToBottom('smooth')
       })
@@ -1220,7 +1321,7 @@ export default function ChatPage() {
   const handleStartRecording = async () => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        toast.error('Seu navegador não suporta gravação de áudio')
+        toast.error('Seu navegador nÃ£o suporta gravaÃ§Ã£o de Ã¡udio')
         return
       }
 
@@ -1268,7 +1369,7 @@ export default function ChatPage() {
           }
           
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-          console.log('✅ Áudio gravado:', audioBlob.size, 'bytes')
+          console.log('âœ… Ãudio gravado:', audioBlob.size, 'bytes')
           
           // Converter para base64
           const reader = new FileReader()
@@ -1277,53 +1378,43 @@ export default function ChatPage() {
             const base64Audio = reader.result as string
             
             try {
-              // Enviar áudio para o backend
+              // Enviar Ã¡udio para o backend
               const response = await apiClient.sendAudio({
                 audio_blob: base64Audio,
                 receiver_id: parseInt(recipientId!),
                 duration: recordingTime
               })
 
-              if (response.data?.message) {
-                const audioMessage: Message = {
-                  id: response.data.message.id,
-                  sender_id: currentUser!.id,
-                  receiver_id: parseInt(recipientId!),
-                  content: '',
-                  audio_url: response.data.message.audio_url || '',
-                  created_at: new Date().toISOString(),
-                  is_read: false,
-                  is_delivered: true
-                }
-                
-                appendMessageIfUnique(audioMessage)
-                window.requestAnimationFrame(() => {
-                  scrollToBottom('smooth')
-                })
-                
-                toast.success('Áudio enviado!')
-              }
+              const audioMessage = resolveApiMessage(response?.data)
+              appendMessageIfUnique({
+                ...audioMessage,
+                content: audioMessage.content || '',
+              })
+              window.requestAnimationFrame(() => {
+                scrollToBottom('smooth')
+              })
+              toast.success('Áudio enviado!')
             } catch (error) {
-              console.error('Erro ao enviar áudio:', error)
-              toast.error('Erro ao enviar áudio')
+              console.error('Erro ao enviar Ã¡udio:', error)
+              toast.error('Erro ao enviar Ã¡udio')
             }
           }
         } catch (error) {
-          console.error('Erro ao processar áudio:', error)
-          toast.error('Erro ao processar áudio')
+          console.error('Erro ao processar Ã¡udio:', error)
+          toast.error('Erro ao processar Ã¡udio')
         }
       }
 
       mediaRecorder.onerror = (event) => {
         console.error('Erro ao gravar:', event.error)
-        toast.error('Erro ao gravar áudio: ' + event.error)
+        toast.error('Erro ao gravar Ã¡udio: ' + event.error)
       }
 
       mediaRecorder.start(100)
       setIsRecording(true)
       setRecordingTime(0)
       
-      // Timer de gravação
+      // Timer de gravaÃ§Ã£o
       recordingTimerRef.current = setInterval(() => {
         setRecordingTime(t => t + 1)
       }, 1000)
@@ -1350,11 +1441,11 @@ export default function ChatPage() {
       }
       
       analyzeAudio()
-      toast.success('Gravando áudio...')
+      toast.success('Gravando Ã¡udio...')
     } catch (error: any) {
       console.error('Erro ao acessar microfone:', error)
       if (error.name === 'NotAllowedError') {
-        toast.error('Permissão de microfone negada')
+        toast.error('PermissÃ£o de microfone negada')
       } else if (error.name === 'NotFoundError') {
         toast.error('Nenhum microfone encontrado')
       } else {
@@ -1389,7 +1480,7 @@ export default function ChatPage() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
-        toast.error('❌ Apenas imagens e vídeos são permitidos')
+        toast.error('âŒ Apenas imagens e vÃ­deos sÃ£o permitidos')
         if (mediaInputRef.current) mediaInputRef.current.value = ''
         return
       }
@@ -1456,9 +1547,9 @@ export default function ChatPage() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       
-      // Verificar se é imagem ou vídeo
+      // Verificar se Ã© imagem ou vÃ­deo
       if (file.type.startsWith('image') || file.type.startsWith('video')) {
-        toast.error('❌ Selecione documentos, não imagens/vídeos. Use o menu de Mídia para enviar fotos/vídeos')
+        toast.error('âŒ Selecione documentos, nÃ£o imagens/vÃ­deos. Use o menu de MÃ­dia para enviar fotos/vÃ­deos')
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
@@ -1466,7 +1557,7 @@ export default function ChatPage() {
       const isValidDoc = allowedTypes.includes(file.type) || file.name.match(/\.(pdf|txt|doc|docx|xls|xlsx|ppt|pptx|zip)$/i)
 
       if (!isValidDoc) {
-        toast.error('❌ Tipo de arquivo inválido. Use: PDF, Word, Excel, PowerPoint, ZIP ou TXT')
+        toast.error('âŒ Tipo de arquivo invÃ¡lido. Use: PDF, Word, Excel, PowerPoint, ZIP ou TXT')
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
@@ -1500,7 +1591,7 @@ export default function ChatPage() {
 
   const handleShareLocation = async () => {
     if (!navigator.geolocation || !recipientId) {
-      toast.error('Geolocalização não disponível')
+      toast.error('Geolocalizacao nao disponivel')
       return
     }
 
@@ -1514,39 +1605,34 @@ export default function ChatPage() {
       setIsSending(true)
       navigator.geolocation.getCurrentPosition(async (position) => {
         const { latitude, longitude } = position.coords
-        
+
         try {
-          // Get location name (reverse geocoding - simulated)
-          const locationName = 'Compartilhar Localização'
-          
+          const locationName = 'Compartilhar Localizacao'
           const response = await apiClient.sendLocation({
             receiver_id: parseInt(recipientId),
             latitude,
             longitude,
-            location_name: locationName
+            location_name: locationName,
           })
 
-          if (response.data?.message) {
-            const locationMessage: Message = {
-              id: response.data.message.id,
-              sender_id: currentUser!.id,
-              receiver_id: parseInt(recipientId),
-              content: `${locationName}\nLat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
-              created_at: new Date().toISOString(),
-              is_read: false,
-              is_delivered: true
-            }
-            
-            appendMessageIfUnique(locationMessage)
-            toast.success('Localização compartilhada!')
-          }
+          const locationMessage = resolveApiMessage(response?.data)
+          appendMessageIfUnique({
+            ...locationMessage,
+            content:
+              locationMessage.content ||
+              `${locationName}\nLat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
+          })
+          window.requestAnimationFrame(() => {
+            scrollToBottom('smooth')
+          })
+          toast.success('Localizacao compartilhada!')
         } catch (error) {
-          console.error('Erro ao enviar localização:', error)
-          toast.error('Erro ao enviar localização')
+          console.error('Erro ao enviar localizacao:', error)
+          toast.error('Erro ao enviar localizacao')
         }
       }, (error) => {
-        console.error('Erro de geolocalização:', error)
-        toast.error('Erro ao acessar localização')
+        console.error('Erro de geolocalizacao:', error)
+        toast.error('Erro ao acessar localizacao')
       })
     } finally {
       setIsSending(false)
@@ -1611,7 +1697,7 @@ export default function ChatPage() {
               setMediaPreview([{ type: 'image', src: base64, name: file.name }])
               setPendingMedia([{ file, type: 'image' }])
               handleCloseCamera()
-              toast.success('📸 Foto capturada! Digite uma legenda e clique em Enviar.')
+              toast.success('ðŸ“¸ Foto capturada! Digite uma legenda e clique em Enviar.')
               resolve(null)
             }
             reader.readAsDataURL(blob)
@@ -1672,7 +1758,7 @@ export default function ChatPage() {
   if (!recipientId || recipientId === 'undefined' || !currentUser) {
     return (
       <div className="ello-app-viewport flex items-center justify-center bg-slate-950">
-        <p className="text-gray-400">ID de usuário inválido</p>
+        <p className="text-gray-400">ID de usuÃ¡rio invÃ¡lido</p>
       </div>
     )
   }
@@ -1680,7 +1766,7 @@ export default function ChatPage() {
   if (!recipientUser) {
     return (
       <div className="ello-app-viewport flex items-center justify-center bg-slate-950">
-        <p className="text-gray-400">Usuário não encontrado</p>
+        <p className="text-gray-400">UsuÃ¡rio nÃ£o encontrado</p>
       </div>
     )
   }
@@ -1738,8 +1824,8 @@ export default function ChatPage() {
           <button
             onClick={() => handleStartCall('video')}
             disabled={Boolean(callLoading)}
-            aria-label="Iniciar chamada de vídeo"
-            title="Chamada de vídeo"
+            aria-label="Iniciar chamada de vÃ­deo"
+            title="Chamada de vÃ­deo"
             className={`p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-primary hover:scale-110 duration-200 disabled:text-gray-500 disabled:hover:bg-slate-900 ${callLoading === 'video' ? 'text-primary' : ''}`}
           >
             {callLoading === 'video' ? (
@@ -1770,7 +1856,7 @@ export default function ChatPage() {
                   disabled={isHeaderActionLoading}
                   className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition disabled:opacity-60"
                 >
-                  Bloquear usuário
+                  Bloquear usuÃ¡rio
                 </button>
               </div>
             )}
@@ -1796,7 +1882,7 @@ export default function ChatPage() {
         )}
 
         {messages.map((message) => {
-          // Detectar tipo de conteúdo
+          // Detectar tipo de conteÃºdo
           const cleanContent = (message.content || '').trim()
           const contentLower = cleanContent.toLowerCase()
           const mediaUrlRaw = message.media_url || ''
@@ -1809,14 +1895,14 @@ export default function ChatPage() {
           const contentVideoExt = /\.(mp4|mov|avi|mkv|webm|m4v|3gp|m3u8)$/.test(contentLower)
           const contentDocExt = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip)$/.test(contentLower)
 
-          const isImage = Boolean(imageByExtension || contentImageExt || contentLower.includes('image:') || message.content?.startsWith('🖼️'))
-          const isVideo = Boolean(videoByExtension || contentVideoExt || contentLower.includes('video:') || message.content?.startsWith('🎥'))
-          const isDocument = Boolean((documentByExtension || contentDocExt || contentLower.includes('document:') || message.content?.startsWith('📄')) && !isImage && !isVideo)
+          const isImage = Boolean(imageByExtension || contentImageExt || contentLower.includes('image:') || message.content?.startsWith('ðŸ–¼ï¸'))
+          const isVideo = Boolean(videoByExtension || contentVideoExt || contentLower.includes('video:') || message.content?.startsWith('ðŸŽ¥'))
+          const isDocument = Boolean((documentByExtension || contentDocExt || contentLower.includes('document:') || message.content?.startsWith('ðŸ“„')) && !isImage && !isVideo)
           const isAudio = message.audio_url && !isImage && !isVideo
-          const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(message.content || '') || /Compartilhar Localiza[cç][aã]o/i.test(message.content || '')
+          const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(message.content || '') || /Compartilhar Localiza[cÃ§][aÃ£]o/i.test(message.content || '')
           const isVisualMessage = isImage || isVideo || isLocation || Boolean(isAudio)
-          const looksLikeAutoMediaLabel = /^📎\s*(image|video|document):/i.test(cleanContent)
-          const looksLikeAutoAudioLabel = /^🎤\s*Áudio/i.test(cleanContent)
+          const looksLikeAutoMediaLabel = /^ðŸ“Ž\s*(image|video|document):/i.test(cleanContent)
+          const looksLikeAutoAudioLabel = /^ðŸŽ¤\s*Ãudio/i.test(cleanContent)
           const shouldRenderCaption = Boolean(cleanContent) && !isLocation && !looksLikeAutoMediaLabel && !looksLikeAutoAudioLabel
           const isOwnMessage = message.sender_id === currentUser?.id
           const canEditThisMessage = isOwnMessage && canEditMessage(message)
@@ -1826,7 +1912,7 @@ export default function ChatPage() {
           const swipeProgress = Math.min(1, Math.abs(swipeOffsetX) / REPLY_SWIPE_TRIGGER_PX)
           const showSwipeHint = swipeProgress > 0
           const messageWidthClass = isAudio
-            ? 'w-[min(92vw,30rem)] sm:w-[min(80vw,30rem)] max-w-full'
+            ? 'w-[min(78vw,18rem)] sm:w-[min(62vw,20rem)] max-w-full'
             : 'max-w-xs sm:max-w-sm md:max-w-md'
 
           return (
@@ -1875,15 +1961,21 @@ export default function ChatPage() {
                 resetReplySwipe(event)
               }}
             >
-              {/* Áudio */}
+              {/* Ãudio */}
               {isAudio && (
-                <div className="mb-2 flex w-full min-w-0 items-center gap-2 overflow-hidden">
-                  {/* 🔒 ICON LOCKED - Do not change */}
-                  <Mic size={20} className="flex-shrink-0 text-purple-400" />
+                <div
+                  className={`mb-2 flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-2xl border px-2 py-1.5 ${
+                    isOwnMessage
+                      ? 'bg-white/10 border-white/20'
+                      : 'bg-slate-900/45 border-slate-600/70'
+                  }`}
+                >
+                  {/* ðŸ”’ ICON LOCKED - Do not change */}
+                  <Mic size={18} className={`flex-shrink-0 ${isOwnMessage ? 'text-purple-300' : 'text-slate-300'}`} />
                   <audio
                     src={resolveMediaUrl(message.audio_url)}
                     controls
-                    className="block w-full min-w-0 max-w-full h-10 accent-purple-600"
+                    className="block w-full min-w-0 max-w-full h-9 accent-purple-600"
                     style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}
                   />
                 </div>
@@ -1898,7 +1990,7 @@ export default function ChatPage() {
                   onClick={() => {
                     const imageUrl = resolveMediaUrl(message.media_url || message.content)
                     setExpandedImage(imageUrl)
-                    // Extrair todas as imagens das mensagens para navegação
+                    // Extrair todas as imagens das mensagens para navegaÃ§Ã£o
                     const allImageUrls = messages
                       .filter(msg => {
                         const contentLower = msg.content?.toLowerCase() || ''
@@ -1911,7 +2003,7 @@ export default function ChatPage() {
                 />
               )}
 
-              {/* Vídeo */}
+              {/* VÃ­deo */}
               {isVideo && (
                 <video
                   src={resolveMediaUrl(message.media_url || message.content)}
@@ -1923,7 +2015,7 @@ export default function ChatPage() {
               {/* Documento */}
               {isDocument && (
                 <div className="mb-2 flex items-center gap-2 bg-white/10 p-3 rounded-lg border border-white/20">
-                  {/* 🔒 ICON LOCKED - Do not change */}
+                  {/* ðŸ”’ ICON LOCKED - Do not change */}
                   <FileText size={20} className="flex-shrink-0 text-blue-400" />
                     <a
                     href={resolveMediaUrl(message.media_url || message.content)}
@@ -1931,7 +2023,7 @@ export default function ChatPage() {
                     rel="noopener noreferrer"
                     className="underline hover:opacity-80 truncate flex-1 text-sm"
                   >
-                    {message.content?.replace(/^📄|Document:|📄/g, '').trim() || 'Abrir arquivo'}
+                    {message.content?.replace(/^ðŸ“„|Document:|ðŸ“„/g, '').trim() || 'Abrir arquivo'}
                   </a>
                 </div>
               )}
@@ -1968,7 +2060,7 @@ export default function ChatPage() {
                           </div>
                         </button>
                       </div>
-                      {/* Informações de localização */}
+                      {/* InformaÃ§Ãµes de localizaÃ§Ã£o */}
                       <div className="p-2.5 flex items-center justify-center bg-green-900/10 border-t border-green-500/20">
                         <button
                           onClick={() => setSelectedLocation({ lat, lng })}
@@ -1983,7 +2075,7 @@ export default function ChatPage() {
                 }
                 return null
               })()}
-              {/* Fallback para localização sem coordenadas extraíveis */}
+              {/* Fallback para localizaÃ§Ã£o sem coordenadas extraÃ­veis */}
               {isLocation && (() => {
                 const coordMatch = message.content?.match(/Lat:\s*([\d.-]+),\s*Lng:\s*([\d.-]+)/)
                 return !coordMatch ? (
@@ -2036,7 +2128,7 @@ export default function ChatPage() {
                 )
               )}
 
-              {/* Legenda para mídia compartilhada */}
+              {/* Legenda para mÃ­dia compartilhada */}
               {(isAudio || isImage || isVideo || isDocument) && shouldRenderCaption && (
                 <p className="break-words mt-1">{message.content}</p>
               )}
@@ -2118,7 +2210,7 @@ export default function ChatPage() {
                         }}
                         className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition"
                       >
-                        {selectedMessageIds.has(message.id) ? 'Remover seleção' : 'Selecionar'}
+                        {selectedMessageIds.has(message.id) ? 'Remover seleÃ§Ã£o' : 'Selecionar'}
                       </button>
                       {isOwnMessage && canEditThisMessage && (
                         <button
@@ -2145,7 +2237,7 @@ export default function ChatPage() {
 
               {reactionPickerMessageId === message.id && (
                 <div className={`flex gap-1 mt-2 bg-slate-900/50 rounded-full px-2 py-1 w-fit ${message.sender_id === currentUser?.id ? 'ml-auto' : 'mr-auto'}`}>
-                  {['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) => (
+                  {['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸ”¥'].map((emoji) => (
                     <button
                       key={`${message.id}-${emoji}`}
                       onClick={() => handleAddReaction(message.id, emoji)}
@@ -2165,8 +2257,8 @@ export default function ChatPage() {
                 {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 {message.sender_id === currentUser?.id && (
                   <>
-                    {message.is_delivered && !message.is_read && <span>✓✓</span>}
-                    {message.is_read && <span className="text-blue-300">✓✓</span>}
+                    {message.is_delivered && !message.is_read && <span>âœ“âœ“</span>}
+                    {message.is_read && <span className="text-blue-300">âœ“âœ“</span>}
                   </>
                 )}
               </div>
@@ -2203,7 +2295,7 @@ export default function ChatPage() {
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-full shadow-lg flex items-center gap-2 transition duration-200 hover:scale-105 active:scale-95 font-medium text-sm sm:text-base"
             >
-              <span>↓ {newMessagesCount} mensagem{newMessagesCount > 1 ? 's' : ''} nova{newMessagesCount > 1 ? 's' : ''}</span>
+              <span>â†“ {newMessagesCount} mensagem{newMessagesCount > 1 ? 's' : ''} nova{newMessagesCount > 1 ? 's' : ''}</span>
             </button>
           </div>
         )}
@@ -2276,7 +2368,7 @@ export default function ChatPage() {
                   goToNextExpandedImage()
                 }}
                 className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-purple-600 hover:bg-purple-700 p-3 rounded-full transition z-10"
-                title="Próxima imagem"
+                title="PrÃ³xima imagem"
               >
                 <ArrowLeft size={24} className="text-white rotate-180" />
               </button>
@@ -2413,7 +2505,7 @@ export default function ChatPage() {
         {mediaPreview && mediaPreview.length > 0 && (
           <div className="mb-3 p-2 bg-slate-800/50 rounded-lg border border-slate-700 flex gap-2 overflow-x-auto">
             <div className="flex-shrink-0 text-xs text-gray-400 py-2 px-2 whitespace-nowrap">
-              📎 {mediaPreview.length} arquivo(s):
+              ðŸ“Ž {mediaPreview.length} arquivo(s):
             </div>
             {mediaPreview.map((preview, idx) => (
               <div key={idx} className="relative group flex-shrink-0">
@@ -2481,7 +2573,7 @@ export default function ChatPage() {
               {/* Content */}
               <div className="p-6 space-y-3">
                 <p className="text-sm text-gray-300 mb-4">
-                  Selecione um aplicativo de mapa para navegar até essa localização:
+                  Selecione um aplicativo de mapa para navegar atÃ© essa localizaÃ§Ã£o:
                 </p>
 
                 {/* Google Maps */}
@@ -2559,8 +2651,8 @@ export default function ChatPage() {
                     <MapPin size={20} className="text-white" />
                   </div>
                   <div>
-                    <p className="text-white font-semibold text-sm">Mapa Padrão</p>
-                    <p className="text-gray-400 text-xs">Abrir em seu mapa padrão</p>
+                    <p className="text-white font-semibold text-sm">Mapa PadrÃ£o</p>
+                    <p className="text-gray-400 text-xs">Abrir em seu mapa padrÃ£o</p>
                   </div>
                 </button>
               </div>
@@ -2583,7 +2675,7 @@ export default function ChatPage() {
           <div className="relative">
             <button
               onClick={() => setShowMediaMenu(!showMediaMenu)}
-              title="Anexar mídia ou arquivo"
+              title="Anexar mÃ­dia ou arquivo"
               className="p-2 sm:p-3 hover:bg-slate-800 rounded-full transition text-gray-400 hover:text-primary hover:scale-110 flex-shrink-0 duration-200"
               disabled={isSending}
             >
@@ -2599,7 +2691,7 @@ export default function ChatPage() {
                     setShowMediaMenu(false)
                   }}
                   className="px-4 py-3 text-left text-gray-300 hover:bg-slate-700 hover:text-white flex items-center justify-center gap-3 text-sm transition border-b border-slate-700/50 hover:scale-110 duration-200"
-                  title="Imagens & Vídeos"
+                  title="Imagens & VÃ­deos"
                 >
                   <Image size={20} strokeWidth={1.5} />
                 </button>
@@ -2629,7 +2721,7 @@ export default function ChatPage() {
                   }}
                   className="px-4 py-3 text-left text-gray-300 hover:bg-slate-700 hover:text-white flex items-center justify-center gap-3 text-sm transition hover:scale-110 duration-200"
                   disabled={isSending}
-                  title="Localização"
+                  title="LocalizaÃ§Ã£o"
                 >
                   <MapPin size={20} strokeWidth={1.5} />
                 </button>
@@ -2689,7 +2781,7 @@ export default function ChatPage() {
             {/* Emoji Picker Simples */}
             {showEmojiPicker && (
               <div className="absolute bottom-12 right-0 bg-slate-800 border border-slate-700 rounded-lg p-2 grid grid-cols-6 gap-1 w-48 max-h-64 overflow-y-auto z-50">
-                {['😀', '😂', '😍', '🥰', '😪', '😭', '😱', '🤔', '😎', '🤩', '😘', '❤️', '👍', '🎉', '🔥', '✨', '💯', '🎄', '🎃', '👏', '🙏', '👏', '😅', '😁'].map((emoji, idx) => (
+                {['ðŸ˜€', 'ðŸ˜‚', 'ðŸ˜', 'ðŸ¥°', 'ðŸ˜ª', 'ðŸ˜­', 'ðŸ˜±', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ¤©', 'ðŸ˜˜', 'â¤ï¸', 'ðŸ‘', 'ðŸŽ‰', 'ðŸ”¥', 'âœ¨', 'ðŸ’¯', 'ðŸŽ„', 'ðŸŽƒ', 'ðŸ‘', 'ðŸ™', 'ðŸ‘', 'ðŸ˜…', 'ðŸ˜'].map((emoji, idx) => (
                   <button
                     key={idx}
                     onClick={() => {
@@ -2724,7 +2816,7 @@ export default function ChatPage() {
             !isRecording ? (
               <button
                 onClick={handleStartRecording}
-                title="Gravar áudio"
+                title="Gravar Ã¡udio"
                 className="p-2 sm:p-3 hover:bg-slate-800 rounded-full transition text-gray-400 hover:text-primary hover:scale-110 flex-shrink-0 duration-200"
               >
                 <Mic size={20} strokeWidth={1.8} />
@@ -2733,7 +2825,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <button
                   onClick={handleStopRecording}
-                  title="Parar gravação"
+                  title="Parar gravaÃ§Ã£o"
                   className="p-2 sm:p-3 bg-red-500/20 rounded-full transition text-red-400 flex-shrink-0 animate-pulse hover:scale-110 duration-200"
                 >
                   <Mic size={20} strokeWidth={1.8} />
@@ -2772,3 +2864,7 @@ export default function ChatPage() {
     </div>
   )
 }
+
+
+
+

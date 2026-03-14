@@ -355,16 +355,20 @@ def send_group_message(
 def get_group_messages(db: Session, group_id: int, current_user_id: int, page: int = 1, limit: int = 50):
     _ensure_member(db, group_id, current_user_id)
 
+    total = db.query(Message).filter(Message.group_id == group_id).count()
     offset = (page - 1) * limit
-    msgs = (
+    # Page 1 must always contain newest messages (same behavior as direct chat).
+    # Reverse the page slice back to chronological order for rendering.
+    msgs_desc = (
         db.query(Message)
         .options(joinedload(Message.sender))
         .filter(Message.group_id == group_id)
-        .order_by(Message.created_at.asc())
+        .order_by(Message.created_at.desc(), Message.id.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
+    msgs = list(reversed(msgs_desc))
     serialized = []
     for msg in msgs:
         serialized.append({
@@ -385,5 +389,4 @@ def get_group_messages(db: Session, group_id: int, current_user_id: int, page: i
               "mood": msg.sender.mood,
           } if msg.sender else None,
         })
-    total = db.query(Message).filter(Message.group_id == group_id).count()
     return {"data": serialized, "total": total, "page": page, "limit": limit}

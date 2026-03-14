@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
+import { App as CapacitorApp } from '@capacitor/app'
 import { useCallStore } from '@store/callStore'
 import api from '@services/api'
 import { playAlertSound, startLoopingAlertSound } from '@services/alertSounds'
 import { disableCallMode, enableCallMode } from '@services/callMode'
+import { enterCallPictureInPicture, isCallPictureInPictureSupported } from '@services/callPictureInPicture'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 
 type SignalPayload = {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'call_end'
+  type: 'offer' | 'answer' | 'ice-candidate' | 'call_end' | 'request_offer'
   offer?: RTCSessionDescriptionInit
   answer?: RTCSessionDescriptionInit
   candidate?: RTCIceCandidateInit
@@ -128,11 +130,13 @@ const CallScreen = () => {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null)
+  const acceptWhenOfferArrivesRef = useRef(false)
   const pendingSignalsRef = useRef<Record<number, SignalPayload[]>>({})
   const pendingIceRef = useRef<Record<number, RTCIceCandidateInit[]>>({})
   const queuedSignalsRef = useRef<SignalPayload[]>([])
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerEnabled, setIsSpeakerEnabled] = useState(false)
+  const [pipSupported, setPipSupported] = useState(false)
   const [miniPosition, setMiniPosition] = useState<{ x: number; y: number }>({
     x: Math.max(16, window.innerWidth - 280),
     y: Math.max(16, window.innerHeight - 180),
@@ -140,6 +144,13 @@ const CallScreen = () => {
   const dragStateRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null)
   const dragRafRef = useRef<number | null>(null)
   const pendingMiniPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const [localPreviewPosition, setLocalPreviewPosition] = useState<{ x: number; y: number }>({
+    x: Math.max(12, window.innerWidth - 120),
+    y: Math.max(12, window.innerHeight - 248),
+  })
+  const localPreviewDragStateRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null)
+  const localPreviewDragRafRef = useRef<number | null>(null)
+  const pendingLocalPreviewPositionRef = useRef<{ x: number; y: number } | null>(null)
   const disconnectTimerRef = useRef<number | null>(null)
   const activeCallId = activeCall?.callId
   const activeCallType = activeCall?.callType
@@ -176,6 +187,19 @@ const CallScreen = () => {
     const padding = 12
     const maxX = Math.max(padding, window.innerWidth - boxWidth - padding)
     const maxY = Math.max(padding, window.innerHeight - boxHeight - padding)
+    return {
+      x: Math.min(Math.max(x, padding), maxX),
+      y: Math.min(Math.max(y, padding), maxY),
+    }
+  }, [])
+
+  const clampLocalPreviewPosition = useCallback((x: number, y: number) => {
+    const boxWidth = 104
+    const boxHeight = 148
+    const padding = 10
+    const bottomSafeArea = 148
+    const maxX = Math.max(padding, window.innerWidth - boxWidth - padding)
+    const maxY = Math.max(padding, window.innerHeight - boxHeight - bottomSafeArea)
     return {
       x: Math.min(Math.max(x, padding), maxX),
       y: Math.min(Math.max(y, padding), maxY),
@@ -331,6 +355,11 @@ const CallScreen = () => {
       dragRafRef.current = null
       pendingMiniPositionRef.current = null
     }
+    if (localPreviewDragRafRef.current) {
+      cancelAnimationFrame(localPreviewDragRafRef.current)
+      localPreviewDragRafRef.current = null
+      pendingLocalPreviewPositionRef.current = null
+    }
     if (disconnectTimerRef.current) {
       clearTimeout(disconnectTimerRef.current)
       disconnectTimerRef.current = null
@@ -344,6 +373,8 @@ const CallScreen = () => {
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
     queuedSignalsRef.current = []
+    acceptWhenOfferArrivesRef.current = false
+    localPreviewDragStateRef.current = null
     stopRingtone()
   }, [stopRingtone])
 
@@ -507,6 +538,61 @@ const CallScreen = () => {
     }
   }, [])
 
+  const createAndSendOffer = useCallback(
+    async (options?: { restartIce?: boolean }) => {
+      if (activeCallDirection !== 'outgoing') return
+      const stream = await prepareLocalStream()
+      const pc = createPeerConnection()
+      await ensureLocalTracks(pc, stream)
+      if (options?.restartIce) {
+        try {
+          pc.restartIce()
+        } catch (error) {
+          console.warn('Falha ao reiniciar ICE antes de reenviar offer:', error)
+        }
+      }
+      const offer = await pc.createOffer(options?.restartIce ? { iceRestart: true } : undefined)
+      await pc.setLocalDescription(offer)
+      if (pc.localDescription) {
+        sendCallSignal({ type: 'offer', offer: pc.localDescription })
+      }
+      console.debug('[Call] offer enviado', pc.localDescription?.type)
+    },
+    [activeCallDirection, prepareLocalStream, createPeerConnection, ensureLocalTracks, sendCallSignal],
+  )
+
+  const acceptPendingOffer = useCallback(async () => {
+    if (!activeCallId) return false
+    const pendingOffer = pendingOfferRef.current
+    if (!pendingOffer) return false
+
+    setStatusLabel('Conectando...')
+    const pc = createPeerConnection()
+    await pc.setRemoteDescription(pendingOffer)
+    const stream = await prepareLocalStream()
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = true
+    })
+    setIsMuted(false)
+    await ensureLocalTracks(pc, stream)
+    forceSendRecvForLocalKinds(pc, ['audio', ...(activeCallType === 'video' ? ['video'] as const : [])])
+    const answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    const queued = pendingIceRef.current[activeCallId] || []
+    for (const cand of queued) {
+      await pc.addIceCandidate(cand)
+    }
+    pendingIceRef.current[activeCallId] = []
+    if (pc.localDescription) {
+      sendCallSignal({ type: 'answer', answer: pc.localDescription })
+    }
+    pendingOfferRef.current = null
+    acceptWhenOfferArrivesRef.current = false
+    await api.acceptCall(activeCallId)
+    answerCall()
+    return true
+  }, [activeCallId, activeCallType, answerCall, prepareLocalStream, ensureLocalTracks, forceSendRecvForLocalKinds, createPeerConnection, sendCallSignal])
+
   const handleSignal = useCallback(
     async (signal: SignalPayload) => {
       if (!activeCallId) return
@@ -516,6 +602,9 @@ const CallScreen = () => {
           pendingOfferRef.current = signal.offer
           setStatusLabel('Ligação chegando')
           console.debug('[Call] offer recebido')
+          if (acceptWhenOfferArrivesRef.current && isIncoming) {
+            await acceptPendingOffer()
+          }
         }
 
         if (signal.type === 'answer' && signal.answer) {
@@ -545,11 +634,18 @@ const CallScreen = () => {
           finalizeCallLocally()
           return
         }
+
+        if (signal.type === 'request_offer') {
+          if (activeCallDirection !== 'outgoing') return
+          setStatusLabel((prev) => (prev === 'Conectado' ? prev : 'Reconectando chamada...'))
+          await createAndSendOffer({ restartIce: true })
+          return
+        }
       } catch (error) {
-        console.error('Erro na sinalizaÃ§Ã£o da chamada:', error)
+        console.error('Erro na sinalização da chamada:', error)
       }
     },
-    [activeCallId, createPeerConnection, finalizeCallLocally],
+    [activeCallId, activeCallDirection, createPeerConnection, finalizeCallLocally, isIncoming, acceptPendingOffer, createAndSendOffer],
   )
 
   const flushPendingSignals = useCallback(
@@ -680,15 +776,7 @@ const CallScreen = () => {
       if (activeCallDirection !== 'outgoing') return
       try {
         setStatusLabel('Ligando...')
-        const stream = await prepareLocalStream()
-        const pc = createPeerConnection()
-        await ensureLocalTracks(pc, stream)
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        if (pc.localDescription) {
-          sendCallSignal({ type: 'offer', offer: pc.localDescription })
-        }
-        console.debug('[Call] offer enviado', pc.localDescription?.type)
+        await createAndSendOffer()
       } catch (error) {
         console.error('Erro ao iniciar oferta da chamada:', error)
         const message = describeMediaError(error)
@@ -703,10 +791,7 @@ const CallScreen = () => {
   }, [
     activeCallId,
     activeCallDirection,
-    prepareLocalStream,
-    ensureLocalTracks,
-    createPeerConnection,
-    sendCallSignal,
+    createAndSendOffer,
     cleanupCall,
   ])
 
@@ -716,34 +801,14 @@ const CallScreen = () => {
     flushPendingSignals(activeCallId)
     const pendingOffer = pendingOfferRef.current
     if (!pendingOffer) {
-      setStatusLabel('Aguardando sinal...')
+      acceptWhenOfferArrivesRef.current = true
+      setStatusLabel('Aguardando sinal da ligação...')
+      sendCallSignal({ type: 'request_offer' })
       return
     }
 
     try {
-      setStatusLabel('Conectando...')
-      const pc = createPeerConnection()
-      await pc.setRemoteDescription(pendingOffer)
-      const stream = await prepareLocalStream()
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = true
-      })
-      setIsMuted(false)
-      await ensureLocalTracks(pc, stream)
-      forceSendRecvForLocalKinds(pc, ['audio', ...(activeCallType === 'video' ? ['video'] as const : [])])
-      const answer = await pc.createAnswer()
-      await pc.setLocalDescription(answer)
-      const queued = pendingIceRef.current[activeCallId] || []
-      for (const cand of queued) {
-        await pc.addIceCandidate(cand)
-      }
-      pendingIceRef.current[activeCallId] = []
-      if (pc.localDescription) {
-        sendCallSignal({ type: 'answer', answer: pc.localDescription })
-      }
-      pendingOfferRef.current = null
-      await api.acceptCall(activeCallId)
-      answerCall()
+      await acceptPendingOffer()
     } catch (error) {
       console.error('Erro ao responder a chamada:', error)
       const apiDetail = (error as any)?.response?.data?.detail
@@ -758,7 +823,7 @@ const CallScreen = () => {
         }, 500)
       }
     }
-  }, [activeCallId, activeCallType, answerCall, prepareLocalStream, ensureLocalTracks, forceSendRecvForLocalKinds, createPeerConnection, sendCallSignal, flushPendingSignals, finalizeCallLocally])
+  }, [activeCallId, sendCallSignal, flushPendingSignals, acceptPendingOffer, finalizeCallLocally])
 
   const handleEndCall = useCallback(async () => {
     if (!activeCallId) return
@@ -770,6 +835,13 @@ const CallScreen = () => {
     }
     finalizeCallLocally()
   }, [activeCallId, finalizeCallLocally, sendCallSignal])
+
+  const handleToggleMinimize = useCallback(async () => {
+    if (isVideoCall && activeCall?.status === 'active') {
+      await enterCallPictureInPicture(remoteVideoRef.current)
+    }
+    toggleMinimize()
+  }, [isVideoCall, activeCall?.status, toggleMinimize])
 
   useEffect(() => {
     return () => cleanupCall()
@@ -796,13 +868,39 @@ const CallScreen = () => {
   }, [activeCallId])
 
   useEffect(() => {
-    if (!isMinimized) return
     const onResize = () => {
-      setMiniPosition((prev) => clampMiniPosition(prev.x, prev.y))
+      if (isMinimized) {
+        setMiniPosition((prev) => clampMiniPosition(prev.x, prev.y))
+      }
+      setLocalPreviewPosition((prev) => clampLocalPreviewPosition(prev.x, prev.y))
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [isMinimized, clampMiniPosition])
+  }, [isMinimized, clampMiniPosition, clampLocalPreviewPosition])
+
+  useEffect(() => {
+    let mounted = true
+    void isCallPictureInPictureSupported().then((supported) => {
+      if (mounted) {
+        setPipSupported(supported)
+      }
+    })
+    return () => {
+      mounted = false
+    }
+  }, [activeCallId])
+
+  useEffect(() => {
+    if (!activeCallId || !isVideoCall) return
+    const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) return
+      if (activeCall?.status !== 'active') return
+      void enterCallPictureInPicture(remoteVideoRef.current)
+    })
+    return () => {
+      void appStateListener.then((listener) => listener.remove()).catch(() => {})
+    }
+  }, [activeCallId, isVideoCall, activeCall?.status])
 
   const isIncomingRinging = isIncoming && isRinging
 
@@ -867,6 +965,48 @@ const CallScreen = () => {
     event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
+  const handleLocalPreviewPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    localPreviewDragStateRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handleLocalPreviewPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = localPreviewDragStateRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    pendingLocalPreviewPositionRef.current = clampLocalPreviewPosition(
+      event.clientX - drag.offsetX,
+      event.clientY - drag.offsetY,
+    )
+    if (localPreviewDragRafRef.current) return
+    localPreviewDragRafRef.current = window.requestAnimationFrame(() => {
+      localPreviewDragRafRef.current = null
+      const next = pendingLocalPreviewPositionRef.current
+      if (!next) return
+      setLocalPreviewPosition(next)
+      pendingLocalPreviewPositionRef.current = null
+    })
+  }
+
+  const handleLocalPreviewPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = localPreviewDragStateRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (localPreviewDragRafRef.current) {
+      cancelAnimationFrame(localPreviewDragRafRef.current)
+      localPreviewDragRafRef.current = null
+    }
+    if (pendingLocalPreviewPositionRef.current) {
+      setLocalPreviewPosition(pendingLocalPreviewPositionRef.current)
+      pendingLocalPreviewPositionRef.current = null
+    }
+    localPreviewDragStateRef.current = null
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+
   const connected = activeCall.status === 'active'
   const canMinimize = !isIncomingRinging
 
@@ -880,13 +1020,21 @@ const CallScreen = () => {
         onPointerUp={handleMiniPointerUp}
         onPointerCancel={handleMiniPointerUp}
       >
+        {isVideoCall && connected && (
+          <div className="relative mb-3 h-32 w-full overflow-hidden rounded-xl border border-white/20 bg-black/70">
+            <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+            <div className="absolute bottom-2 right-2 h-14 w-10 overflow-hidden rounded-lg border border-white/35 bg-black/60">
+              <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-3">
-            <img
-              src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
-              alt={activeCall.user.username}
-              className="h-12 w-12 rounded-full border border-white/10 object-cover"
-              style={getMoodAvatarRingStyle(activeCall.user.mood)}
-            />
+          <img
+            src={activeCall.user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed='}
+            alt={activeCall.user.username}
+            className="h-12 w-12 rounded-full border border-white/10 object-cover"
+            style={getMoodAvatarRingStyle(activeCall.user.mood)}
+          />
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold truncate">{activeCall.user.full_name || activeCall.user.username}</p>
             <p className="text-xs text-white/60">{connected ? 'Conectado' : statusLabel}</p>
@@ -899,6 +1047,7 @@ const CallScreen = () => {
             <Maximize2 size={18} />
           </button>
         </div>
+        <audio ref={remoteAudioRef} autoPlay className="sr-only" />
         <div className="mt-3 flex items-center justify-between">
           <button
             onClick={toggleMute}
@@ -998,7 +1147,20 @@ const CallScreen = () => {
         />
 
         {connected && (
-          <div className="absolute right-4 top-4 h-28 w-20 sm:h-36 sm:w-24 overflow-hidden rounded-xl border border-white/30 bg-black/40 shadow-lg backdrop-blur">
+          <div
+            className="absolute z-30 h-36 w-24 overflow-hidden rounded-xl border border-white/30 bg-black/40 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing"
+            style={{
+              left: 0,
+              top: 0,
+              transform: `translate3d(${localPreviewPosition.x}px, ${localPreviewPosition.y}px, 0)`,
+              willChange: 'transform',
+              touchAction: 'none',
+            }}
+            onPointerDown={handleLocalPreviewPointerDown}
+            onPointerMove={handleLocalPreviewPointerMove}
+            onPointerUp={handleLocalPreviewPointerUp}
+            onPointerCancel={handleLocalPreviewPointerUp}
+          >
             <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
           </div>
         )}
@@ -1007,9 +1169,9 @@ const CallScreen = () => {
           <div className="mx-auto max-w-lg rounded-2xl border border-white/20 bg-black/25 px-4 py-3 text-center text-white backdrop-blur-xl">
             {canMinimize && (
               <button
-                onClick={toggleMinimize}
+                onClick={handleToggleMinimize}
                 className="absolute right-7 top-7 text-white/70 hover:text-white"
-                title="Minimizar"
+                title={pipSupported ? 'Minimizar (PiP ativo)' : 'Minimizar'}
               >
                 <Minimize2 size={18} />
               </button>
@@ -1069,9 +1231,9 @@ const CallScreen = () => {
         <div className="flex flex-col items-center gap-4">
           {canMinimize && (
             <button
-              onClick={toggleMinimize}
+              onClick={handleToggleMinimize}
               className="absolute right-4 top-4 text-white/60 hover:text-white"
-              title="Minimizar"
+              title={pipSupported ? 'Minimizar (PiP ativo)' : 'Minimizar'}
             >
               <Minimize2 size={18} />
             </button>
