@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowRight, Lock, KeyRound } from 'lucide-react'
 import api from '@services/api'
+import BrandMark from '@/components/BrandMark'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -58,6 +59,7 @@ export default function ResetPasswordPage() {
           </Link>
 
           <div className="bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
+            <BrandMark className="mb-4" iconClassName="w-9 h-9 rounded-xl" textClassName="text-2xl font-bold text-primary" />
             <h1 className="text-2xl font-bold text-primary">Nova senha</h1>
             <p className="text-gray-400 mt-2">
               Escolha sua nova senha para acessar sua conta Ello Social.

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import { toast } from 'react-hot-toast'
 import { Mail, Lock, Users, Sparkles, Share2, ArrowRight } from 'lucide-react'
+import BrandMark from '@/components/BrandMark'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -124,7 +125,11 @@ export default function LoginPage() {
                   <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
                   <span className="text-sm text-gray-300">Bem-vindo de volta</span>
                 </div>
-                <h1 className="text-4xl font-bold text-primary mb-2">Ello Social</h1>
+                <BrandMark
+                  className="justify-center mb-2"
+                  iconClassName="w-10 h-10 rounded-xl"
+                  textClassName="text-4xl font-bold text-primary"
+                />
                 <p className="text-gray-400">Entre na sua conta para continuar</p>
               </div>
 

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Zap, Users, Sparkles, TrendingUp, ArrowRight, Github, Twitter, Linkedin } from 'lucide-react'
+import BrandMark from '@/components/BrandMark'
 
 export default function LandingPage() {
   return (
@@ -17,10 +18,7 @@ export default function LandingPage() {
         <nav className="fixed top-0 w-full bg-black/50 backdrop-blur-md border-b border-white/10 z-50">
           <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center font-bold">
-                E
-              </div>
-              <span className="text-xl font-bold">Ello Social</span>
+              <BrandMark iconClassName="w-8 h-8 rounded-lg" textClassName="text-xl font-bold" />
             </div>
             <div className="hidden md:flex gap-8">
               <a href="#features" className="hover:text-purple-400 transition">Features</a>
@@ -174,10 +172,7 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-4 gap-12 mb-12">
               <div>
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center font-bold">
-                    E
-                  </div>
-                  <span className="text-lg font-bold">Ello Social</span>
+                  <BrandMark iconClassName="w-8 h-8 rounded-lg" textClassName="text-lg font-bold" />
                 </div>
                 <p className="text-gray-400">The modern social platform for everyone.</p>
               </div>

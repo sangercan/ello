@@ -72,4 +72,19 @@ foreach ($iosIcon in $iosTargets) {
   Resize-And-Save $canonicalSource $iosIcon 1024
 }
 
+$webFavicon = Join-Path $repoRoot 'ello-web\public\favicon.png'
+if (Test-Path (Split-Path $webFavicon -Parent)) {
+  Resize-And-Save $canonicalSource $webFavicon 512
+}
+
+$webBrandIcon = Join-Path $repoRoot 'ello-web\public\brand-icon.png'
+if (Test-Path (Split-Path $webBrandIcon -Parent)) {
+  Resize-And-Save $canonicalSource $webBrandIcon 256
+}
+
+$webNotificationIcon = Join-Path $repoRoot 'ello-web\public\notification-icon.png'
+if (Test-Path (Split-Path $webNotificationIcon -Parent)) {
+  Resize-And-Save $canonicalSource $webNotificationIcon 192
+}
+
 Write-Output "launcher-icon-applied: $canonicalSource"
