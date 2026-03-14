@@ -37,27 +37,35 @@ def get_vibes(db: Session, current_user, page, limit):
         .all()
     )
 
+    vibe_ids = [vibe.id for vibe in vibes]
+    likes_count_map: dict[int, int] = {}
+    comments_count_map: dict[int, int] = {}
+    liked_vibe_ids: set[int] = set()
+
+    if vibe_ids:
+        like_rows = db.query(Like.content_id, func.count(Like.id)).filter(
+            Like.content_type == 'vibe',
+            Like.content_id.in_(vibe_ids)
+        ).group_by(Like.content_id).all()
+        likes_count_map = {int(content_id): int(count) for content_id, count in like_rows}
+
+        comment_rows = db.query(Comment.content_id, func.count(Comment.id)).filter(
+            Comment.content_type == 'vibe',
+            Comment.content_id.in_(vibe_ids)
+        ).group_by(Comment.content_id).all()
+        comments_count_map = {int(content_id): int(count) for content_id, count in comment_rows}
+
+        if current_user is not None:
+            liked_rows = db.query(Like.content_id).filter(
+                Like.content_type == 'vibe',
+                Like.user_id == current_user.id,
+                Like.content_id.in_(vibe_ids)
+            ).all()
+            liked_vibe_ids = {int(content_id) for (content_id,) in liked_rows}
+
     result = []
 
     for vibe in vibes:
-        likes_count = db.query(func.count(Like.id)).filter(
-            Like.content_type == 'vibe',
-            Like.content_id == vibe.id
-        ).scalar() or 0
-
-        comments_count = db.query(func.count(Comment.id)).filter(
-            Comment.content_type == 'vibe',
-            Comment.content_id == vibe.id
-        ).scalar() or 0
-
-        is_liked = False
-        if current_user is not None:
-            is_liked = db.query(Like.id).filter(
-                Like.content_type == 'vibe',
-                Like.content_id == vibe.id,
-                Like.user_id == current_user.id
-            ).first() is not None
-
         result.append({
             'id': vibe.id,
             'user_id': vibe.user_id,
@@ -70,9 +78,9 @@ def get_vibes(db: Session, current_user, page, limit):
             'longitude': vibe.longitude,
             'location_label': vibe.location_label,
             'created_at': vibe.created_at,
-            'likes_count': likes_count,
-            'comments_count': comments_count,
-            'is_liked': is_liked,
+            'likes_count': likes_count_map.get(vibe.id, 0),
+            'comments_count': comments_count_map.get(vibe.id, 0),
+            'is_liked': vibe.id in liked_vibe_ids,
             'author': {
                 'id': vibe.author.id,
                 'full_name': vibe.author.full_name,

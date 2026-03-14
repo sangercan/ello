@@ -141,6 +141,27 @@ def _ensure_password_reset_columns_exist():
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_password_reset_token_hash ON users(password_reset_token_hash)"))
 
 
+def _ensure_social_feed_indexes():
+    """Create performance indexes used by moments/vibes/stories feeds."""
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+
+        if dialect == "postgresql":
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_likes_content_type_content_id ON likes (content_type, content_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comments_content_type_content_id ON comments (content_type, content_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_moments_created_at ON moments (created_at DESC)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vibes_created_at ON vibes (created_at DESC)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_stories_expires_at_created_at ON stories (expires_at, created_at DESC)"))
+            return
+
+        if dialect == "sqlite":
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_likes_content_type_content_id ON likes(content_type, content_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comments_content_type_content_id ON comments(content_type, content_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_moments_created_at ON moments(created_at DESC)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vibes_created_at ON vibes(created_at DESC)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_stories_expires_at_created_at ON stories(expires_at, created_at DESC)"))
+
+
 def _ensure_group_columns():
     with engine.begin() as conn:
         dialect = engine.dialect.name
@@ -195,6 +216,7 @@ _ensure_geotag_columns_exist()
 _ensure_panel_admin_columns_exist()
 _ensure_user_deletion_columns_exist()
 _ensure_password_reset_columns_exist()
+_ensure_social_feed_indexes()
 _ensure_message_conversation_nullable()
 try:
     _ensure_group_columns()
