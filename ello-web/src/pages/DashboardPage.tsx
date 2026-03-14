@@ -48,9 +48,9 @@ const DASHBOARD_EXPENSES_KEY = 'ello:dashboard:expenses:v1'
 const DASHBOARD_SPENDING_LIMIT_KEY = 'ello:dashboard:spending-limit:v1'
 const OVERPASS_REQUEST_TIMEOUT_MS = 7000
 const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
 ]
 
 type ConversationPreview = {
