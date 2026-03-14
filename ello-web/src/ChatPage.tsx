@@ -79,6 +79,10 @@ export default function ChatPage() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
   const [expandedImageIndex, setExpandedImageIndex] = useState<number>(-1)
   const [allImages, setAllImages] = useState<string[]>([])
+  const [isTouchViewport, setIsTouchViewport] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 768px)').matches || window.matchMedia('(pointer: coarse)').matches
+  })
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [newMessagesCount, setNewMessagesCount] = useState(0)
@@ -471,6 +475,36 @@ export default function ChatPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [expandedImage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const compactMq = window.matchMedia('(max-width: 768px)')
+    const coarsePointerMq = window.matchMedia('(pointer: coarse)')
+    const updateViewportType = () => {
+      setIsTouchViewport(compactMq.matches || coarsePointerMq.matches)
+    }
+
+    updateViewportType()
+    const attach = (mq: MediaQueryList) => {
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', updateViewportType)
+        return () => mq.removeEventListener('change', updateViewportType)
+      }
+      mq.addListener(updateViewportType)
+      return () => mq.removeListener(updateViewportType)
+    }
+
+    const detachCompact = attach(compactMq)
+    const detachPointer = attach(coarsePointerMq)
+    window.addEventListener('resize', updateViewportType)
+
+    return () => {
+      detachCompact()
+      detachPointer()
+      window.removeEventListener('resize', updateViewportType)
+    }
+  }, [])
 
   const handleSendMessage = async () => {
     // Se há mídia pendente, enviar junto com a legenda
@@ -1047,7 +1081,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-slate-950">
+    <div className="flex flex-col h-[calc(100vh-80px)] bg-slate-950 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-900/50 border-b border-slate-700/50 sticky top-0 z-40 flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1102,7 +1136,7 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -1125,14 +1159,17 @@ export default function ChatPage() {
           const isDocument = (Boolean(message.media_url) || (!isImage && !isVideo)) && (contentLower.includes('document:') || message.content?.startsWith('📄') || contentLower.includes('.pdf') || contentLower.includes('.docx') || contentLower.includes('.xlsx') || contentLower.includes('.pptx') || contentLower.includes('.txt'))
           const isAudio = message.audio_url && !isImage && !isVideo
           const isLocation = message.content?.startsWith('📍')
+          const messageWidthClass = isAudio
+            ? 'w-[min(92vw,30rem)] sm:w-[min(80vw,30rem)] max-w-full'
+            : 'max-w-xs sm:max-w-sm md:max-w-md'
 
           return (
           <div
             key={message.id}
-            className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+            className={`flex max-w-full ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs sm:max-w-sm md:max-w-md px-3 sm:px-4 py-2 rounded-2xl text-sm sm:text-base ${
+              className={`${messageWidthClass} min-w-0 px-3 sm:px-4 py-2 rounded-2xl text-sm sm:text-base ${
                 message.sender_id === currentUser?.id
                   ? 'bg-purple-700 text-white'
                   : 'bg-slate-800 text-gray-100'
@@ -1140,13 +1177,14 @@ export default function ChatPage() {
             >
               {/* Áudio */}
               {isAudio && (
-                <div className="mb-2 flex items-center gap-2 bg-white/10 p-3 rounded-lg border border-white/20">
+                <div className="mb-2 flex w-full min-w-0 items-center gap-2 bg-white/10 p-3 rounded-lg border border-white/20 overflow-hidden">
                   {/* 🔒 ICON LOCKED - Do not change */}
                   <Mic size={20} className="flex-shrink-0 text-purple-400" />
                   <audio
                     src={resolveMediaUrl(message.audio_url)}
                     controls
-                    className="flex-1 h-8 accent-purple-600"
+                    className="block w-full min-w-0 max-w-full h-10 accent-purple-600"
+                    style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}
                   />
                 </div>
               )}
@@ -1382,17 +1420,19 @@ export default function ChatPage() {
           onClick={() => setExpandedImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
-            {/* Close Button */}
-            <button
-              onClick={() => setExpandedImage(null)}
-              className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 p-3 rounded-full transition z-10"
-              title="Fechar (ESC)"
-            >
-              <X size={24} className="text-white" />
-            </button>
+            {/* Desktop Controls */}
+            {!isTouchViewport && (
+              <button
+                onClick={() => setExpandedImage(null)}
+                className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 p-3 rounded-full transition z-10"
+                title="Fechar (ESC)"
+              >
+                <X size={24} className="text-white" />
+              </button>
+            )}
 
-            {/* Previous Button */}
-            {expandedImageIndex > 0 && (
+            {/* Previous Button (Desktop) */}
+            {!isTouchViewport && expandedImageIndex > 0 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -1407,8 +1447,8 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Next Button */}
-            {expandedImageIndex < allImages.length - 1 && (
+            {/* Next Button (Desktop) */}
+            {!isTouchViewport && expandedImageIndex < allImages.length - 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()

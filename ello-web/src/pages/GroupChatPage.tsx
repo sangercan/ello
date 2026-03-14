@@ -466,7 +466,7 @@ export default function GroupChatPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
         {messages.map((msg) => {
           const isMine = currentUser?.id === msg.sender_id
           const senderName = isMine
@@ -477,8 +477,8 @@ export default function GroupChatPage() {
           const mediaUrl = mediaCandidateRaw ? resolveAssetUrl(mediaCandidateRaw) : ''
           const audioUrl = resolveAssetUrl(msg.audio_url)
           return (
-            <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`bg-slate-900/70 text-white p-3 rounded-2xl max-w-xl ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'} relative`}>
+            <div key={msg.id} className={`flex max-w-full ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`bg-slate-900/70 text-white p-3 rounded-2xl max-w-[min(92vw,40rem)] min-w-0 ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'} relative`}>
                 {!isMine && (
                   <button
                     type="button"
@@ -507,9 +507,16 @@ export default function GroupChatPage() {
                 {mediaUrl && (
                   <div className="mb-2">
                     {isImageFile(mediaUrl) ? (
-                      <img src={resolveMediaUrl(mediaUrl)} className="max-w-xs rounded-lg border border-slate-700" />
+                      <img
+                        src={resolveMediaUrl(mediaUrl)}
+                        className="w-full max-w-[min(78vw,20rem)] h-auto rounded-lg border border-slate-700"
+                      />
                     ) : isVideoFile(mediaUrl) ? (
-                      <video src={resolveMediaUrl(mediaUrl)} controls className="max-w-xs rounded-lg border border-slate-700" />
+                      <video
+                        src={resolveMediaUrl(mediaUrl)}
+                        controls
+                        className="w-full max-w-[min(78vw,20rem)] h-auto rounded-lg border border-slate-700"
+                      />
                     ) : (
                       <a href={resolveMediaUrl(mediaUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-primary">
                         <FileText size={16} />
@@ -520,15 +527,17 @@ export default function GroupChatPage() {
                 )}
 
                 {audioUrl && (
-                  <audio controls className="w-56 mb-2">
-                    <source src={audioUrl} />
-                  </audio>
+                  <div className="mb-2 w-full max-w-[min(80vw,30rem)] min-w-0 overflow-hidden">
+                    <audio controls className="block w-full min-w-0 max-w-full h-10" style={{ minWidth: 0 }}>
+                      <source src={audioUrl} />
+                    </audio>
+                  </div>
                 )}
 
                 {msg.content && !location && (() => {
                   const { header, body } = splitReplyContent(msg.content)
                   return (
-                    <div className="text-sm">
+                    <div className="text-sm break-words">
                       {header && (
                         <div className="text-xs text-gray-400 font-semibold mb-1">{header}</div>
                       )}

@@ -102,7 +102,7 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         final PendingIntent contentIntent = PendingIntent.getActivity(this, notificationId, callIntent, pendingFlags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALLS_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_ello)
             .setContentTitle(title)
             .setContentText(body)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -146,7 +146,7 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         final PendingIntent contentIntent = PendingIntent.getActivity(this, notificationId, intent, pendingFlags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, GENERAL_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_ello)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

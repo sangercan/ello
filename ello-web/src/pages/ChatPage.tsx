@@ -125,6 +125,13 @@ export default function ChatPage() {
   const [callLoading, setCallLoading] = useState<CallType | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [isHeaderActionLoading, setIsHeaderActionLoading] = useState(false)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [isComposerFocused, setIsComposerFocused] = useState(false)
+  const [composerHeight, setComposerHeight] = useState(84)
+  const [isTouchViewport, setIsTouchViewport] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 768px)').matches || window.matchMedia('(pointer: coarse)').matches
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -141,6 +148,7 @@ export default function ChatPage() {
   const videoCameraRef = useRef<HTMLVideoElement | null>(null)
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLDivElement | null>(null)
   const replySwipeStateRef = useRef<MessageReplySwipeState | null>(null)
   const [replySwipePreview, setReplySwipePreview] = useState<{ messageId: number; offsetX: number } | null>(null)
 
@@ -344,21 +352,119 @@ export default function ChatPage() {
     setIsNearBottom(isNear)
   }
 
-  // Auto-scroll only if near bottom, otherwise show indicator
+  // Auto-scroll while the user is anchored at the bottom.
   useEffect(() => {
-    if (isNearBottom && newMessagesCount > 0) {
-      scrollToBottom('smooth')
-      setNewMessagesCount(0)
-    }
-  }, [messages, isNearBottom, newMessagesCount, scrollToBottom])
+    if (messages.length === 0) return
+    const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+    if (!shouldStickToBottom) return
+
+    const behavior: ScrollBehavior = newMessagesCount > 0 ? 'smooth' : 'auto'
+    const frame = window.requestAnimationFrame(() => {
+      scrollToBottom(behavior)
+      if (newMessagesCount > 0) {
+        setNewMessagesCount(0)
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [messages.length, isNearBottom, isComposerFocused, keyboardOffset, newMessagesCount, scrollToBottom])
 
   // Scroll listener
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
 
+    checkIfNearBottom()
     container.addEventListener('scroll', checkIfNearBottom)
     return () => container.removeEventListener('scroll', checkIfNearBottom)
+  }, [])
+
+  // Track composer height for positioning floating controls above input/keyboard.
+  useEffect(() => {
+    const composer = composerRef.current
+    if (!composer || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver((entries) => {
+      const nextHeight = Math.ceil(entries[0]?.contentRect.height || 0)
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
+      setComposerHeight((prev) => (Math.abs(prev - nextHeight) < 2 ? prev : nextHeight))
+    })
+
+    observer.observe(composer)
+    return () => observer.disconnect()
+  }, [])
+
+  // Detect mobile keyboard overlap using visualViewport.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const visualViewport = window.visualViewport
+    const updateKeyboardOffset = () => {
+      if (!visualViewport) {
+        setKeyboardOffset(0)
+        return
+      }
+
+      const rawInset = Math.max(
+        0,
+        Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
+      )
+      const normalizedInset = rawInset > 70 ? rawInset : 0
+      setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
+    }
+
+    updateKeyboardOffset()
+    if (!visualViewport) return
+
+    visualViewport.addEventListener('resize', updateKeyboardOffset)
+    visualViewport.addEventListener('scroll', updateKeyboardOffset)
+    window.addEventListener('resize', updateKeyboardOffset)
+
+    return () => {
+      visualViewport.removeEventListener('resize', updateKeyboardOffset)
+      visualViewport.removeEventListener('scroll', updateKeyboardOffset)
+      window.removeEventListener('resize', updateKeyboardOffset)
+    }
+  }, [])
+
+  // Keep the latest message visible when keyboard opens/closes.
+  useEffect(() => {
+    if (!(isNearBottom || isComposerFocused)) return
+    const frame = window.requestAnimationFrame(() => {
+      scrollToBottom('auto')
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [keyboardOffset, isNearBottom, isComposerFocused, scrollToBottom])
+
+  // Detect touch/small-screen viewport to simplify fullscreen media controls on mobile.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const compactMq = window.matchMedia('(max-width: 768px)')
+    const coarsePointerMq = window.matchMedia('(pointer: coarse)')
+    const updateViewportType = () => {
+      setIsTouchViewport(compactMq.matches || coarsePointerMq.matches)
+    }
+
+    updateViewportType()
+    const attach = (mq: MediaQueryList) => {
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', updateViewportType)
+        return () => mq.removeEventListener('change', updateViewportType)
+      }
+      mq.addListener(updateViewportType)
+      return () => mq.removeListener(updateViewportType)
+    }
+
+    const detachCompact = attach(compactMq)
+    const detachPointer = attach(coarsePointerMq)
+    window.addEventListener('resize', updateViewportType)
+
+    return () => {
+      detachCompact()
+      detachPointer()
+      window.removeEventListener('resize', updateViewportType)
+    }
   }, [])
 
   // Mark messages as read
@@ -484,6 +590,10 @@ export default function ChatPage() {
   }, [allImages, expandedImageIndex])
 
   const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
+  const floatingControlsBottom = useMemo(
+    () => Math.max(96, keyboardOffset + composerHeight + 12),
+    [keyboardOffset, composerHeight]
+  )
 
   const resolveConversationId = async () => {
     const response = await apiClient.getConversations(1, 200)
@@ -793,7 +903,13 @@ export default function ChatPage() {
 
       setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
 
-      if (!isNearBottom) {
+      const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+      if (shouldStickToBottom) {
+        window.requestAnimationFrame(() => {
+          scrollToBottom('smooth')
+        })
+        setNewMessagesCount(0)
+      } else {
         setNewMessagesCount((prev) => prev + 1)
       }
 
@@ -879,7 +995,7 @@ export default function ChatPage() {
       window.removeEventListener('ello:ws:message-updated', handleMessageUpdated)
       window.removeEventListener('ello:ws:message-deleted', handleMessageDeleted)
     }
-  }, [recipientId, currentUser, isNearBottom])
+  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom])
 
   // Handle scroll to load more messages
   useEffect(() => {
@@ -1007,6 +1123,9 @@ export default function ChatPage() {
                   }
                   
                   appendMessageIfUnique(mediaMessage)
+                  window.requestAnimationFrame(() => {
+                    scrollToBottom('smooth')
+                  })
                   
                 } else {
                   toast.error('Resposta inválida do servidor')
@@ -1061,6 +1180,9 @@ export default function ChatPage() {
           audio_url: serverMessage.audio_url,
         })
       }
+      window.requestAnimationFrame(() => {
+        scrollToBottom('smooth')
+      })
 
       setMessageInput('')
       setReplyTo(null)
@@ -1175,6 +1297,9 @@ export default function ChatPage() {
                 }
                 
                 appendMessageIfUnique(audioMessage)
+                window.requestAnimationFrame(() => {
+                  scrollToBottom('smooth')
+                })
                 
                 toast.success('Áudio enviado!')
               }
@@ -1561,7 +1686,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="ello-app-viewport flex flex-col min-h-0 bg-slate-950">
+    <div className="ello-app-viewport flex flex-col min-h-0 bg-slate-950 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-900/50 border-b border-slate-700/50 sticky top-0 z-40 flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1654,7 +1779,7 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -1700,13 +1825,16 @@ export default function ChatPage() {
           const swipeOffsetX = replySwipePreview?.messageId === message.id ? replySwipePreview.offsetX : 0
           const swipeProgress = Math.min(1, Math.abs(swipeOffsetX) / REPLY_SWIPE_TRIGGER_PX)
           const showSwipeHint = swipeProgress > 0
+          const messageWidthClass = isAudio
+            ? 'w-[min(92vw,30rem)] sm:w-[min(80vw,30rem)] max-w-full'
+            : 'max-w-xs sm:max-w-sm md:max-w-md'
 
           return (
           <div
             key={message.id}
-            className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+            className={`flex max-w-full ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
           >
-            <div className="relative">
+            <div className="relative max-w-full">
               <div
                 className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-150 ${
                   isOwnMessage ? 'right-full mr-2' : 'left-full ml-2'
@@ -1718,7 +1846,7 @@ export default function ChatPage() {
                 </span>
               </div>
               <div
-              className={`max-w-xs sm:max-w-sm md:max-w-md text-sm sm:text-base ${
+              className={`${messageWidthClass} min-w-0 text-sm sm:text-base ${
                 isVisualMessage
                   ? (message.sender_id === currentUser?.id ? 'text-white' : 'text-gray-100')
                   : (message.sender_id === currentUser?.id
@@ -1749,13 +1877,14 @@ export default function ChatPage() {
             >
               {/* Áudio */}
               {isAudio && (
-                <div className="mb-2 flex items-center gap-2">
+                <div className="mb-2 flex w-full min-w-0 items-center gap-2 overflow-hidden">
                   {/* 🔒 ICON LOCKED - Do not change */}
                   <Mic size={20} className="flex-shrink-0 text-purple-400" />
                   <audio
                     src={resolveMediaUrl(message.audio_url)}
                     controls
-                    className="flex-1 h-8 accent-purple-600"
+                    className="block w-full min-w-0 max-w-full h-10 accent-purple-600"
+                    style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}
                   />
                 </div>
               )}
@@ -2063,7 +2192,10 @@ export default function ChatPage() {
 
         {/* New Messages Indicator Balloon */}
         {newMessagesCount > 0 && !isNearBottom && (
-          <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-40">
+          <div
+            className="fixed left-1/2 transform -translate-x-1/2 z-40"
+            style={{ bottom: `${floatingControlsBottom + 34}px` }}
+          >
             <button
               onClick={() => {
                 scrollToBottom()
@@ -2077,7 +2209,10 @@ export default function ChatPage() {
         )}
 
         {selectedMessageIds.size > 0 && (
-          <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-40">
+          <div
+            className="fixed left-1/2 transform -translate-x-1/2 z-40"
+            style={{ bottom: `${floatingControlsBottom}px` }}
+          >
             <div className="bg-slate-900/95 border border-slate-700 rounded-full shadow-xl px-3 py-2 flex items-center gap-2">
               <span className="text-xs text-gray-200">
                 {selectedMessageIds.size} selecionada{selectedMessageIds.size > 1 ? 's' : ''}
@@ -2108,17 +2243,19 @@ export default function ChatPage() {
           {...expandedImageSwipeHandlers}
         >
           <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
-            {/* Close Button */}
-            <button
-              onClick={closeExpandedImage}
-              className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 p-3 rounded-full transition z-10"
-              title="Fechar (ESC)"
-            >
-              <X size={24} className="text-white" />
-            </button>
+            {/* Desktop Controls */}
+            {!isTouchViewport && (
+              <button
+                onClick={closeExpandedImage}
+                className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 p-3 rounded-full transition z-10"
+                title="Fechar (ESC)"
+              >
+                <X size={24} className="text-white" />
+              </button>
+            )}
 
-            {/* Previous Button */}
-            {expandedImageIndex > 0 && (
+            {/* Previous Button (Desktop) */}
+            {!isTouchViewport && expandedImageIndex > 0 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -2131,8 +2268,8 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Next Button */}
-            {expandedImageIndex < allImages.length - 1 && (
+            {/* Next Button (Desktop) */}
+            {!isTouchViewport && expandedImageIndex < allImages.length - 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -2252,11 +2389,14 @@ export default function ChatPage() {
 
       {/* Message Input */}
       <div
+        ref={composerRef}
         className="p-3 sm:p-4 bg-slate-900/50 border-t border-slate-700/50 flex-shrink-0"
         style={{
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          marginBottom: keyboardOffset > 0 ? `${keyboardOffset}px` : undefined,
+          transition: 'margin-bottom 180ms ease-out',
         }}
       >
         {replyTo && (
@@ -2524,6 +2664,13 @@ export default function ChatPage() {
               handleTyping()
             }}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+            onFocus={() => {
+              setIsComposerFocused(true)
+              window.requestAnimationFrame(() => {
+                scrollToBottom('auto')
+              })
+            }}
+            onBlur={() => setIsComposerFocused(false)}
             placeholder="Digite sua mensagem..."
             className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={isSending}
