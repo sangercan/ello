@@ -43,6 +43,24 @@ WEB_PUSH_VAPID_PRIVATE_KEY = os.getenv("WEB_PUSH_VAPID_PRIVATE_KEY", "").strip()
 WEB_PUSH_VAPID_SUBJECT = os.getenv("WEB_PUSH_VAPID_SUBJECT", "mailto:admin@ellosocial.com").strip()
 
 # ----------------------------------------------------------
+# EMAIL / SMTP
+# ----------------------------------------------------------
+
+EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "true").lower() in {"1", "true", "yes"}
+EMAIL_SMTP_HOST = os.getenv("EMAIL_SMTP_HOST", "").strip()
+EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+EMAIL_SMTP_USE_TLS = os.getenv("EMAIL_SMTP_USE_TLS", "true").lower() in {"1", "true", "yes"}
+EMAIL_SMTP_USE_SSL = os.getenv("EMAIL_SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}
+EMAIL_SMTP_TIMEOUT_SECONDS = int(os.getenv("EMAIL_SMTP_TIMEOUT_SECONDS", "20"))
+EMAIL_SMTP_USERNAME = os.getenv("EMAIL_SMTP_USERNAME", "").strip()
+EMAIL_SMTP_PASSWORD = os.getenv("EMAIL_SMTP_PASSWORD", "").strip()
+EMAIL_FROM_NOREPLY = os.getenv("EMAIL_FROM_NOREPLY", "noreply@ellosocial.com").strip()
+EMAIL_FROM_SUPPORT = os.getenv("EMAIL_FROM_SUPPORT", "support@ellosocial.com").strip()
+EMAIL_REPLY_TO_SUPPORT = os.getenv("EMAIL_REPLY_TO_SUPPORT", EMAIL_FROM_SUPPORT).strip()
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://ellosocial.com").strip()
+PASSWORD_RESET_EXPIRE_MINUTES = int(os.getenv("PASSWORD_RESET_EXPIRE_MINUTES", "30"))
+
+# ----------------------------------------------------------
 # ENVIRONMENT
 # ----------------------------------------------------------
 

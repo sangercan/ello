@@ -279,6 +279,8 @@ const api = apiClient as AxiosInstance & {
   getAppInfo: () => Promise<any>
   register: (data: RegisterRequest) => Promise<any>
   login: (email: string, password: string) => Promise<any>
+  requestPasswordReset: (identifier: string) => Promise<any>
+  resetPassword: (token: string, newPassword: string) => Promise<any>
   getCurrentUser: () => Promise<any>
   getMoments: (page?: number, limit?: number) => Promise<any>
   createMoment: (data: any) => Promise<any>
@@ -449,6 +451,35 @@ api.login = async (email: string, password: string) => {
   } catch (error) {
     if (Capacitor.getPlatform() !== 'web') {
       return nativeHttpRequest('POST', '/auth/login', payload)
+    }
+    throw error
+  }
+}
+
+api.requestPasswordReset = async (identifier: string) => {
+  const payload = { identifier: identifier.trim() }
+  try {
+    const response = await apiClient.post('/auth/forgot-password', payload)
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeHttpRequest('POST', '/auth/forgot-password', payload)
+    }
+    throw error
+  }
+}
+
+api.resetPassword = async (token: string, newPassword: string) => {
+  const payload = {
+    token: token.trim(),
+    new_password: newPassword,
+  }
+  try {
+    const response = await apiClient.post('/auth/reset-password', payload)
+    return normalizeResponseData(response)
+  } catch (error) {
+    if (Capacitor.getPlatform() !== 'web') {
+      return nativeHttpRequest('POST', '/auth/reset-password', payload)
     }
     throw error
   }

@@ -171,6 +171,12 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                <div className="text-right -mt-1">
+                  <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition">
+                    Esqueci minha senha
+                  </Link>
+                </div>
+
                 {/* Submit Button */}
                 <button
                   type="submit"

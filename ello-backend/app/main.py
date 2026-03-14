@@ -119,6 +119,28 @@ def _ensure_user_deletion_columns_exist():
                 conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at TEXT"))
 
 
+def _ensure_password_reset_columns_exist():
+    with engine.begin() as conn:
+        dialect = engine.dialect.name
+
+        if dialect == "postgresql":
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_hash VARCHAR(128)"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP WITH TIME ZONE"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_password_reset_token_hash ON users (password_reset_token_hash)"))
+            return
+
+        if dialect == "sqlite":
+            cols = {
+                row[1]
+                for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+            }
+            if "password_reset_token_hash" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_token_hash TEXT"))
+            if "password_reset_expires_at" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_expires_at TEXT"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_password_reset_token_hash ON users(password_reset_token_hash)"))
+
+
 def _ensure_group_columns():
     with engine.begin() as conn:
         dialect = engine.dialect.name
@@ -172,6 +194,7 @@ def _ensure_message_conversation_nullable():
 _ensure_geotag_columns_exist()
 _ensure_panel_admin_columns_exist()
 _ensure_user_deletion_columns_exist()
+_ensure_password_reset_columns_exist()
 _ensure_message_conversation_nullable()
 try:
     _ensure_group_columns()

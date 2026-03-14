@@ -53,6 +53,8 @@ class User(Base):
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
     last_activity_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    password_reset_token_hash = Column(String(128), nullable=True, index=True)
+    password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     # ========================
     # Datas

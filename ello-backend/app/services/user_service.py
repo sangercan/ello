@@ -25,6 +25,7 @@ from app.models.message_reaction import MessageReaction
 from app.models.user_block import UserBlock
 from app.core.security import verify_password, hash_password
 from app.core.presence import get_user_last_seen
+from app.services.email_service import send_account_deleted_email_async
 
 
 VALID_MOODS = {
@@ -269,6 +270,8 @@ def delete_user_account(db: Session, user: User, password: str):
     if not verify_password(password, user.password_hash):
         raise HTTPException(status_code=400, detail="Senha incorreta")
 
+    original_email = user.email
+    original_name = user.full_name or user.username
     user_id = user.id
     now = datetime.now(timezone.utc)
     entropy = secrets.token_hex(4)
@@ -319,7 +322,14 @@ def delete_user_account(db: Session, user: User, password: str):
     user.deleted_at = now
     user.last_seen_at = now
     user.last_activity_at = None
+    user.password_reset_token_hash = None
+    user.password_reset_expires_at = None
 
     db.commit()
+
+    send_account_deleted_email_async(
+        to_email=original_email,
+        full_name=original_name,
+    )
 
     return {"success": True, "message": "Conta excluida com sucesso"}

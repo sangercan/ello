@@ -61,6 +61,8 @@ const lazyWithPreload = <T extends ComponentType<any>>(factory: ImportFactory<T>
 const LandingPage = lazyWithPreload(() => import('./pages/LandingPage'))
 const LoginPage = lazyWithPreload(() => import('./pages/LoginPage'))
 const RegisterPage = lazyWithPreload(() => import('./pages/RegisterPage'))
+const ForgotPasswordPage = lazyWithPreload(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazyWithPreload(() => import('./pages/ResetPasswordPage'))
 const DashboardPage = lazyWithPreload(() => import('./pages/DashboardPage'))
 const MomentsPage = lazyWithPreload(() => import('./pages/MomentsPage'))
 const VibesPage = lazyWithPreload(() => import('./pages/VibesPage'))
@@ -80,6 +82,8 @@ const preloadablePages = [
   LandingPage,
   LoginPage,
   RegisterPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
   DashboardPage,
   MomentsPage,
   VibesPage,
@@ -634,6 +638,8 @@ function App() {
           {/* Auth Routes */}
           <Route path="/login" element={isAuthenticated ? <Navigate to="/moments" /> : <LoginPage />} />
           <Route path="/register" element={isAuthenticated ? <Navigate to="/moments" /> : <RegisterPage />} />
+          <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/moments" /> : <ForgotPasswordPage />} />
+          <Route path="/reset-password" element={isAuthenticated ? <Navigate to="/moments" /> : <ResetPasswordPage />} />
 
           {/* Public Info Routes */}
           <Route path="/legal" element={<PublicInfoPage pageKey="legal" />} />
