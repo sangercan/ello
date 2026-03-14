@@ -143,6 +143,16 @@ function NativeAndroidBackHandler({ isAuthenticated }: { isAuthenticated: boolea
     if (Capacitor.getPlatform() !== 'android') return
 
     const listenerPromise = CapacitorApp.addListener('backButton', () => {
+      const shouldStopDefaultBackFlow = !window.dispatchEvent(
+        new CustomEvent('ello:android-back', {
+          cancelable: true,
+          detail: { route: currentRouteRef.current },
+        })
+      )
+      if (shouldStopDefaultBackFlow) {
+        return
+      }
+
       const history = routeHistoryRef.current
       const currentRoute = currentRouteRef.current
       const homeRoute = isAuthenticatedRef.current ? '/moments' : '/'

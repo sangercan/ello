@@ -412,7 +412,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="h-[100dvh] bg-slate-950 flex flex-col overflow-hidden">
+    <div className="ello-app-viewport bg-slate-950 flex flex-col overflow-hidden">
       <div className="p-4 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
         <button onClick={() => navigate('/chat')} className="text-white/70 hover:text-white">
           <ArrowLeft size={20} />
@@ -617,7 +617,14 @@ export default function GroupChatPage() {
         <div ref={endRef} />
       </div>
 
-      <div className="p-3 sm:p-4 border-t border-slate-800 flex-shrink-0">
+      <div
+        className="p-3 sm:p-4 border-t border-slate-800 flex-shrink-0"
+        style={{
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        }}
+      >
         {replyTo && (
           <div className="mb-2 p-2 bg-slate-800/70 rounded-lg text-xs text-gray-300 flex items-center justify-between">
             <button
@@ -667,7 +674,7 @@ export default function GroupChatPage() {
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
+        <div className="grid w-full min-w-0 grid-cols-[auto,minmax(0,1fr),auto,auto] items-end gap-2">
           <div className="relative">
             <button
               onClick={() => setShowMediaMenu((prev) => !prev)}
@@ -718,7 +725,7 @@ export default function GroupChatPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
             placeholder="Digite sua mensagem..."
-            className="flex-1 bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={isSending}
           />
 
@@ -747,29 +754,31 @@ export default function GroupChatPage() {
             )}
           </div>
 
-          {input.trim().length > 0 || mediaPreview.length > 0 ? (
-            <button
-              onClick={handleSendMessage}
-              disabled={isSending}
-              className="bg-primary text-white rounded-full px-4 py-3 hover:bg-primary/80 transition flex items-center justify-center"
-            >
-              <Send size={18} />
-            </button>
-          ) : (
-            <button
-              onClick={isRecording ? handleStopRecording : handleStartRecording}
-              className={`p-2 sm:p-3 rounded-full transition flex items-center justify-center ${isRecording ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:text-primary hover:bg-slate-800'}`}
-              title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
-            >
-              <Mic size={20} />
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            {input.trim().length > 0 || mediaPreview.length > 0 ? (
+              <button
+                onClick={handleSendMessage}
+                disabled={isSending}
+                className="bg-primary text-white rounded-full px-4 py-3 hover:bg-primary/80 transition flex items-center justify-center"
+              >
+                <Send size={18} />
+              </button>
+            ) : (
+              <button
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                className={`p-2 sm:p-3 rounded-full transition flex items-center justify-center ${isRecording ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:text-primary hover:bg-slate-800'}`}
+                title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
+              >
+                <Mic size={20} />
+              </button>
+            )}
 
-          {isRecording && (
-            <span className="text-xs text-red-400 min-w-[40px] text-right">
-              {String(Math.floor(recordingTime / 60)).padStart(2, '0')}:{String(recordingTime % 60).padStart(2, '0')}
-            </span>
-          )}
+            {isRecording && (
+              <span className="text-xs text-red-400 min-w-[40px] text-right">
+                {String(Math.floor(recordingTime / 60)).padStart(2, '0')}:{String(recordingTime % 60).padStart(2, '0')}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

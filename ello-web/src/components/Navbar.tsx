@@ -30,6 +30,7 @@ export default function Navbar() {
   const [publishLocationLabel, setPublishLocationLabel] = useState('')
   const [loadingPublishLocation, setLoadingPublishLocation] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const navRef = useRef<HTMLElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -61,6 +62,36 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [open])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const navElement = navRef.current
+    if (!navElement) return
+
+    const updateNavHeight = () => {
+      const measuredHeight = Math.max(0, Math.round(navElement.getBoundingClientRect().height))
+      if (measuredHeight > 0) {
+        root.style.setProperty('--ello-nav-height', `${measuredHeight}px`)
+      }
+    }
+
+    updateNavHeight()
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => updateNavHeight())
+      resizeObserver.observe(navElement)
+    }
+
+    window.addEventListener('resize', updateNavHeight, { passive: true })
+    window.addEventListener('orientationchange', updateNavHeight)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', updateNavHeight)
+      window.removeEventListener('orientationchange', updateNavHeight)
+    }
+  }, [])
 
   useEffect(() => {
     const handleOpenPublisherEvent = (event: Event) => {
@@ -423,7 +454,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className={`sticky top-0 z-50 bg-gradient-to-b from-slate-900/98 to-slate-900/95 backdrop-blur-xl border-b border-slate-700/50 shadow-2xl transition-transform duration-300 ${
+    <nav ref={navRef} className={`sticky top-0 z-50 bg-gradient-to-b from-slate-900/98 to-slate-900/95 backdrop-blur-xl border-b border-slate-700/50 shadow-2xl transition-transform duration-300 ${
       isNavVisible ? 'translate-y-0' : '-translate-y-full'
     }`}>
       <div className="w-full px-4 sm:px-6 lg:px-8">

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ello-nav-height: 80px;
+}
+
 * {
   @apply box-border;
 }
@@ -10,8 +14,24 @@ html {
   @apply scroll-smooth;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+  width: 100%;
+}
+
 body {
   @apply bg-slate-950 text-white antialiased;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+.ello-app-viewport {
+  min-height: 0;
+  height: calc(100vh - var(--ello-nav-height, 80px));
+  height: calc(100dvh - var(--ello-nav-height, 80px));
 }
 
 /* Custom scrollbar */

@@ -461,24 +461,24 @@ export default function ChatPage() {
     setForwardMessageIds([])
   }
 
-  const closeExpandedImage = () => {
+  const closeExpandedImage = useCallback(() => {
     setExpandedImage(null)
     setExpandedImageIndex(-1)
-  }
+  }, [])
 
-  const goToPreviousExpandedImage = () => {
+  const goToPreviousExpandedImage = useCallback(() => {
     if (expandedImageIndex <= 0) return
     const newIndex = expandedImageIndex - 1
     setExpandedImageIndex(newIndex)
     setExpandedImage(allImages[newIndex] ?? null)
-  }
+  }, [allImages, expandedImageIndex])
 
-  const goToNextExpandedImage = () => {
+  const goToNextExpandedImage = useCallback(() => {
     if (expandedImageIndex < 0 || expandedImageIndex >= allImages.length - 1) return
     const newIndex = expandedImageIndex + 1
     setExpandedImageIndex(newIndex)
     setExpandedImage(allImages[newIndex] ?? null)
-  }
+  }, [allImages, expandedImageIndex])
 
   const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
 
@@ -923,6 +923,19 @@ export default function ChatPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [expandedImage, closeExpandedImage, goToPreviousExpandedImage, goToNextExpandedImage])
+
+  // On Android native back gesture/button, close expanded image first instead of minimizing app.
+  useEffect(() => {
+    if (!expandedImage) return
+
+    const handleNativeBack = (event: Event) => {
+      event.preventDefault()
+      closeExpandedImage()
+    }
+
+    window.addEventListener('ello:android-back', handleNativeBack)
+    return () => window.removeEventListener('ello:android-back', handleNativeBack)
+  }, [expandedImage, closeExpandedImage])
 
   const handleSendMessage = async () => {
     const replyPrefix = replyTo ? `>> ${getReplyLabel()}: ${replyTo.content}\n` : ''
@@ -1508,7 +1521,7 @@ export default function ChatPage() {
 
   if (!recipientId || recipientId === 'undefined' || !currentUser) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
+      <div className="ello-app-viewport flex items-center justify-center bg-slate-950">
         <p className="text-gray-400">ID de usuário inválido</p>
       </div>
     )
@@ -1516,14 +1529,14 @@ export default function ChatPage() {
 
   if (!recipientUser) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
+      <div className="ello-app-viewport flex items-center justify-center bg-slate-950">
         <p className="text-gray-400">Usuário não encontrado</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-slate-950">
+    <div className="ello-app-viewport flex flex-col min-h-0 bg-slate-950">
       {/* Header */}
       <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-900/50 border-b border-slate-700/50 sticky top-0 z-40 flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1616,7 +1629,7 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -2213,7 +2226,14 @@ export default function ChatPage() {
       )}
 
       {/* Message Input */}
-      <div className="p-3 sm:p-4 bg-slate-900/50 border-t border-slate-700/50 flex-shrink-0">
+      <div
+        className="p-3 sm:p-4 bg-slate-900/50 border-t border-slate-700/50 flex-shrink-0"
+        style={{
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        }}
+      >
         {replyTo && (
           <div className="mb-2 p-2 bg-slate-800/70 rounded-lg text-xs text-gray-300 flex items-center justify-between">
             <span>
@@ -2393,7 +2413,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
+        <div className="grid w-full min-w-0 grid-cols-[auto,minmax(0,1fr),auto,auto] items-end gap-2">
           {/* Media Menu Button */}
           <div className="relative">
             <button
@@ -2480,7 +2500,7 @@ export default function ChatPage() {
             }}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
             placeholder="Digite sua mensagem..."
-            className="flex-1 bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={isSending}
           />
 
@@ -2538,7 +2558,7 @@ export default function ChatPage() {
                 <Mic size={20} strokeWidth={1.8} />
               </button>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <button
                   onClick={handleStopRecording}
                   title="Parar gravação"
