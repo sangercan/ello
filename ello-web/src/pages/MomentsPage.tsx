@@ -98,6 +98,7 @@ export default function MomentsPage() {
   const [storyActionMenuOpen, setStoryActionMenuOpen] = useState(false)
   const [editingStoryActive, setEditingStoryActive] = useState(false)
   const [editingStoryText, setEditingStoryText] = useState('')
+  const [expandedMediaMenuOpen, setExpandedMediaMenuOpen] = useState(false)
   const [commentActionMenuId, setCommentActionMenuId] = useState<number | null>(null)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentText, setEditingCommentText] = useState('')
@@ -461,6 +462,19 @@ export default function MomentsPage() {
     } catch {
       toast.error('Erro ao excluir publicação')
     }
+  }
+
+  const handleReportMoment = (moment: Moment) => {
+    setMomentActionMenuId(null)
+    setExpandedMediaMenuOpen(false)
+    navigate('/report', {
+      state: {
+        contentType: 'moment',
+        contentId: moment.id,
+        authorId: moment.author?.id || moment.author_id,
+      },
+    })
+    toast.success('Abrindo central de denuncia')
   }
 
   const handleCommentMoment = async (momentId: number) => {
@@ -951,10 +965,12 @@ export default function MomentsPage() {
   const openMediaFullscreen = (momentId: number) => {
     const mediaIndex = momentMediaItems.findIndex((media) => media.momentId === momentId)
     if (mediaIndex === -1) return
+    setExpandedMediaMenuOpen(false)
     setExpandedMediaIndex(mediaIndex)
   }
 
   const closeExpandedMedia = useCallback(() => {
+    setExpandedMediaMenuOpen(false)
     setExpandedMediaIndex(null)
   }, [])
 
@@ -1000,6 +1016,10 @@ export default function MomentsPage() {
       return Math.max(0, currentIndex - 1)
     })
   }, [momentMediaItems.length])
+
+  useEffect(() => {
+    setExpandedMediaMenuOpen(false)
+  }, [expandedMediaIndex])
 
   const handleExpandedMediaWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1441,34 +1461,44 @@ export default function MomentsPage() {
                       )}
                     </div>
                   </div>
-                  {(moment.author?.id || moment.author_id) === user?.id && (
-                    <div className="relative">
-                      <button
-                        onClick={() => handleOpenMomentActions(moment.id)}
-                        className="p-1.5 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {momentActionMenuId === moment.id && (
-                        <div className="absolute right-0 mt-1 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOpenMomentActions(moment.id)}
+                      className="p-1.5 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {momentActionMenuId === moment.id && (
+                      <div className="absolute right-0 mt-1 min-w-[140px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                        {(moment.author?.id || moment.author_id) === user?.id ? (
+                          <>
+                            <button
+                              onClick={() => handleStartEditMoment(moment)}
+                              className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition inline-flex items-center gap-2"
+                            >
+                              <Pencil size={13} />
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMoment(moment.id)}
+                              className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-2"
+                            >
+                              <Trash2 size={13} />
+                              Excluir
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            onClick={() => handleStartEditMoment(moment)}
-                            className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 transition inline-flex items-center gap-2"
+                            onClick={() => handleReportMoment(moment)}
+                            className="w-full px-3 py-2 text-xs text-left text-orange-300 hover:bg-orange-500/10 transition inline-flex items-center gap-2"
                           >
-                            <Pencil size={13} />
-                            Editar
+                            <MoreVertical size={13} />
+                            Denunciar
                           </button>
-                          <button
-                            onClick={() => handleDeleteMoment(moment.id)}
-                            className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-2"
-                          >
-                            <Trash2 size={13} />
-                            Excluir
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -1589,34 +1619,54 @@ export default function MomentsPage() {
             <X size={22} />
           </button>
 
-          {selectedStory.user_id === user?.id && (
-            <div className="absolute top-4 right-16 z-40">
-              <button
-                onClick={() => setStoryActionMenuOpen((prev) => !prev)}
-                className="text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
-              >
-                <MoreVertical size={18} />
-              </button>
-              {storyActionMenuOpen && (
-                <div className="absolute right-0 mt-2 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+          <div className="absolute top-4 right-16 z-40">
+            <button
+              onClick={() => setStoryActionMenuOpen((prev) => !prev)}
+              className="text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
+            >
+              <MoreVertical size={18} />
+            </button>
+            {storyActionMenuOpen && (
+              <div className="absolute right-0 mt-2 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                {selectedStory.user_id === user?.id ? (
+                  <>
+                    <button
+                      onClick={handleStartEditStory}
+                      className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"
+                    >
+                      <Pencil size={13} />
+                      Editar
+                    </button>
+                    <button
+                      onClick={handleDeleteStory}
+                      className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"
+                    >
+                      <Trash2 size={13} />
+                      Excluir
+                    </button>
+                  </>
+                ) : (
                   <button
-                    onClick={handleStartEditStory}
-                    className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"
+                    onClick={() => {
+                      setStoryActionMenuOpen(false)
+                      navigate('/report', {
+                        state: {
+                          contentType: 'story',
+                          contentId: selectedStory.id,
+                          authorId: selectedStory.user_id,
+                        },
+                      })
+                      toast.success('Abrindo central de denuncia')
+                    }}
+                    className="w-full px-3 py-2 text-xs text-left text-orange-300 hover:bg-orange-500/10 inline-flex items-center gap-2"
                   >
-                    <Pencil size={13} />
-                    Editar
+                    <MoreVertical size={13} />
+                    Denunciar
                   </button>
-                  <button
-                    onClick={handleDeleteStory}
-                    className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"
-                  >
-                    <Trash2 size={13} />
-                    Excluir
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
 
           {groupedStories.length > 1 && (
             <button
@@ -1810,6 +1860,54 @@ export default function MomentsPage() {
           >
             <X size={22} />
           </button>
+
+          {expandedMoment && (
+            <div className="absolute top-4 left-4 right-16 z-40 flex items-start justify-between gap-3">
+              <button
+                onClick={() => navigateToUserProfile(expandedMoment.author?.id || expandedMoment.author_id)}
+                className="flex items-center gap-2 rounded-xl bg-black/45 px-2.5 py-2 text-left max-w-[70vw]"
+              >
+                <img
+                  src={expandedMoment.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${expandedMoment.author?.username || expandedMoment.author_id}`}
+                  alt={expandedMoment.author?.username || 'user'}
+                  className="w-8 h-8 rounded-full object-cover"
+                  style={getMoodAvatarRingStyle(expandedMoment.author?.mood)}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-semibold truncate">{expandedMoment.author?.full_name || 'Usuario'}</p>
+                  <p className="text-xs text-gray-300 truncate">@{expandedMoment.author?.username || `user${expandedMoment.author_id}`}</p>
+                </div>
+              </button>
+
+              {(expandedMoment.author?.id || expandedMoment.author_id) !== user?.id && (
+                <div className="relative">
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setExpandedMediaMenuOpen((prev) => !prev)
+                    }}
+                    className="w-9 h-9 rounded-full bg-black/55 text-gray-200 hover:text-white hover:bg-black/75 transition inline-flex items-center justify-center"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {expandedMediaMenuOpen && (
+                    <div className="absolute right-0 mt-2 min-w-[132px] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleReportMoment(expandedMoment)
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-orange-300 hover:bg-orange-500/10 inline-flex items-center gap-2"
+                      >
+                        <MoreVertical size={13} />
+                        Denunciar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-300 bg-black/40 px-2 py-1 rounded-full hidden sm:block">
             role para cima/baixo

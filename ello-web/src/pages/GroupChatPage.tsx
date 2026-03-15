@@ -95,24 +95,9 @@ const sortMessagesChronologically = (messagesList: Message[]) => {
 
 const dedupeMessages = (messagesList: Message[]) => {
   const mapping = new Map<number, Message>()
-  const nearDuplicateKeySeenAt = new Map<string, number>()
   messagesList.forEach((message) => {
     const normalizedId = Number(message?.id)
     if (!Number.isFinite(normalizedId) || normalizedId <= 0) return
-    const normalizedCreatedAt = new Date(message.created_at || 0).getTime()
-    const dedupeKey = [
-      Number(message.sender_id) || 0,
-      (message.content || '').trim(),
-      message.audio_url || '',
-      message.media_url || '',
-    ].join('|')
-    if (dedupeKey !== '0|||' && Number.isFinite(normalizedCreatedAt)) {
-      const previousTs = nearDuplicateKeySeenAt.get(dedupeKey)
-      if (typeof previousTs === 'number' && Math.abs(normalizedCreatedAt - previousTs) <= 2000) {
-        return
-      }
-      nearDuplicateKeySeenAt.set(dedupeKey, normalizedCreatedAt)
-    }
     const previous = mapping.get(normalizedId)
     if (!previous) {
       mapping.set(normalizedId, { ...message, id: normalizedId })
@@ -186,6 +171,8 @@ export default function GroupChatPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [visualViewportHeight, setVisualViewportHeight] = useState<number | null>(null)
+  const [visualViewportCompensatesKeyboard, setVisualViewportCompensatesKeyboard] = useState(false)
   const [isComposerFocused, setIsComposerFocused] = useState(false)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
@@ -264,12 +251,21 @@ export default function GroupChatPage() {
     const visualViewport = window.visualViewport
     let keyboardEventInset = 0
     const updateKeyboardOffset = () => {
+      const nextViewportHeight = visualViewport
+        ? Math.max(0, Math.round(visualViewport.height))
+        : 0
+      setVisualViewportHeight((prev) => {
+        if (!nextViewportHeight) return prev
+        return Math.abs((prev || 0) - nextViewportHeight) < 2 ? prev : nextViewportHeight
+      })
+
       const visualInset = visualViewport
         ? Math.max(
             0,
             Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
           )
         : 0
+      setVisualViewportCompensatesKeyboard(visualInset > 0)
       const nextInset = Math.max(visualInset, keyboardEventInset)
       const normalizedInset = nextInset > 70 ? nextInset : 0
       setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
@@ -287,6 +283,7 @@ export default function GroupChatPage() {
     const clearKeyboardInset = () => {
       keyboardEventInset = 0
       setKeyboardOffset(0)
+      setVisualViewportCompensatesKeyboard(false)
     }
 
     updateKeyboardOffset()
@@ -588,7 +585,10 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="ello-app-viewport bg-slate-950 flex flex-col overflow-hidden">
+    <div
+      className="ello-app-viewport bg-slate-950 flex flex-col overflow-hidden"
+      style={visualViewportHeight ? { height: `${visualViewportHeight}px` } : undefined}
+    >
       <div className="p-4 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
         <button onClick={() => navigate('/chat')} className="text-white/70 hover:text-white">
           <ArrowLeft size={20} />
@@ -704,13 +704,13 @@ export default function GroupChatPage() {
 
                 {audioUrl && (
                   <div
-                    className={`mb-2 w-full max-w-[min(72vw,17rem)] min-w-0 overflow-hidden rounded-2xl border px-2 py-1.5 ${
+                    className={`mb-2 w-full max-w-[min(60vw,13rem)] sm:max-w-[min(52vw,14rem)] min-w-0 overflow-hidden rounded-2xl border px-2 py-1 ${
                       isMine
                         ? 'bg-white/10 border-white/20'
                         : 'bg-slate-900/45 border-slate-600/70'
                     }`}
                   >
-                    <audio controls className="block w-full min-w-0 max-w-full h-9 accent-purple-600" style={{ minWidth: 0 }}>
+                    <audio controls className="block w-full min-w-0 max-w-full h-8 accent-purple-600" style={{ minWidth: 0 }}>
                       <source src={audioUrl} />
                     </audio>
                   </div>
@@ -814,7 +814,10 @@ export default function GroupChatPage() {
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
-          marginBottom: keyboardOffset > 0 ? `${keyboardOffset}px` : undefined,
+          marginBottom:
+            keyboardOffset > 0 && !visualViewportCompensatesKeyboard
+              ? `${keyboardOffset}px`
+              : undefined,
           transition: 'margin-bottom 180ms ease-out',
         }}
       >

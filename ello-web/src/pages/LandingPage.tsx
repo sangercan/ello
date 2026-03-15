@@ -16,24 +16,24 @@ export default function LandingPage() {
       <div className="relative z-10">
         {/* Navigation */}
         <nav className="fixed top-0 w-full bg-black/50 backdrop-blur-md border-b border-white/10 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2">
             <div className="flex items-center gap-2">
-              <BrandMark iconClassName="w-8 h-8 rounded-lg" textClassName="text-xl font-bold" />
+              <BrandMark iconClassName="w-7 h-7 sm:w-8 sm:h-8 rounded-lg" textClassName="text-base sm:text-xl font-bold" />
             </div>
             <div className="hidden md:flex gap-8">
               <a href="#features" className="hover:text-purple-400 transition">Features</a>
               <a href="#stats" className="hover:text-purple-400 transition">Stats</a>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               <Link
                 to="/login"
-                className="px-6 py-2 border border-purple-500/50 hover:border-purple-400 hover:bg-purple-500/10 rounded-lg transition"
+                className="px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm border border-purple-500/50 hover:border-purple-400 hover:bg-purple-500/10 rounded-lg transition whitespace-nowrap"
               >
                 Sign In
               </Link>
               <Link
                 to="/register"
-                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition font-semibold"
+                className="px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition font-semibold whitespace-nowrap"
               >
                 Get Started
               </Link>

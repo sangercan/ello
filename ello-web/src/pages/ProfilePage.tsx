@@ -4,7 +4,7 @@ import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { User, Moment } from '@/types'
-import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Edit3, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
+import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Settings, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
@@ -405,15 +405,14 @@ export default function ProfilePage() {
             {/* User Actions */}
             <div className="flex w-full flex-wrap sm:w-auto sm:flex-nowrap gap-2 sm:gap-3 sm:mt-0 sm:mb-4">
               {isOwnProfile ? (
-                <>
-                  <button 
-                    onClick={handleOpenEditModal}
-                    className="w-full sm:w-auto px-5 sm:px-6 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold rounded-full transition flex items-center justify-center gap-2"
-                  >
-                    <Edit3 size={18} />
-                    Editar Perfil
-                  </button>
-                </>
+                <button
+                  onClick={handleOpenEditModal}
+                  className="h-10 w-10 sm:h-11 sm:w-11 rounded-full border border-slate-700 bg-slate-900/70 text-gray-200 hover:text-white hover:bg-slate-800 transition inline-flex items-center justify-center"
+                  title="Configurar perfil"
+                  aria-label="Configurar perfil"
+                >
+                  <Settings size={18} />
+                </button>
               ) : (
                 <>
                   <button
@@ -497,22 +496,22 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
-              <p className="text-2xl sm:text-3xl font-bold text-primary">{moments.length}</p>
-              <p className="text-gray-400 text-sm">Moments</p>
+          <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{moments.length}</p>
+              <p className="text-gray-400 text-xs sm:text-sm">Moments</p>
             </div>
-            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
-              <p className="text-2xl sm:text-3xl font-bold text-primary">{vibes.length}</p>
-              <p className="text-gray-400 text-sm">Vibes</p>
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{vibes.length}</p>
+              <p className="text-gray-400 text-xs sm:text-sm">Vibes</p>
             </div>
-            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
-              <p className="text-2xl sm:text-3xl font-bold text-primary">{followers}</p>
-              <p className="text-gray-400 text-sm">Seguidores</p>
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{followers}</p>
+              <p className="text-gray-400 text-xs sm:text-sm">Seguidores</p>
             </div>
-            <div className="text-center rounded-xl border border-slate-800/70 bg-slate-900/40 py-3 px-2">
-              <p className="text-2xl sm:text-3xl font-bold text-primary">{following}</p>
-              <p className="text-gray-400 text-sm">Seguindo</p>
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{following}</p>
+              <p className="text-gray-400 text-xs sm:text-sm">Seguindo</p>
             </div>
           </div>
         </div>

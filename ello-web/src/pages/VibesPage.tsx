@@ -329,10 +329,22 @@ export default function VibesPage() {
       if (selectedVibeForComments?.id === vibeId) {
         closeVibeCommentsModal()
       }
-      toast.success('Vibe excluído')
+      toast.success('Vibe excluido')
     } catch {
       toast.error('Erro ao excluir vibe')
     }
+  }
+
+  const handleReportVibe = (vibe: Moment) => {
+    setVibeActionMenuId(null)
+    navigate('/report', {
+      state: {
+        contentType: 'vibe',
+        contentId: vibe.id,
+        authorId: vibe.author?.id || vibe.author_id,
+      },
+    })
+    toast.success('Abrindo central de denuncia')
   }
 
   const handleCommentVibe = async (vibeId: number) => {
@@ -846,25 +858,29 @@ export default function VibesPage() {
                     controls
                     playsInline
                     preload="metadata"
-                    className="w-full h-full object-contain bg-black"
+                    className="w-full h-full object-cover bg-black"
                   />
 
-                  {(vibe.author?.id || vibe.author_id) === user?.id && (
-                    <div className="absolute top-3 right-3 z-20">
-                      <button
-                        onClick={() => handleOpenVibeActions(vibe.id)}
-                        className="p-2 rounded-full bg-black/55 text-gray-200 hover:text-white hover:bg-black/75 transition"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {vibeActionMenuId === vibe.id && (
-                        <div className="absolute right-0 mt-2 min-w-[130px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
-                          <button onClick={() => handleStartEditVibe(vibe)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={13} />Editar</button>
-                          <button onClick={() => handleDeleteVibe(vibe.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={13} />Excluir</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div className="absolute top-3 right-3 z-20">
+                    <button
+                      onClick={() => handleOpenVibeActions(vibe.id)}
+                      className="p-2 rounded-full bg-black/55 text-gray-200 hover:text-white hover:bg-black/75 transition"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {vibeActionMenuId === vibe.id && (
+                      <div className="absolute right-0 mt-2 min-w-[140px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                        {(vibe.author?.id || vibe.author_id) === user?.id ? (
+                          <>
+                            <button onClick={() => handleStartEditVibe(vibe)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={13} />Editar</button>
+                            <button onClick={() => handleDeleteVibe(vibe.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={13} />Excluir</button>
+                          </>
+                        ) : (
+                          <button onClick={() => handleReportVibe(vibe)} className="w-full px-3 py-2 text-xs text-left text-orange-300 hover:bg-orange-500/10 inline-flex items-center gap-2"><MoreVertical size={13} />Denunciar</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3 sm:gap-4">
                     <button

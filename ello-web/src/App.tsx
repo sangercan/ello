@@ -209,6 +209,7 @@ function App() {
 
   const { initialize, isAuthenticated, user } = useAuthStore()
   const [loading, setLoading] = useState(true)
+  const [isAppActive, setIsAppActive] = useState(true)
   const appWsRef = useRef<WebSocket | null>(null)
   const chunksPreloadedRef = useRef(false)
   const recentIncomingCallsRef = useRef<Map<number, number>>(new Map())
@@ -225,6 +226,32 @@ function App() {
     }
     init()
   }, [initialize])
+
+  useEffect(() => {
+    if (!isNative) return
+
+    let cancelled = false
+    void CapacitorApp.getState()
+      .then(({ isActive }) => {
+        if (!cancelled) {
+          setIsAppActive(Boolean(isActive))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsAppActive(true)
+        }
+      })
+
+    const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      setIsAppActive(Boolean(isActive))
+    })
+
+    return () => {
+      cancelled = true
+      void listenerPromise.then((listener) => listener.remove()).catch(() => {})
+    }
+  }, [isNative])
 
   // Mark user as online when authenticated
   useEffect(() => {
@@ -390,6 +417,7 @@ function App() {
   // Global WebSocket for realtime events across pages (moments/stories/chat/presence).
   useEffect(() => {
     if (!isAuthenticated || loading || !user?.id) return
+    if (isNative && !isAppActive) return
 
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null
@@ -422,7 +450,7 @@ function App() {
       appWsRef.current = ws
 
       ws.onopen = () => {
-        ;(window as any).__elloAppWs = ws
+        (window as any).__elloAppWs = ws
         window.dispatchEvent(new CustomEvent('ello:ws:open'))
         heartbeatTimer = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -537,7 +565,7 @@ function App() {
 
       ws.onclose = () => {
         if ((window as any).__elloAppWs === ws) {
-          ;(window as any).__elloAppWs = null
+          (window as any).__elloAppWs = null
         }
         window.dispatchEvent(new CustomEvent('ello:ws:closed'))
 
@@ -571,7 +599,7 @@ function App() {
       ;(window as any).__elloAppWs = null
       window.dispatchEvent(new CustomEvent('ello:ws:closed'))
     }
-  }, [isAuthenticated, loading, user?.id, wsOriginCandidate])
+  }, [isAuthenticated, loading, user?.id, wsOriginCandidate, isNative, isAppActive])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -694,7 +722,7 @@ function App() {
     }
 
     if ('requestIdleCallback' in window) {
-      ;(window as any).requestIdleCallback(preload, { timeout: 2500 })
+      (window as any).requestIdleCallback(preload, { timeout: 2500 })
     } else {
       setTimeout(preload, 400)
     }
