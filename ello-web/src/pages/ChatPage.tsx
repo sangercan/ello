@@ -160,6 +160,7 @@ export default function ChatPage() {
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLDivElement | null>(null)
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
   const messagesSnapshotRef = useRef<Message[]>([])
   const sendLockRef = useRef(false)
   const replySwipeStateRef = useRef<MessageReplySwipeState | null>(null)
@@ -181,15 +182,33 @@ export default function ChatPage() {
     const parsed = Date.parse(message.created_at)
     return Number.isFinite(parsed) ? parsed : 0
   }
+  const getCanonicalMessageId = (payload: any): number | null => {
+    const candidates = [
+      payload?.id,
+      payload?.message_id,
+      payload?.messageId,
+      payload?.data?.id,
+      payload?.message?.id,
+    ]
+
+    for (const rawValue of candidates) {
+      const normalized = Number(rawValue)
+      if (Number.isFinite(normalized) && normalized > 0) {
+        return normalized
+      }
+    }
+
+    return null
+  }
   const sortMessagesChronologically = (messagesList: Message[]) => {
     return [...messagesList].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b))
   }
   const dedupeMessages = (messagesList: Message[]) => {
     const mapping = new Map<number, Message>()
     for (const msg of messagesList) {
-      if (!msg || msg.id == null) continue
-      const key = Number(msg.id)
-      if (!Number.isFinite(key)) continue
+      if (!msg) continue
+      const key = getCanonicalMessageId(msg)
+      if (!key) continue
       const previous = mapping.get(key)
       if (!previous) {
         mapping.set(key, { ...msg, id: key })
@@ -230,9 +249,12 @@ export default function ChatPage() {
     return dedupeMessages([...incoming, ...existing])
   }
   const appendMessageIfUnique = (message: Message) => {
+    const canonicalId = getCanonicalMessageId(message)
+    if (!canonicalId) return
+
     const normalizedMessage: Message = {
       ...message,
-      id: Number.isFinite(Number(message.id)) ? Number(message.id) : Date.now(),
+      id: canonicalId,
     }
     setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
   }
@@ -342,9 +364,10 @@ export default function ChatPage() {
     [resetReplySwipe]
   )
 
-  const resolveApiMessage = (responseData: any): Message => {
+  const resolveApiMessage = (responseData: any): Message | null => {
     const payload = responseData?.message || responseData || {}
-    const canonicalId = Number.isFinite(Number(payload.id)) ? Number(payload.id) : Date.now()
+    const canonicalId = getCanonicalMessageId(payload)
+    if (!canonicalId) return null
 
     return {
       id: canonicalId,
@@ -434,6 +457,22 @@ export default function ChatPage() {
     observer.observe(composer)
     return () => observer.disconnect()
   }, [])
+
+  const syncComposerTextareaHeight = useCallback(() => {
+    const textarea = messageInputRef.current
+    if (!textarea) return
+
+    textarea.style.height = 'auto'
+    const minHeight = 40
+    const maxHeight = 132
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, textarea.scrollHeight))
+    textarea.style.height = `${nextHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    syncComposerTextareaHeight()
+  }, [messageInput, syncComposerTextareaHeight])
 
   // Detect mobile keyboard overlap using visualViewport.
   useEffect(() => {
@@ -1046,8 +1085,14 @@ export default function ChatPage() {
 
       if (!belongsToThisChat) return
 
+      const canonicalId = getCanonicalMessageId(message)
+      if (!canonicalId) {
+        void syncLatestMessages()
+        return
+      }
+
       const normalizedMessage: Message = {
-        id: Number(message.id) || Date.now(),
+        id: canonicalId,
         sender_id: senderId,
         receiver_id: receiverId,
         content: message.content || '',
@@ -1152,7 +1197,7 @@ export default function ChatPage() {
       window.removeEventListener('ello:ws:message-updated', handleMessageUpdated)
       window.removeEventListener('ello:ws:message-deleted', handleMessageDeleted)
     }
-  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom])
+  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom, syncLatestMessages])
 
   // Handle scroll to load more messages
   useEffect(() => {
@@ -1247,6 +1292,7 @@ export default function ChatPage() {
         setIsSending(true)
         const captionBase = messageInput.trim()
         const caption = replyTo ? `${replyPrefix}${captionBase}`.trim() : captionBase
+        let syncAfterUpload = false
         
         // Enviar cada arquivo com a legenda
         for (const { file, type } of pendingMedia) {
@@ -1268,13 +1314,17 @@ export default function ChatPage() {
                 console.log('Resposta send media:', response)
 
                 const mediaMessage = resolveApiMessage(response?.data)
-                appendMessageIfUnique({
-                  ...mediaMessage,
-                  content: mediaMessage.content || caption,
-                })
-                window.requestAnimationFrame(() => {
-                  scrollToBottom('smooth')
-                })
+                if (mediaMessage) {
+                  appendMessageIfUnique({
+                    ...mediaMessage,
+                    content: mediaMessage.content || caption,
+                  })
+                  window.requestAnimationFrame(() => {
+                    scrollToBottom('smooth')
+                  })
+                } else {
+                  syncAfterUpload = true
+                }
               } catch (error) {
                 console.error('Erro ao enviar midia:', error)
                 toast.error(`Erro ao enviar ${file.name}`)
@@ -1292,6 +1342,9 @@ export default function ChatPage() {
         setMediaPreview(null)
         setPendingMedia(null)
         toast.success('Arquivo(s) enviado(s)!')
+        if (syncAfterUpload) {
+          void syncLatestMessages()
+        }
         
       } catch (error) {
         console.error('Erro ao enviar midia:', error)
@@ -1313,13 +1366,17 @@ export default function ChatPage() {
       const response = await apiClient.sendMessage(recipientId, outgoingText)
 
       const serverMessage = resolveApiMessage(response?.data)
-      appendMessageIfUnique({
-        ...serverMessage,
-        content: serverMessage.content || outgoingText,
-      })
-      window.requestAnimationFrame(() => {
-        scrollToBottom('smooth')
-      })
+      if (serverMessage) {
+        appendMessageIfUnique({
+          ...serverMessage,
+          content: serverMessage.content || outgoingText,
+        })
+        window.requestAnimationFrame(() => {
+          scrollToBottom('smooth')
+        })
+      } else {
+        void syncLatestMessages()
+      }
 
       setMessageInput('')
       setReplyTo(null)
@@ -1330,6 +1387,7 @@ export default function ChatPage() {
       toast.error('Erro ao enviar mensagem')
     } finally {
       setIsSending(false)
+      sendLockRef.current = false
     }
   }
 
@@ -1422,13 +1480,17 @@ export default function ChatPage() {
               })
 
               const audioMessage = resolveApiMessage(response?.data)
-              appendMessageIfUnique({
-                ...audioMessage,
-                content: audioMessage.content || '',
-              })
-              window.requestAnimationFrame(() => {
-                scrollToBottom('smooth')
-              })
+              if (audioMessage) {
+                appendMessageIfUnique({
+                  ...audioMessage,
+                  content: audioMessage.content || '',
+                })
+                window.requestAnimationFrame(() => {
+                  scrollToBottom('smooth')
+                })
+              } else {
+                void syncLatestMessages()
+              }
               toast.success('Áudio enviado!')
             } catch (error) {
               console.error('Erro ao enviar audio:', error)
@@ -1652,15 +1714,19 @@ export default function ChatPage() {
           })
 
           const locationMessage = resolveApiMessage(response?.data)
-          appendMessageIfUnique({
-            ...locationMessage,
-            content:
-              locationMessage.content ||
-              `${locationName}\nLat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
-          })
-          window.requestAnimationFrame(() => {
-            scrollToBottom('smooth')
-          })
+          if (locationMessage) {
+            appendMessageIfUnique({
+              ...locationMessage,
+              content:
+                locationMessage.content ||
+                `${locationName}\nLat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
+            })
+            window.requestAnimationFrame(() => {
+              scrollToBottom('smooth')
+            })
+          } else {
+            void syncLatestMessages()
+          }
           toast.success('Localizacao compartilhada!')
         } catch (error) {
           console.error('Erro ao enviar localizacao:', error)
@@ -2340,7 +2406,7 @@ export default function ChatPage() {
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-full shadow-lg flex items-center gap-2 transition duration-200 hover:scale-105 active:scale-95 font-medium text-sm sm:text-base"
             >
-              <span>â†“ {newMessagesCount} mensagem{newMessagesCount > 1 ? 's' : ''} nova{newMessagesCount > 1 ? 's' : ''}</span>
+              <span>{'\u2193'} {newMessagesCount} mensagem{newMessagesCount > 1 ? 's' : ''} nova{newMessagesCount > 1 ? 's' : ''}</span>
             </button>
           </div>
         )}
@@ -2442,7 +2508,7 @@ export default function ChatPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" {...cameraModalSwipeHandlers}>
           <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-md w-full border border-slate-700/50 shadow-2xl" data-gesture-ignore="true">
             <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
-              <h2 className="text-white font-semibold">Cmera</h2>
+              <h2 className="text-white font-semibold">Camera</h2>
               <button
                 onClick={handleCloseCamera}
                 className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-red-400"
@@ -2761,7 +2827,7 @@ export default function ChatPage() {
                     handleOpenCamera()
                   }}
                   className="px-4 py-3 text-left text-gray-300 hover:bg-slate-700 hover:text-white flex items-center justify-center gap-3 text-sm transition border-b border-slate-700/50 hover:scale-110 duration-200"
-                  title="Cmera"
+                  title="Camera"
                 >
                   <Camera size={20} strokeWidth={1.5} />
                 </button>
@@ -2799,24 +2865,32 @@ export default function ChatPage() {
           </div>
 
           {/* Input */}
-          <input
-            type="text"
+          <textarea
+            ref={messageInputRef}
             value={messageInput}
             onChange={(e) => {
               setMessageInput(e.target.value)
               handleTyping()
             }}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void handleSendMessage()
+              }
+            }}
             onFocus={() => {
               setIsComposerFocused(true)
+              syncComposerTextareaHeight()
               window.requestAnimationFrame(() => {
                 scrollToBottom('auto')
               })
             }}
             onBlur={() => setIsComposerFocused(false)}
             placeholder="Digite sua mensagem..."
-            className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            rows={1}
+            className="min-w-0 w-full bg-slate-800 text-white rounded-2xl py-2 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
             disabled={isSending}
+            style={{ minHeight: '40px', maxHeight: '132px' }}
           />
 
           {/* Emoji Picker Button */}

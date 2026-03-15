@@ -186,6 +186,7 @@ export default function GroupChatPage() {
   })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mediaInputRef = useRef<HTMLInputElement | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -236,6 +237,21 @@ export default function GroupChatPage() {
     messagesSnapshotRef.current = messages
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const syncInputTextareaHeight = useCallback(() => {
+    const textarea = inputRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    const minHeight = 40
+    const maxHeight = 132
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, textarea.scrollHeight))
+    textarea.style.height = `${nextHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    syncInputTextareaHeight()
+  }, [input, syncInputTextareaHeight])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -915,21 +931,29 @@ export default function GroupChatPage() {
             <input ref={fileInputRef} type="file" onChange={handleFileUpload} className="hidden" multiple />
           </div>
 
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void handleSendMessage()
+              }
+            }}
             onFocus={() => {
               setIsComposerFocused(true)
+              syncInputTextareaHeight()
               window.requestAnimationFrame(() => {
                 endRef.current?.scrollIntoView({ behavior: 'auto' })
               })
             }}
             onBlur={() => setIsComposerFocused(false)}
             placeholder="Digite sua mensagem..."
-            className="min-w-0 w-full bg-slate-800 text-white rounded-full py-2 sm:py-3 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            rows={1}
+            className="min-w-0 w-full bg-slate-800 text-white rounded-2xl py-2 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
             disabled={isSending}
+            style={{ minHeight: '40px', maxHeight: '132px' }}
           />
 
           <div className="relative">

@@ -496,20 +496,20 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
-            <div className="text-center">
+          <div className="mt-6 sm:mt-8 flex items-start justify-between gap-3 sm:gap-6 overflow-x-auto pb-1">
+            <div className="text-center min-w-[78px] flex-1">
               <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{moments.length}</p>
               <p className="text-gray-400 text-xs sm:text-sm">Moments</p>
             </div>
-            <div className="text-center">
+            <div className="text-center min-w-[78px] flex-1">
               <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{vibes.length}</p>
               <p className="text-gray-400 text-xs sm:text-sm">Vibes</p>
             </div>
-            <div className="text-center">
+            <div className="text-center min-w-[78px] flex-1">
               <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{followers}</p>
               <p className="text-gray-400 text-xs sm:text-sm">Seguidores</p>
             </div>
-            <div className="text-center">
+            <div className="text-center min-w-[78px] flex-1">
               <p className="text-2xl sm:text-3xl font-bold text-primary leading-tight">{following}</p>
               <p className="text-gray-400 text-xs sm:text-sm">Seguindo</p>
             </div>
@@ -597,52 +597,42 @@ export default function ProfilePage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {activeItems.map((moment) => (
-                <div
+                <button
                   key={moment.id}
+                  type="button"
                   onClick={() => setSelectedPost(moment)}
-                  className="bg-slate-800/40 border border-slate-700/70 rounded-xl overflow-hidden hover:bg-slate-700/50 hover:border-slate-600 transition group cursor-pointer"
+                  className="group relative aspect-square w-full overflow-hidden rounded-lg sm:rounded-xl border border-slate-800/80 bg-slate-900/70 hover:border-slate-600 transition"
                 >
-                  {moment.media_url && (
+                  {moment.media_url ? (
                     isVideoUrl(moment.media_url) ? (
-                      <div className="relative">
+                      <>
                         <video
                           src={resolveMediaUrl(moment.media_url)}
-                          className="w-full h-52 sm:h-56 object-cover"
+                          className="h-full w-full object-cover"
                           muted
                           playsInline
                           preload="metadata"
                         />
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                            <Play size={20} className="text-white ml-0.5" />
-                          </div>
-                        </div>
-                      </div>
+                        <span className="absolute right-2.5 bottom-2.5 w-7 h-7 rounded-full bg-black/55 backdrop-blur-sm inline-flex items-center justify-center text-white">
+                          <Play size={14} className="ml-0.5" />
+                        </span>
+                      </>
                     ) : (
                       <img
                         src={resolveMediaUrl(moment.media_url)}
                         alt="moment"
                         loading="lazy"
-                        className="w-full h-52 sm:h-56 object-cover group-hover:scale-105 transition"
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                       />
                     )
-                  )}
-                  <div className="p-4 space-y-3">
-                    <p className="text-white text-sm line-clamp-2 break-words">{moment.content || 'Sem legenda'}</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
-                      <span className="inline-flex items-center gap-1">
-                        <Heart size={14} />
-                        {moment.likes_count}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MessageCircle size={14} />
-                        {moment.comments_count}
-                      </span>
+                  ) : (
+                    <div className="h-full w-full inline-flex items-center justify-center text-gray-500">
+                      <Grid3x3 size={18} />
                     </div>
-                  </div>
-                </div>
+                  )}
+                </button>
               ))}
             </div>
           )}
