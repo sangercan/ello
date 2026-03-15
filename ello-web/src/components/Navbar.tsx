@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
-import { LogOut, Menu, X, Grid3x3, LayoutDashboard, Sparkles, Music, MapPin, User, Bell, Plus, MessageCircle, Image, Camera } from 'lucide-react'
+import { LogOut, Menu, X, Grid3x3, LayoutDashboard, Sparkles, Music, MapPin, User, Bell, Plus, MessageCircle, Image, Camera, ChevronsUpDown, Settings } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import apiClient from '@services/api'
@@ -18,12 +18,18 @@ export default function Navbar() {
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const [isNavVisible, setIsNavVisible] = useState(true)
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('ello:navbar:collapsed') === '1'
+  })
   const [showPublisher, setShowPublisher] = useState(false)
   const [publishMode, setPublishMode] = useState<'moment' | 'vibe' | 'story'>('moment')
   const [publishText, setPublishText] = useState('')
   const [publishFile, setPublishFile] = useState<File | null>(null)
   const [publishPreview, setPublishPreview] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
+  const [isPublisherCameraOpen, setIsPublisherCameraOpen] = useState(false)
+  const [openingPublisherCamera, setOpeningPublisherCamera] = useState(false)
   const [attachLocationToPost, setAttachLocationToPost] = useState(false)
   const [publishLatitude, setPublishLatitude] = useState<number | null>(null)
   const [publishLongitude, setPublishLongitude] = useState<number | null>(null)
@@ -32,7 +38,9 @@ export default function Navbar() {
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const navRef = useRef<HTMLElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
-  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const publisherCameraVideoRef = useRef<HTMLVideoElement | null>(null)
+  const publisherCameraCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const publisherCameraStreamRef = useRef<MediaStream | null>(null)
 
   const handleLogout = () => {
     logout()
@@ -42,26 +50,54 @@ export default function Navbar() {
   const isActive = (path: string) => location.pathname === path
 
   useEffect(() => {
-    let lastScrollY = window.scrollY
-
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      const scrollingDown = currentScrollY > lastScrollY
-
-      if (currentScrollY < 20) {
-        setIsNavVisible(true)
-      } else if (scrollingDown && !open) {
-        setIsNavVisible(false)
-      } else {
-        setIsNavVisible(true)
+    const getScrollTopFromTarget = (target: EventTarget | null | undefined) => {
+      if (!target || target === window || target === document || target === document.body || target === document.documentElement) {
+        return Math.max(
+          window.scrollY || 0,
+          document.documentElement?.scrollTop || 0,
+          document.body?.scrollTop || 0
+        )
       }
-
-      lastScrollY = currentScrollY
+      if (target instanceof HTMLElement) {
+        return target.scrollTop
+      }
+      return window.scrollY || 0
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
+    let lastScrollTop = getScrollTopFromTarget(window)
+
+    const updateVisibility = (nextScrollTop: number) => {
+      const delta = nextScrollTop - lastScrollTop
+      if (nextScrollTop < 20 || open) {
+        setIsNavVisible(true)
+      } else if (delta > 4) {
+        setIsNavVisible(false)
+      } else if (delta < -4) {
+        setIsNavVisible(true)
+      }
+      lastScrollTop = nextScrollTop
+    }
+
+    const handleWindowScroll = () => {
+      updateVisibility(getScrollTopFromTarget(window))
+    }
+
+    const handleCapturedScroll = (event: Event) => {
+      updateVisibility(getScrollTopFromTarget(event.target))
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+    document.addEventListener('scroll', handleCapturedScroll, true)
+    return () => {
+      window.removeEventListener('scroll', handleWindowScroll)
+      document.removeEventListener('scroll', handleCapturedScroll, true)
+    }
   }, [open])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('ello:navbar:collapsed', isDesktopCollapsed ? '1' : '0')
+  }, [isDesktopCollapsed])
 
   useEffect(() => {
     const root = document.documentElement
@@ -104,6 +140,12 @@ export default function Navbar() {
     window.addEventListener('ello:open-publisher', handleOpenPublisherEvent as EventListener)
     return () => {
       window.removeEventListener('ello:open-publisher', handleOpenPublisherEvent as EventListener)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      stopPublisherCameraStream()
     }
   }, [])
 
@@ -153,7 +195,83 @@ export default function Navbar() {
   const rightActionItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard'), title: t('nav.dashboard') },
     { path: '/notifications', icon: Bell, label: t('nav.notifications'), title: t('nav.notifications') },
+    { path: '/settings', icon: Settings, label: 'Settings', title: 'Settings' },
   ]
+
+  const stopPublisherCameraStream = () => {
+    if (!publisherCameraStreamRef.current) return
+    publisherCameraStreamRef.current.getTracks().forEach((track) => track.stop())
+    publisherCameraStreamRef.current = null
+    if (publisherCameraVideoRef.current) {
+      publisherCameraVideoRef.current.srcObject = null
+    }
+  }
+
+  const closePublisherCamera = () => {
+    stopPublisherCameraStream()
+    setIsPublisherCameraOpen(false)
+  }
+
+  const openPublisherCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('Camera indisponivel neste dispositivo.')
+      return
+    }
+
+    try {
+      setOpeningPublisherCamera(true)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+        },
+        audio: false,
+      })
+      publisherCameraStreamRef.current = stream
+      setIsPublisherCameraOpen(true)
+      window.requestAnimationFrame(() => {
+        if (!publisherCameraVideoRef.current) return
+        publisherCameraVideoRef.current.srcObject = stream
+        void publisherCameraVideoRef.current.play().catch(() => {})
+      })
+    } catch (error) {
+      console.error('[Navbar] Falha ao abrir camera de publicacao:', error)
+      stopPublisherCameraStream()
+      toast.error('Nao foi possivel abrir a camera frontal.')
+    } finally {
+      setOpeningPublisherCamera(false)
+    }
+  }
+
+  const handleCapturePublisherPhoto = () => {
+    const video = publisherCameraVideoRef.current
+    const canvas = publisherCameraCanvasRef.current
+    if (!video || !canvas) return
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const width = Math.max(1, video.videoWidth || 1080)
+    const height = Math.max(1, video.videoHeight || 1920)
+    canvas.width = width
+    canvas.height = height
+    context.drawImage(video, 0, 0, width, height)
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          toast.error('Nao foi possivel capturar a foto.')
+          return
+        }
+        const file = new File([blob], `story-camera-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        void onPickFile(file)
+        closePublisherCamera()
+      },
+      'image/jpeg',
+      0.95
+    )
+  }
 
   const openPublisher = () => {
     setPublishMode('moment')
@@ -163,6 +281,7 @@ export default function Navbar() {
 
   const closePublisher = () => {
     setShowPublisher(false)
+    closePublisherCamera()
     setPublishMode('moment')
     setPublishText('')
     setPublishFile(null)
@@ -464,7 +583,9 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Menu - Modern Icon Based */}
-          <div className="hidden md:flex gap-2 items-center px-6 py-2 bg-slate-800/30 rounded-full border border-slate-700/50 backdrop-blur-sm">
+          <div className={`hidden md:flex gap-2 items-center px-6 py-2 bg-slate-800/30 rounded-full border border-slate-700/50 backdrop-blur-sm overflow-hidden transition-all duration-300 ${
+            isDesktopCollapsed ? 'max-w-0 opacity-0 scale-95 px-0 py-0 border-transparent pointer-events-none' : 'max-w-[1200px] opacity-100 scale-100'
+          }`}>
             <button
               onClick={openPublisher}
               title={t('nav.newPost')}
@@ -541,11 +662,34 @@ export default function Navbar() {
           </div>
 
           {/* User Menu */}
-          <div className="hidden md:flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-300 px-3 py-1 rounded-full bg-slate-800/50">{user?.username}</span>
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsDesktopCollapsed((prev) => !prev)}
+              className="inline-flex items-center justify-center p-2 rounded-lg text-gray-300 hover:text-white hover:bg-slate-800/60 transition"
+              title={isDesktopCollapsed ? 'Expandir navbar' : 'Recolher navbar'}
+              aria-label={isDesktopCollapsed ? 'Expandir navbar' : 'Recolher navbar'}
+              aria-expanded={!isDesktopCollapsed}
+            >
+              <ChevronsUpDown size={18} strokeWidth={1.8} />
+            </button>
+            <div className={`flex items-center gap-4 overflow-hidden transition-all duration-300 ${
+              isDesktopCollapsed ? 'max-w-0 opacity-0 scale-95 pointer-events-none' : 'max-w-[340px] opacity-100 scale-100'
+            }`}>
+              <span className="text-sm font-medium text-gray-300 px-3 py-1 rounded-full bg-slate-800/50">{user?.username}</span>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200"
+                title={t('nav.logout')}
+              >
+                <LogOut size={22} strokeWidth={1.5} />
+              </button>
+            </div>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200"
+              className={`p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all duration-200 ${
+                isDesktopCollapsed ? 'inline-flex' : 'hidden'
+              }`}
               title={t('nav.logout')}
             >
               <LogOut size={22} strokeWidth={1.5} />
@@ -671,10 +815,13 @@ export default function Navbar() {
                 <Image size={16} /> {t('nav.gallery')}
               </button>
               <button
-                onClick={() => cameraInputRef.current?.click()}
-                className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200"
+                onClick={() => {
+                  void openPublisherCamera()
+                }}
+                disabled={openingPublisherCamera}
+                className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200 disabled:opacity-60"
               >
-                <Camera size={16} /> {t('nav.camera')}
+                <Camera size={16} /> {openingPublisherCamera ? 'Abrindo...' : t('nav.camera')}
               </button>
               {publishFile && (
                 <span className="text-xs text-gray-400 self-center truncate max-w-[220px]">{publishFile.name}</span>
@@ -741,14 +888,6 @@ export default function Navbar() {
               onChange={(e) => onPickFile(e.target.files?.[0])}
               className="hidden"
             />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*,video/*"
-              capture="environment"
-              onChange={(e) => onPickFile(e.target.files?.[0])}
-              className="hidden"
-            />
 
             {publishPreview && (
               <div className="mt-3 rounded-xl overflow-hidden bg-slate-800">
@@ -757,6 +896,48 @@ export default function Navbar() {
                 ) : (
                   <img src={publishPreview} alt="preview" className="w-full max-h-56 object-contain bg-black" />
                 )}
+              </div>
+            )}
+
+            {isPublisherCameraOpen && (
+              <div className="fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/65 backdrop-blur-xl p-4">
+                <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white/10 shadow-2xl backdrop-blur-2xl">
+                  <div className="flex items-center justify-between p-4">
+                    <h3 className="text-sm font-semibold text-white">Camera frontal</h3>
+                    <button
+                      onClick={closePublisherCamera}
+                      className="rounded-xl p-2 text-gray-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="mx-4 mb-4 overflow-hidden rounded-2xl bg-black/70">
+                    <video
+                      ref={publisherCameraVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full max-h-[65vh] object-cover"
+                    />
+                    <canvas ref={publisherCameraCanvasRef} className="hidden" />
+                  </div>
+                  <div className="flex justify-center gap-3 p-4">
+                    <button
+                      onClick={handleCapturePublisherPhoto}
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:from-purple-500 hover:to-fuchsia-400"
+                    >
+                      <Camera size={16} />
+                      Capturar foto
+                    </button>
+                    <button
+                      onClick={closePublisherCamera}
+                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+                    >
+                      <X size={16} />
+                      Fechar
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -4,7 +4,7 @@ import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { User, Moment } from '@/types'
-import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Settings, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
+import { UserPlus, UserCheck, MessageCircle, Share2, MapPin, Link as LinkIcon, Calendar, Grid3x3, Sparkles, Music, Bookmark, X, Briefcase, Play, Heart } from 'lucide-react'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 import { getMoodAvatarRingStyle } from '@/utils/mood'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
@@ -407,11 +407,11 @@ export default function ProfilePage() {
               {isOwnProfile ? (
                 <button
                   onClick={handleOpenEditModal}
-                  className="h-10 w-10 sm:h-11 sm:w-11 rounded-full border border-slate-700 bg-slate-900/70 text-gray-200 hover:text-white hover:bg-slate-800 transition inline-flex items-center justify-center"
-                  title="Configurar perfil"
-                  aria-label="Configurar perfil"
+                  className="min-w-[150px] sm:min-w-0 px-4 sm:px-6 py-2.5 rounded-full font-semibold flex items-center justify-center gap-2 transition bg-slate-800 text-white hover:bg-slate-700 border border-slate-700"
+                  title="Editar perfil"
+                  aria-label="Editar perfil"
                 >
-                  <Settings size={18} />
+                  Editar perfil
                 </button>
               ) : (
                 <>

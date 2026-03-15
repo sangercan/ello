@@ -174,6 +174,7 @@ export default function GroupChatPage() {
   const [visualViewportHeight, setVisualViewportHeight] = useState<number | null>(null)
   const [visualViewportCompensatesKeyboard, setVisualViewportCompensatesKeyboard] = useState(false)
   const [isComposerFocused, setIsComposerFocused] = useState(false)
+  const [composerHeight, setComposerHeight] = useState(88)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
   const [messageActionMenuId, setMessageActionMenuId] = useState<number | null>(null)
@@ -188,6 +189,8 @@ export default function GroupChatPage() {
   const mediaInputRef = useRef<HTMLInputElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLDivElement | null>(null)
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -209,6 +212,34 @@ export default function GroupChatPage() {
     if (!currentUser || !group) return false
     return currentUser.id === group.creator_id || members.some((m) => m.id === currentUser.id && m.is_admin)
   }, [currentUser, group, members])
+
+  const messageViewportBottomPadding = useMemo(
+    () => Math.max(112, keyboardOffset + composerHeight + 20),
+    [keyboardOffset, composerHeight]
+  )
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = messagesContainerRef.current
+    if (container) {
+      if (typeof container.scrollTo === 'function') {
+        container.scrollTo({ top: container.scrollHeight, behavior })
+      } else {
+        container.scrollTop = container.scrollHeight
+      }
+      return
+    }
+    endRef.current?.scrollIntoView({ behavior })
+  }, [])
+
+  const focusComposerInput = useCallback(() => {
+    const textarea = inputRef.current
+    if (!textarea) return
+    window.requestAnimationFrame(() => {
+      textarea.focus({ preventScroll: true })
+      const length = textarea.value.length
+      textarea.setSelectionRange(length, length)
+    })
+  }, [])
 
   useEffect(() => {
     if (!groupId) return
@@ -235,8 +266,22 @@ export default function GroupChatPage() {
 
   useEffect(() => {
     messagesSnapshotRef.current = messages
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    scrollToBottom('smooth')
+  }, [messages, scrollToBottom])
+
+  useEffect(() => {
+    const composer = composerRef.current
+    if (!composer || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver((entries) => {
+      const nextHeight = Math.ceil(entries[0]?.contentRect.height || 0)
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
+      setComposerHeight((prev) => (Math.abs(prev - nextHeight) < 2 ? prev : nextHeight))
+    })
+
+    observer.observe(composer)
+    return () => observer.disconnect()
+  }, [])
 
   const syncInputTextareaHeight = useCallback(() => {
     const textarea = inputRef.current
@@ -330,10 +375,10 @@ export default function GroupChatPage() {
   useEffect(() => {
     if (!(keyboardOffset > 0 || isComposerFocused)) return
     const frame = window.requestAnimationFrame(() => {
-      endRef.current?.scrollIntoView({ behavior: 'auto' })
+      scrollToBottom('auto')
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [keyboardOffset, isComposerFocused])
+  }, [keyboardOffset, isComposerFocused, scrollToBottom])
 
   const syncLatestMessages = useCallback(async () => {
     if (!groupId) return
@@ -354,13 +399,13 @@ export default function GroupChatPage() {
       setMessages(mergedMessages)
       if (incomingCount > 0 || keyboardOffset > 0 || isComposerFocused) {
         window.requestAnimationFrame(() => {
-          endRef.current?.scrollIntoView({ behavior: 'auto' })
+          scrollToBottom('auto')
         })
       }
     } catch (error) {
       console.error('Erro ao sincronizar mensagens do grupo:', error)
     }
-  }, [groupId, isComposerFocused, keyboardOffset])
+  }, [groupId, isComposerFocused, keyboardOffset, scrollToBottom])
 
   useEffect(() => {
     if (!groupId) return
@@ -462,7 +507,7 @@ export default function GroupChatPage() {
           const sentMessage = normalizeGroupApiMessage(sent?.data)
           setMessages((prev) => appendUniqueMessages(prev, [sentMessage]))
           window.requestAnimationFrame(() => {
-            endRef.current?.scrollIntoView({ behavior: 'smooth' })
+            scrollToBottom('smooth')
           })
         } catch (error) {
           console.error('Erro ao enviar áudio:', error)
@@ -550,8 +595,9 @@ export default function GroupChatPage() {
       setInput('')
       setMediaPreview([])
       setReplyTo(null)
+      focusComposerInput()
       window.requestAnimationFrame(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' })
+        scrollToBottom('smooth')
       })
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
@@ -576,7 +622,7 @@ export default function GroupChatPage() {
         const locationMessage = normalizeGroupApiMessage(result?.data)
         setMessages((prev) => appendUniqueMessages(prev, [locationMessage]))
         window.requestAnimationFrame(() => {
-          endRef.current?.scrollIntoView({ behavior: 'smooth' })
+          scrollToBottom('smooth')
         })
         toast.success('Localização enviada')
       } catch (error) {
@@ -658,7 +704,15 @@ export default function GroupChatPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3"
+        style={{
+          paddingBottom: `${messageViewportBottomPadding}px`,
+          scrollPaddingBottom: `${messageViewportBottomPadding + 24}px`,
+          overscrollBehaviorY: 'contain',
+        }}
+      >
         {messages.map((msg) => {
           const isMine = currentUser?.id === msg.sender_id
           const senderName = isMine
@@ -825,6 +879,7 @@ export default function GroupChatPage() {
       </div>
 
       <div
+        ref={composerRef}
         className="p-3 sm:p-4 border-t border-slate-800 flex-shrink-0"
         style={{
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
@@ -945,14 +1000,13 @@ export default function GroupChatPage() {
               setIsComposerFocused(true)
               syncInputTextareaHeight()
               window.requestAnimationFrame(() => {
-                endRef.current?.scrollIntoView({ behavior: 'auto' })
+                scrollToBottom('auto')
               })
             }}
             onBlur={() => setIsComposerFocused(false)}
             placeholder="Digite sua mensagem..."
             rows={1}
             className="min-w-0 w-full bg-slate-800 text-white rounded-2xl py-2 px-3 sm:px-4 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-            disabled={isSending}
             style={{ minHeight: '40px', maxHeight: '132px' }}
           />
 
@@ -984,6 +1038,8 @@ export default function GroupChatPage() {
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {input.trim().length > 0 || mediaPreview.length > 0 ? (
               <button
+                onMouseDown={(event) => event.preventDefault()}
+                onPointerDown={(event) => event.preventDefault()}
                 onClick={handleSendMessage}
                 disabled={isSending}
                 className="bg-primary text-white rounded-full px-4 py-3 hover:bg-primary/80 transition flex items-center justify-center"

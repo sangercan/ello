@@ -401,6 +401,15 @@ export default function ChatPage() {
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = messagesContainerRef.current
+    if (container) {
+      if (typeof container.scrollTo === 'function') {
+        container.scrollTo({ top: container.scrollHeight, behavior })
+      } else {
+        container.scrollTop = container.scrollHeight
+      }
+      return
+    }
     messagesEndRef.current?.scrollIntoView({ behavior })
   }, [])
 
@@ -468,6 +477,16 @@ export default function ChatPage() {
     const nextHeight = Math.min(maxHeight, Math.max(minHeight, textarea.scrollHeight))
     textarea.style.height = `${nextHeight}px`
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [])
+
+  const focusComposerInput = useCallback(() => {
+    const textarea = messageInputRef.current
+    if (!textarea) return
+    window.requestAnimationFrame(() => {
+      textarea.focus({ preventScroll: true })
+      const length = textarea.value.length
+      textarea.setSelectionRange(length, length)
+    })
   }, [])
 
   useEffect(() => {
@@ -707,6 +726,10 @@ export default function ChatPage() {
   }, [allImages, expandedImageIndex])
 
   const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
+  const messageViewportBottomPadding = useMemo(
+    () => Math.max(112, keyboardOffset + composerHeight + 20),
+    [keyboardOffset, composerHeight]
+  )
   const floatingControlsBottom = useMemo(
     () => Math.max(96, keyboardOffset + composerHeight + 12),
     [keyboardOffset, composerHeight]
@@ -1336,11 +1359,12 @@ export default function ChatPage() {
           })
         }
 
-        // Limpar estados apÃ³s envio
+        // Limpar estados apos envio
         setMessageInput('')
         setReplyTo(null)
         setMediaPreview(null)
         setPendingMedia(null)
+        focusComposerInput()
         toast.success('Arquivo(s) enviado(s)!')
         if (syncAfterUpload) {
           void syncLatestMessages()
@@ -1380,6 +1404,7 @@ export default function ChatPage() {
 
       setMessageInput('')
       setReplyTo(null)
+      focusComposerInput()
 
       toast.success('Mensagem enviada!')
     } catch (error) {
@@ -1971,7 +1996,15 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4" ref={messagesContainerRef}>
+      <div
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4"
+        ref={messagesContainerRef}
+        style={{
+          paddingBottom: `${messageViewportBottomPadding}px`,
+          scrollPaddingBottom: `${messageViewportBottomPadding + 24}px`,
+          overscrollBehaviorY: 'contain',
+        }}
+      >
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -2505,40 +2538,43 @@ export default function ChatPage() {
 
       {/* Camera Modal */}
       {isCameraOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" {...cameraModalSwipeHandlers}>
-          <div className="bg-slate-900 rounded-2xl overflow-hidden max-w-md w-full border border-slate-700/50 shadow-2xl" data-gesture-ignore="true">
-            <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 backdrop-blur-xl p-4" {...cameraModalSwipeHandlers}>
+          <div
+            className="w-full max-w-md overflow-hidden rounded-3xl bg-white/10 shadow-2xl backdrop-blur-2xl"
+            data-gesture-ignore="true"
+          >
+            <div className="flex items-center justify-between p-4">
               <h2 className="text-white font-semibold">Camera</h2>
               <button
                 onClick={handleCloseCamera}
-                className="p-2 hover:bg-slate-800 rounded-lg transition text-gray-400 hover:text-red-400"
+                className="rounded-xl p-2 text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="relative bg-black">
+            <div className="relative mx-4 mb-4 overflow-hidden rounded-2xl bg-black/70">
               <video
                 ref={videoCameraRef}
                 autoPlay
                 playsInline
-                className="w-full h-auto bg-black"
+                className="w-full h-auto bg-black object-cover"
               />
               <canvas ref={canvasCameraRef} className="hidden" />
             </div>
 
-            <div className="p-4 bg-slate-800/50 flex gap-3 justify-center border-t border-slate-700/50">
+            <div className="flex gap-3 justify-center p-4">
               <button
                 onClick={handleTakePhoto}
                 disabled={isSending}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded-lg transition duration-200"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-500 px-4 py-2 text-white shadow-lg transition hover:from-purple-500 hover:to-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Camera size={18} />
                 <span>Tirar Foto</span>
               </button>
               <button
                 onClick={handleCloseCamera}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition duration-200"
+                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-white transition hover:bg-white/20"
               >
                 <X size={18} />
                 <span>Fechar</span>
@@ -2889,7 +2925,6 @@ export default function ChatPage() {
             placeholder="Digite sua mensagem..."
             rows={1}
             className="min-w-0 w-full bg-slate-800 text-white rounded-2xl py-2 px-3 sm:px-4 text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-            disabled={isSending}
             style={{ minHeight: '40px', maxHeight: '132px' }}
           />
 
@@ -2926,6 +2961,8 @@ export default function ChatPage() {
           {messageInput.trim().length > 0 || pendingMedia ? (
             // Show Send Button when typing or have pending media
             <button
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={handleSendMessage}
               disabled={isSending}
               className="bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white p-2 sm:p-3 rounded-full transition hover:scale-110 duration-200 flex items-center justify-center flex-shrink-0 shadow-lg hover:shadow-purple-600/30"
