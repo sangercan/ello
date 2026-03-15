@@ -158,6 +158,7 @@ export default function ChatPage() {
   const cameraStreamRef = useRef<MediaStream | null>(null)
   const videoCameraRef = useRef<HTMLVideoElement | null>(null)
   const canvasCameraRef = useRef<HTMLCanvasElement | null>(null)
+  const keyboardBaseViewportHeightRef = useRef<number | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -493,6 +494,14 @@ export default function ChatPage() {
     syncComposerTextareaHeight()
   }, [messageInput, syncComposerTextareaHeight])
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
+
   // Detect mobile keyboard overlap using visualViewport.
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -500,9 +509,14 @@ export default function ChatPage() {
     const visualViewport = window.visualViewport
     let keyboardEventInset = 0
     const updateKeyboardOffset = () => {
+      const currentInnerHeight = Math.max(0, Math.round(window.innerHeight || 0))
+      if (!keyboardBaseViewportHeightRef.current || currentInnerHeight > keyboardBaseViewportHeightRef.current) {
+        keyboardBaseViewportHeightRef.current = currentInnerHeight
+      }
+
       const nextViewportHeight = visualViewport
         ? Math.max(0, Math.round(visualViewport.height))
-        : 0
+        : currentInnerHeight
       setVisualViewportHeight((prev) => {
         if (!nextViewportHeight) return prev
         return Math.abs((prev || 0) - nextViewportHeight) < 2 ? prev : nextViewportHeight
@@ -515,10 +529,14 @@ export default function ChatPage() {
           )
         : 0
 
-      setVisualViewportCompensatesKeyboard(visualInset > 0)
+      const baselineInnerHeight = keyboardBaseViewportHeightRef.current || currentInnerHeight
+      const fallbackInset = Math.max(0, baselineInnerHeight - currentInnerHeight)
 
-      const normalizedInset = Math.max(visualInset, keyboardEventInset) > 70
-        ? Math.max(visualInset, keyboardEventInset)
+      const combinedInset = Math.max(visualInset, keyboardEventInset, fallbackInset)
+      setVisualViewportCompensatesKeyboard(visualInset > 0 || fallbackInset > 0)
+
+      const normalizedInset = combinedInset > 40
+        ? combinedInset
         : 0
       setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
     }
@@ -534,6 +552,10 @@ export default function ChatPage() {
 
     const clearKeyboardInset = () => {
       keyboardEventInset = 0
+      keyboardBaseViewportHeightRef.current = Math.max(
+        keyboardBaseViewportHeightRef.current || 0,
+        Math.round(window.innerHeight || 0)
+      )
       setKeyboardOffset(0)
       setVisualViewportCompensatesKeyboard(false)
     }
@@ -1901,7 +1923,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className="ello-app-viewport flex flex-col min-h-0 bg-slate-950 overflow-hidden"
+      className="ello-app-viewport h-full flex flex-col min-h-0 bg-slate-950 overflow-hidden"
       style={visualViewportHeight ? { height: `${visualViewportHeight}px` } : undefined}
     >
       {/* Header */}

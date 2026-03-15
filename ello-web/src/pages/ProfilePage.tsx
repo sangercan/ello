@@ -44,6 +44,7 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isFollowLoading, setIsFollowLoading] = useState(false)
   const [selectedPost, setSelectedPost] = useState<Moment | null>(null)
+  const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false)
   const profileCacheKey = `${PROFILE_CACHE_PREFIX}${userId || 'me'}`
 
   useEffect(() => {
@@ -355,6 +356,27 @@ export default function ProfilePage() {
     onSwipe: () => setShowEditModal(false),
   })
 
+  const avatarLightboxSwipeHandlers = useSwipeGesture({
+    enabled: isAvatarLightboxOpen,
+    threshold: 45,
+    axisLockRatio: 1.25,
+    directions: ['down'],
+    onSwipe: () => setIsAvatarLightboxOpen(false),
+  })
+
+  useEffect(() => {
+    if (!isAvatarLightboxOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAvatarLightboxOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAvatarLightboxOpen])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center">
@@ -376,6 +398,8 @@ export default function ProfilePage() {
 
   const isOwnProfile = Boolean(user && currentUser?.id === user.id)
   const activeItems = activeTab === 'moments' ? moments : activeTab === 'vibes' ? vibes : []
+  const profileAvatarUrl =
+    resolveMediaUrl(user.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -391,12 +415,20 @@ export default function ProfilePage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
             {/* Avatar */}
             <div className="relative">
-              <img
-                src={user.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.username}
-                alt={user.username}
-                className="w-28 h-28 sm:w-40 sm:h-40 rounded-full border-4 border-slate-950 object-cover shadow-2xl"
-                style={getMoodAvatarRingStyle(user.mood)}
-              />
+              <button
+                type="button"
+                onClick={() => setIsAvatarLightboxOpen(true)}
+                className="group rounded-full"
+                title="Expandir foto de perfil"
+                aria-label="Expandir foto de perfil"
+              >
+                <img
+                  src={profileAvatarUrl}
+                  alt={user.username}
+                  className="w-28 h-28 sm:w-40 sm:h-40 rounded-full border-4 border-slate-950 object-cover shadow-2xl transition duration-200 group-hover:scale-[1.02]"
+                  style={getMoodAvatarRingStyle(user.mood)}
+                />
+              </button>
               {user.is_online && (
                 <div className="absolute bottom-1 right-1 sm:bottom-4 sm:right-4 w-4 h-4 sm:w-5 sm:h-5 bg-green-500 rounded-full border-2 sm:border-4 border-slate-950 animate-pulse"></div>
               )}
@@ -705,6 +737,35 @@ export default function ProfilePage() {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {isAvatarLightboxOpen && (
+          <div
+            className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setIsAvatarLightboxOpen(false)}
+            {...avatarLightboxSwipeHandlers}
+          >
+            <button
+              onClick={() => setIsAvatarLightboxOpen(false)}
+              className="absolute top-4 right-4 text-white bg-black/55 p-2 rounded-full hover:bg-black/75 transition z-10"
+              aria-label="Fechar imagem"
+              title="Fechar"
+            >
+              <X size={22} />
+            </button>
+            <div
+              className="w-full max-w-2xl max-h-[92vh] flex items-center justify-center"
+              data-gesture-ignore="true"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <img
+                src={profileAvatarUrl}
+                alt={`${user.username} avatar`}
+                className="max-h-[88vh] w-auto max-w-full rounded-3xl object-contain shadow-2xl"
+                style={getMoodAvatarRingStyle(user.mood)}
+              />
             </div>
           </div>
         )}

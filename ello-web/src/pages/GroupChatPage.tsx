@@ -194,6 +194,7 @@ export default function GroupChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const keyboardBaseViewportHeightRef = useRef<number | null>(null)
   const reactionFetchedRef = useRef<Set<number>>(new Set())
   const sendLockRef = useRef(false)
   const messagesSnapshotRef = useRef<Message[]>([])
@@ -312,9 +313,14 @@ export default function GroupChatPage() {
     const visualViewport = window.visualViewport
     let keyboardEventInset = 0
     const updateKeyboardOffset = () => {
+      const currentInnerHeight = Math.max(0, Math.round(window.innerHeight || 0))
+      if (!keyboardBaseViewportHeightRef.current || currentInnerHeight > keyboardBaseViewportHeightRef.current) {
+        keyboardBaseViewportHeightRef.current = currentInnerHeight
+      }
+
       const nextViewportHeight = visualViewport
         ? Math.max(0, Math.round(visualViewport.height))
-        : 0
+        : currentInnerHeight
       setVisualViewportHeight((prev) => {
         if (!nextViewportHeight) return prev
         return Math.abs((prev || 0) - nextViewportHeight) < 2 ? prev : nextViewportHeight
@@ -326,9 +332,11 @@ export default function GroupChatPage() {
             Math.round(window.innerHeight - (visualViewport.height + visualViewport.offsetTop))
           )
         : 0
-      setVisualViewportCompensatesKeyboard(visualInset > 0)
-      const nextInset = Math.max(visualInset, keyboardEventInset)
-      const normalizedInset = nextInset > 70 ? nextInset : 0
+      const baselineInnerHeight = keyboardBaseViewportHeightRef.current || currentInnerHeight
+      const fallbackInset = Math.max(0, baselineInnerHeight - currentInnerHeight)
+      setVisualViewportCompensatesKeyboard(visualInset > 0 || fallbackInset > 0)
+      const nextInset = Math.max(visualInset, keyboardEventInset, fallbackInset)
+      const normalizedInset = nextInset > 40 ? nextInset : 0
       setKeyboardOffset((prev) => (Math.abs(prev - normalizedInset) < 2 ? prev : normalizedInset))
     }
 
@@ -343,6 +351,10 @@ export default function GroupChatPage() {
 
     const clearKeyboardInset = () => {
       keyboardEventInset = 0
+      keyboardBaseViewportHeightRef.current = Math.max(
+        keyboardBaseViewportHeightRef.current || 0,
+        Math.round(window.innerHeight || 0)
+      )
       setKeyboardOffset(0)
       setVisualViewportCompensatesKeyboard(false)
     }
@@ -648,7 +660,7 @@ export default function GroupChatPage() {
 
   return (
     <div
-      className="ello-app-viewport bg-slate-950 flex flex-col overflow-hidden"
+      className="ello-app-viewport h-full bg-slate-950 flex flex-col overflow-hidden"
       style={visualViewportHeight ? { height: `${visualViewportHeight}px` } : undefined}
     >
       <div className="p-4 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
