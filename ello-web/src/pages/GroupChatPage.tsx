@@ -219,7 +219,7 @@ export default function GroupChatPage() {
   }, [currentUser, group, members])
 
   const messageViewportBottomPadding = useMemo(() => {
-    const basePadding = Math.min(24, Math.max(16, Math.round(composerHeight * 0.2)))
+    const basePadding = Math.min(12, Math.max(8, Math.round(composerHeight * 0.1)))
     return effectiveKeyboardOffset > 0 ? basePadding + 10 : basePadding
   }, [effectiveKeyboardOffset, composerHeight])
 
