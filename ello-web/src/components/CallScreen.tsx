@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, PhoneIncoming, PhoneOff, PhoneCall, Volume2, VolumeX, Minimize2, Maximize2 } from 'lucide-react'
 import { App as CapacitorApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { useCallStore } from '@store/callStore'
 import api from '@services/api'
 import { playAlertSound, startLoopingAlertSound } from '@services/alertSounds'
-import { disableCallMode, enableCallMode } from '@services/callMode'
+import { disableCallMode, enableCallMode, updateCallMode } from '@services/callMode'
 import {
   enterCallPictureInPicture,
   isCallPictureInPictureSupported,
@@ -167,6 +168,7 @@ const CallScreen = () => {
   const isVideoCall = activeCallType === 'video'
   const callLabel = isVideoCall ? 'Chamada de vídeo' : 'Chamada de voz'
   const isRinging = activeCall?.status === 'ringing'
+  const isNativePlatform = Capacitor.getPlatform() !== 'web'
 
   const playRemoteAudio = useCallback(() => {
     const audio = remoteAudioRef.current
@@ -843,12 +845,13 @@ const CallScreen = () => {
   }, [activeCallId, finalizeCallLocally, sendCallSignal])
 
   const handleToggleMinimize = useCallback(async () => {
-    if (isVideoCall) {
-      const videoForPip = remoteVideoRef.current || localVideoRef.current
-      await enterCallPictureInPicture(videoForPip)
+    const videoForPip = isVideoCall ? (remoteVideoRef.current || localVideoRef.current) : null
+    const enteredPiP = await enterCallPictureInPicture(videoForPip)
+    if (enteredPiP && isNativePlatform) {
+      return
     }
     toggleMinimize()
-  }, [isVideoCall, toggleMinimize])
+  }, [isNativePlatform, isVideoCall, toggleMinimize])
 
   useEffect(() => {
     return () => cleanupCall()
@@ -867,12 +870,24 @@ const CallScreen = () => {
   useEffect(() => {
     if (!activeCallId) return
 
-    void enableCallMode()
+    const title = activeCall?.user?.full_name || activeCall?.user?.username || 'Chamada em andamento'
+    void enableCallMode({
+      callId: activeCallId,
+      title,
+      subtitle: callLabel,
+      isVideo: isVideoCall,
+    })
+    void updateCallMode({
+      callId: activeCallId,
+      title,
+      subtitle: callLabel,
+      isVideo: isVideoCall,
+    })
 
     return () => {
       void disableCallMode()
     }
-  }, [activeCallId])
+  }, [activeCall?.user?.full_name, activeCall?.user?.username, activeCallId, callLabel, isVideoCall])
 
   useEffect(() => {
     const onResize = () => {
@@ -898,25 +913,25 @@ const CallScreen = () => {
   }, [activeCallId])
 
   useEffect(() => {
-    if (!activeCallId || !isVideoCall) return
+    if (!activeCallId || !isNativePlatform) return
 
     void setCallPictureInPictureAutoEnter(true)
     return () => {
       void setCallPictureInPictureAutoEnter(false)
     }
-  }, [activeCallId, isVideoCall])
+  }, [activeCallId, isNativePlatform])
 
   useEffect(() => {
-    if (!activeCallId || !isVideoCall) return
+    if (!activeCallId || !isNativePlatform) return
     const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) return
-      const videoForPip = remoteVideoRef.current || localVideoRef.current
+      const videoForPip = isVideoCall ? (remoteVideoRef.current || localVideoRef.current) : null
       void enterCallPictureInPicture(videoForPip)
     })
     return () => {
       void appStateListener.then((listener) => listener.remove()).catch(() => {})
     }
-  }, [activeCallId, isVideoCall])
+  }, [activeCallId, isNativePlatform, isVideoCall])
 
   const isIncomingRinging = isIncoming && isRinging
 

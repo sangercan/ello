@@ -9,7 +9,8 @@ public class CallModePlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "CallMode"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise)
     ]
 
     @objc func enable(_ call: CAPPluginCall) {
@@ -43,5 +44,9 @@ public class CallModePlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
     }
-}
 
+    @objc func update(_ call: CAPPluginCall) {
+        // iOS update currently keeps call mode active; metadata is managed in JS layer.
+        call.resolve()
+    }
+}

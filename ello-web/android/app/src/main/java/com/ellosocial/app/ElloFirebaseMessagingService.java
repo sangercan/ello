@@ -87,9 +87,9 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
         final int notificationId = resolveCallNotificationId(data.get("call_id"));
 
         final String messageId = remoteMessage.getMessageId();
-        final Intent callIntent = new Intent(this, MainActivity.class);
+        final Intent callIntent = new Intent(this, IncomingCallActivity.class);
         callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        attachCallPayloadExtras(callIntent, data, messageId, notificationId, CallNotificationsPlugin.ACTION_ANSWER);
+        attachCallPayloadExtras(callIntent, data, messageId, notificationId, CallNotificationsPlugin.ACTION_OPEN);
 
         final int pendingFlags =
             PendingIntent.FLAG_UPDATE_CURRENT |

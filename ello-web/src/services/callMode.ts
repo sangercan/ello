@@ -1,11 +1,19 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
 type NativeCallModePlugin = {
-  enable: () => Promise<void>
+  enable: (options?: CallModeOptions) => Promise<void>
   disable: () => Promise<void>
+  update?: (options?: CallModeOptions) => Promise<void>
 }
 
 const NativeCallMode = registerPlugin<NativeCallModePlugin>('CallMode')
+
+export type CallModeOptions = {
+  callId?: number
+  title?: string
+  subtitle?: string
+  isVideo?: boolean
+}
 
 let wakeLock: WakeLockSentinel | null = null
 
@@ -29,10 +37,10 @@ const requestWakeLock = async () => {
   }
 }
 
-export const enableCallMode = async () => {
+export const enableCallMode = async (options?: CallModeOptions) => {
   if (Capacitor.getPlatform() !== 'web') {
     try {
-      await NativeCallMode.enable()
+      await NativeCallMode.enable(options)
     } catch {
       // Keep web fallback behavior when plugin is unavailable.
     }
@@ -53,3 +61,11 @@ export const disableCallMode = async () => {
   }
 }
 
+export const updateCallMode = async (options?: CallModeOptions) => {
+  if (Capacitor.getPlatform() === 'web') return
+  try {
+    await NativeCallMode.update?.(options)
+  } catch {
+    // Best-effort metadata update only.
+  }
+}

@@ -3,10 +3,14 @@ package com.ellosocial.app;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 import android.os.PowerManager;
+import android.text.TextUtils;
 import android.view.Window;
 import android.view.WindowManager;
+
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -17,13 +21,16 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class CallModePlugin extends Plugin {
 
     private static final long WAKELOCK_TIMEOUT_MS = 2L * 60L * 60L * 1000L;
+    private static final String DEFAULT_CALL_TITLE = "Chamada em andamento";
+    private static final String DEFAULT_CALL_SUBTITLE = "Ello Social";
     private PowerManager.WakeLock wakeLock;
 
     @PluginMethod
     public void enable(PluginCall call) {
         bridge.executeOnMainThread(() -> {
-            applyCallWindowFlags(true);
+            applyCallWindowFlags(getActivity(), true);
             acquireWakeLock();
+            startOrUpdateForegroundService(call, CallForegroundService.ACTION_START);
             call.resolve();
         });
     }
@@ -31,8 +38,17 @@ public class CallModePlugin extends Plugin {
     @PluginMethod
     public void disable(PluginCall call) {
         bridge.executeOnMainThread(() -> {
-            applyCallWindowFlags(false);
+            applyCallWindowFlags(getActivity(), false);
             releaseWakeLock();
+            stopForegroundService();
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void update(PluginCall call) {
+        bridge.executeOnMainThread(() -> {
+            startOrUpdateForegroundService(call, CallForegroundService.ACTION_UPDATE);
             call.resolve();
         });
     }
@@ -43,8 +59,7 @@ public class CallModePlugin extends Plugin {
         super.handleOnDestroy();
     }
 
-    private void applyCallWindowFlags(boolean enabled) {
-        final Activity activity = getActivity();
+    public static void applyCallWindowFlags(Activity activity, boolean enabled) {
         if (activity == null) return;
 
         final Window window = activity.getWindow();
@@ -82,6 +97,46 @@ public class CallModePlugin extends Plugin {
                     | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                     | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             );
+        }
+    }
+
+    private void startOrUpdateForegroundService(PluginCall call, String action) {
+        final Context context = getContext();
+        if (context == null) return;
+
+        final String titleRaw = call.getString("title", DEFAULT_CALL_TITLE);
+        final String subtitleRaw = call.getString("subtitle", DEFAULT_CALL_SUBTITLE);
+        final String title = TextUtils.isEmpty(titleRaw) ? DEFAULT_CALL_TITLE : titleRaw;
+        final String subtitle = TextUtils.isEmpty(subtitleRaw) ? DEFAULT_CALL_SUBTITLE : subtitleRaw;
+        final int callId = call.getInt("callId", -1);
+        final boolean isVideo = call.getBoolean("isVideo", false);
+
+        Intent serviceIntent = new Intent(context, CallForegroundService.class);
+        serviceIntent.setAction(action);
+        serviceIntent.putExtra(CallForegroundService.EXTRA_CALL_ID, callId);
+        serviceIntent.putExtra(CallForegroundService.EXTRA_TITLE, title);
+        serviceIntent.putExtra(CallForegroundService.EXTRA_SUBTITLE, subtitle);
+        serviceIntent.putExtra(CallForegroundService.EXTRA_IS_VIDEO, isVideo);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ContextCompat.startForegroundService(context, serviceIntent);
+        } else {
+            context.startService(serviceIntent);
+        }
+    }
+
+    private void stopForegroundService() {
+        final Context context = getContext();
+        if (context == null) return;
+        boolean stopped = context.stopService(new Intent(context, CallForegroundService.class));
+        if (!stopped) {
+            Intent stopIntent = new Intent(context, CallForegroundService.class);
+            stopIntent.setAction(CallForegroundService.ACTION_STOP);
+            try {
+                context.startService(stopIntent);
+            } catch (Exception ignored) {
+                // Service may already be stopped.
+            }
         }
     }
 
