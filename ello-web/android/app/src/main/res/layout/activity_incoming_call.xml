@@ -25,6 +25,18 @@
             android:textColor="#A2B4D4"
             android:textSize="12sp" />
 
+        <ImageView
+            android:id="@+id/incomingCallAvatar"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/incoming_call_avatar_bg"
+            android:clipToOutline="true"
+            android:contentDescription="Avatar da chamada"
+            android:padding="2dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_stat_ello" />
+
         <TextView
             android:id="@+id/incomingCallTitle"
             android:layout_width="match_parent"

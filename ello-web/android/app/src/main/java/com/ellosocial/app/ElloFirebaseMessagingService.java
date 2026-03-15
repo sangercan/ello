@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
@@ -83,6 +84,7 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
             remoteMessage.getNotification() != null ? remoteMessage.getNotification().getBody() : null,
             "Alguem esta ligando para voce"
         );
+        final String avatarUrl = extractCallerAvatarUrl(data);
 
         final int notificationId = resolveCallNotificationId(data.get("call_id"));
 
@@ -114,11 +116,27 @@ public class ElloFirebaseMessagingService extends FirebaseMessagingService {
             .addAction(R.drawable.ic_stat_ello, "Atender", answerIntent)
             .setVibrate(new long[] {0, 300, 250, 300, 250, 450});
 
+        Bitmap avatarBitmap = AvatarBitmapFetcher.load(avatarUrl, 192);
+        if (avatarBitmap != null) {
+            builder.setLargeIcon(avatarBitmap);
+        }
+
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             builder.setSound(getRawSoundUri("recebida"));
         }
 
         NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+    }
+
+    @NonNull
+    private String extractCallerAvatarUrl(@NonNull Map<String, String> data) {
+        return firstNonEmpty(
+            data.get("caller_avatar_url"),
+            data.get("caller_avatar"),
+            data.get("avatar_url"),
+            data.get("avatar"),
+            data.get("from_user_avatar_url")
+        );
     }
 
     @NonNull

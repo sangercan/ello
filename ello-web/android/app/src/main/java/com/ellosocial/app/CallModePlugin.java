@@ -106,8 +106,10 @@ public class CallModePlugin extends Plugin {
 
         final String titleRaw = call.getString("title", DEFAULT_CALL_TITLE);
         final String subtitleRaw = call.getString("subtitle", DEFAULT_CALL_SUBTITLE);
+        final String avatarUrlRaw = call.getString("avatarUrl", "");
         final String title = TextUtils.isEmpty(titleRaw) ? DEFAULT_CALL_TITLE : titleRaw;
         final String subtitle = TextUtils.isEmpty(subtitleRaw) ? DEFAULT_CALL_SUBTITLE : subtitleRaw;
+        final String avatarUrl = TextUtils.isEmpty(avatarUrlRaw) ? "" : avatarUrlRaw;
         final int callId = call.getInt("callId", -1);
         final boolean isVideo = call.getBoolean("isVideo", false);
 
@@ -116,6 +118,7 @@ public class CallModePlugin extends Plugin {
         serviceIntent.putExtra(CallForegroundService.EXTRA_CALL_ID, callId);
         serviceIntent.putExtra(CallForegroundService.EXTRA_TITLE, title);
         serviceIntent.putExtra(CallForegroundService.EXTRA_SUBTITLE, subtitle);
+        serviceIntent.putExtra(CallForegroundService.EXTRA_AVATAR_URL, avatarUrl);
         serviceIntent.putExtra(CallForegroundService.EXTRA_IS_VIDEO, isVideo);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

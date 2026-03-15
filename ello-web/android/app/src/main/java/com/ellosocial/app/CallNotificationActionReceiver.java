@@ -20,8 +20,9 @@ public class CallNotificationActionReceiver extends BroadcastReceiver {
 
         dismissNotification(context, intent);
 
+        CallNotificationsPlugin.enqueueActionFromIntent(intent, action);
+
         if (CallNotificationsPlugin.ACTION_DECLINE.equals(action)) {
-            CallNotificationsPlugin.enqueueActionFromIntent(intent, action);
             return;
         }
 

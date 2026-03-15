@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Music2, Upload, Heart, RefreshCw, Search, MoreVertical, Pencil, Trash2, X, Play, Pause, Send, Link2, PlusCircle, MessageCircle, Share2 } from 'lucide-react'
 import { useAuthStore } from '@store/authStore'
 import apiClient from '@services/api'
@@ -22,6 +22,7 @@ type MusicTrack = {
 type FeedFilter = 'all' | 'mine' | 'favorites'
 type ShareDestination = 'chat' | 'story' | 'moment' | 'vibe'
 const FEED_FILTER_ORDER: FeedFilter[] = ['all', 'mine', 'favorites']
+const MUSIC_PAGE_SIZE = 20
 
 const isAudioFile = (file: File) => file.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(file.name)
 
@@ -31,6 +32,9 @@ export default function MusicPage() {
   const [tracks, setTracks] = useState<MusicTrack[]>([])
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(1)
   const [publishing, setPublishing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -57,6 +61,8 @@ export default function MusicPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [audioPreviewName, setAudioPreviewName] = useState('')
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null)
+  const feedSentinelRef = useRef<HTMLDivElement | null>(null)
+  const tracksRef = useRef<MusicTrack[]>([])
 
   const setQueue = useMusicPlayerStore((state) => state.setQueue)
   const playTrack = useMusicPlayerStore((state) => state.playTrack)
@@ -64,27 +70,20 @@ export default function MusicPage() {
   const isPlaying = useMusicPlayerStore((state) => state.isPlaying)
   const togglePlayPause = useMusicPlayerStore((state) => state.togglePlayPause)
 
-  useEffect(() => {
-    const cacheKey = getMusicCacheKey(user?.id)
-    let hasHydratedCache = false
-    try {
-      const rawCache = window.sessionStorage.getItem(cacheKey)
-      if (rawCache) {
-        const parsed = JSON.parse(rawCache)
-        const cachedTracks = Array.isArray(parsed?.tracks) ? parsed.tracks : []
-        const cachedFavorites = Array.isArray(parsed?.favoriteIds) ? parsed.favoriteIds : []
-        if (cachedTracks.length > 0) {
-          setTracks(cachedTracks)
-          setFavoriteIds(new Set(cachedFavorites.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id))))
-          setLoading(false)
-          hasHydratedCache = true
-        }
-      }
-    } catch {
-      // Ignore invalid cache.
-    }
-    void loadMusicPage(hasHydratedCache)
-  }, [user?.id])
+  const mergeUniqueTracks = useCallback((existing: MusicTrack[], incoming: MusicTrack[]) => {
+    if (incoming.length === 0) return existing
+    const existingIds = new Set(existing.map((item) => Number(item.id)))
+    const dedupedIncoming = incoming.filter((item) => !existingIds.has(Number(item.id)))
+    return [...existing, ...dedupedIncoming]
+  }, [])
+
+  const sortTracksByNewest = useCallback((list: MusicTrack[]) => {
+    return [...list].sort((a, b) => {
+      const aTime = new Date(a.created_at || '').getTime()
+      const bTime = new Date(b.created_at || '').getTime()
+      return bTime - aTime
+    })
+  }, [])
 
   useEffect(() => {
     if (tracks.length === 0) return
@@ -98,6 +97,10 @@ export default function MusicPage() {
       // Ignore storage quota errors.
     }
   }, [tracks, favoriteIds, user?.id])
+
+  useEffect(() => {
+    tracksRef.current = tracks
+  }, [tracks])
 
   useEffect(() => {
     setArtist(user?.full_name || user?.username || '')
@@ -121,35 +124,110 @@ export default function MusicPage() {
     created_at: String(raw.created_at || new Date().toISOString()),
   })
 
-  const loadMusicPage = async (background = false) => {
+  const loadMusicPage = useCallback(async (pageToLoad: number, append: boolean, background = false) => {
     try {
-      if (!background && tracks.length === 0) setLoading(true)
+      if (append) {
+        setLoadingMore(true)
+      } else if (!background && tracksRef.current.length === 0) {
+        setLoading(true)
+      }
+
       const [feedRes, favRes] = await Promise.all([
-        apiClient.getMusicFeed(1, 50),
-        user?.id ? apiClient.getMusicFavorites(user.id) : Promise.resolve({ data: [] }),
+        apiClient.getMusicFeed(pageToLoad, MUSIC_PAGE_SIZE),
+        !append && user?.id ? apiClient.getMusicFavorites(user.id) : Promise.resolve(null),
       ])
 
       const feedList = Array.isArray(feedRes.data) ? feedRes.data : feedRes.data?.data || []
-      const favoritesList = Array.isArray(favRes.data) ? favRes.data : favRes.data?.data || []
+      const normalizedTracks = sortTracksByNewest(feedList.map(normalizeTrack))
 
-      const normalizedTracks = feedList.map(normalizeTrack)
-      const normalizedFavoriteIds = new Set<number>(
-        favoritesList.map((item: any) => Number(item.id)).filter((id: number) => Number.isFinite(id) && id > 0)
-      )
+      if (append) {
+        setTracks((prev) => sortTracksByNewest(mergeUniqueTracks(prev, normalizedTracks)))
+      } else {
+        setTracks(normalizedTracks)
+      }
 
-      setTracks(normalizedTracks)
-      setFavoriteIds(normalizedFavoriteIds)
+      if (favRes) {
+        const favoritesList = Array.isArray((favRes as any).data) ? (favRes as any).data : (favRes as any).data?.data || []
+        const normalizedFavoriteIds = new Set<number>(
+          favoritesList.map((item: any) => Number(item.id)).filter((id: number) => Number.isFinite(id) && id > 0)
+        )
+        setFavoriteIds(normalizedFavoriteIds)
+      }
+
+      const hasFreshData =
+        !append ||
+        normalizedTracks.some((item) => !tracksRef.current.some((existing) => Number(existing.id) === Number(item.id)))
+      setHasMore(normalizedTracks.length >= MUSIC_PAGE_SIZE && hasFreshData)
     } catch {
       toast.error('Erro ao carregar músicas')
     } finally {
-      if (!background || tracks.length === 0) setLoading(false)
+      if (append) {
+        setLoadingMore(false)
+      } else if (!background || tracksRef.current.length === 0) {
+        setLoading(false)
+      }
     }
-  }
+  }, [mergeUniqueTracks, sortTracksByNewest, user?.id])
+
+  useEffect(() => {
+    const cacheKey = getMusicCacheKey(user?.id)
+    let hasHydratedCache = false
+    try {
+      const rawCache = window.sessionStorage.getItem(cacheKey)
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        const cachedTracks = Array.isArray(parsed?.tracks) ? parsed.tracks : []
+        const cachedFavorites = Array.isArray(parsed?.favoriteIds) ? parsed.favoriteIds : []
+        if (cachedTracks.length > 0) {
+          setTracks(cachedTracks)
+          setFavoriteIds(new Set(cachedFavorites.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id))))
+          setLoading(false)
+          hasHydratedCache = true
+        }
+      }
+    } catch {
+      // Ignore invalid cache.
+    }
+    setPage(1)
+    setHasMore(true)
+    void loadMusicPage(1, false, hasHydratedCache)
+  }, [user?.id, loadMusicPage])
+
+  const loadNextPage = useCallback(() => {
+    if (loading || loadingMore || !hasMore) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    void loadMusicPage(nextPage, true)
+  }, [hasMore, loadMusicPage, loading, loadingMore, page])
+
+  useEffect(() => {
+    const sentinel = feedSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0]
+        if (first?.isIntersecting) {
+          loadNextPage()
+        }
+      },
+      {
+        root: null,
+        rootMargin: '320px 0px',
+        threshold: 0,
+      },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadNextPage])
 
   const handleRefresh = async () => {
     try {
       setRefreshing(true)
-      await loadMusicPage()
+      setPage(1)
+      setHasMore(true)
+      await loadMusicPage(1, false)
       toast.success('Feed de música atualizado')
     } finally {
       setRefreshing(false)
@@ -230,7 +308,9 @@ export default function MusicPage() {
         album_cover: coverUrl,
       })
 
-      await loadMusicPage()
+      setPage(1)
+      setHasMore(true)
+      await loadMusicPage(1, false)
       resetPublisher()
       toast.success('Música publicada com sucesso')
     } catch (error: any) {
@@ -688,68 +768,77 @@ export default function MusicPage() {
           ) : visibleTracks.length === 0 ? (
             <div className="text-center py-12 text-sm text-gray-400">Nenhuma música encontrada para este filtro.</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {visibleTracks.map((track) => {
-                const isFavorite = favoriteIds.has(track.id)
-                const isOwner = Number(track.uploaded_by) === Number(user?.id)
-                const isCurrent = currentTrackId === track.id
-                const isCurrentPlaying = isCurrent && isPlaying
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {visibleTracks.map((track) => {
+                  const isFavorite = favoriteIds.has(track.id)
+                  const isOwner = Number(track.uploaded_by) === Number(user?.id)
+                  const isCurrent = currentTrackId === track.id
+                  const isCurrentPlaying = isCurrent && isPlaying
 
-                return (
-                  <article key={track.id} className="rounded-2xl border border-slate-800 bg-slate-950/80 overflow-hidden">
-                    <div className="aspect-[16/9] bg-slate-900 relative">
-                      {track.album_cover ? (
-                        <img src={resolveMediaUrl(track.album_cover)} alt={track.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-                          <Music2 size={30} className="text-slate-600" />
-                        </div>
-                      )}
-                      <button
-                        onClick={() => toggleFavorite(track.id)}
-                        className={`absolute top-3 right-3 h-8 w-8 rounded-full border backdrop-blur-sm inline-flex items-center justify-center transition ${isFavorite ? 'bg-primary/90 border-primary text-white' : 'bg-black/40 border-white/20 text-gray-200 hover:text-white'}`}
-                        title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                      >
-                        <Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />
-                      </button>
-                      <div className="absolute top-3 left-3">
-                        <button
-                          onClick={() => handleOpenActions(track.id)}
-                          className="h-8 w-8 rounded-full border border-white/20 bg-black/40 text-gray-200 hover:text-white inline-flex items-center justify-center transition"
-                          title="Ações"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-                        {actionMenuTrackId === track.id && (
-                          <div className="absolute left-0 mt-1 min-w-[140px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20">
-                            <button onClick={() => openShareMenu(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2">Compartilhar</button>
-                            {isOwner && <button onClick={() => handleStartEdit(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>}
-                            {isOwner && <button onClick={() => handleDeleteTrack(track.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>}
+                  return (
+                    <article key={track.id} className="rounded-2xl border border-slate-800 bg-slate-950/80 overflow-hidden">
+                      <div className="aspect-[16/9] bg-slate-900 relative">
+                        {track.album_cover ? (
+                          <img src={resolveMediaUrl(track.album_cover)} alt={track.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+                            <Music2 size={30} className="text-slate-600" />
                           </div>
                         )}
+                        <button
+                          onClick={() => toggleFavorite(track.id)}
+                          className={`absolute top-3 right-3 h-8 w-8 rounded-full border backdrop-blur-sm inline-flex items-center justify-center transition ${isFavorite ? 'bg-primary/90 border-primary text-white' : 'bg-black/40 border-white/20 text-gray-200 hover:text-white'}`}
+                          title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                        >
+                          <Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />
+                        </button>
+                        <div className="absolute top-3 left-3">
+                          <button
+                            onClick={() => handleOpenActions(track.id)}
+                            className="h-8 w-8 rounded-full border border-white/20 bg-black/40 text-gray-200 hover:text-white inline-flex items-center justify-center transition"
+                            title="Ações"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {actionMenuTrackId === track.id && (
+                            <div className="absolute left-0 mt-1 min-w-[140px] max-w-[72vw] rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-20">
+                              <button onClick={() => openShareMenu(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2">Compartilhar</button>
+                              {isOwner && <button onClick={() => handleStartEdit(track)} className="w-full px-3 py-2 text-xs text-left text-gray-200 hover:bg-slate-800 inline-flex items-center gap-2"><Pencil size={12} />Editar</button>}
+                              {isOwner && <button onClick={() => handleDeleteTrack(track.id)} className="w-full px-3 py-2 text-xs text-left text-red-300 hover:bg-red-500/10 inline-flex items-center gap-2"><Trash2 size={12} />Excluir</button>}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <h3 className="text-white font-semibold line-clamp-1">{track.title}</h3>
-                        <p className="text-xs text-gray-400 line-clamp-1">{track.artist}</p>
-                        <p className="text-[11px] text-gray-500 mt-1">
-                          Publicado em {new Date(track.created_at).toLocaleDateString('pt-BR')}
-                        </p>
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <h3 className="text-white font-semibold line-clamp-1">{track.title}</h3>
+                          <p className="text-xs text-gray-400 line-clamp-1">{track.artist}</p>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            Publicado em {new Date(track.created_at).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handlePlayFromCard(track)}
+                          className="h-10 w-full sm:w-auto px-3 rounded-lg bg-slate-800 text-gray-100 hover:bg-slate-700 text-xs inline-flex items-center justify-center gap-2 transition"
+                        >
+                          {isCurrentPlaying ? <Pause size={14} /> : <Play size={14} />}
+                          {isCurrentPlaying ? 'Pausar' : isCurrent ? 'Retomar' : 'Tocar'}
+                        </button>
                       </div>
+                    </article>
+                  )
+                })}
+              </div>
 
-                      <button
-                        onClick={() => handlePlayFromCard(track)}
-                        className="h-10 w-full sm:w-auto px-3 rounded-lg bg-slate-800 text-gray-100 hover:bg-slate-700 text-xs inline-flex items-center justify-center gap-2 transition"
-                      >
-                        {isCurrentPlaying ? <Pause size={14} /> : <Play size={14} />}
-                        {isCurrentPlaying ? 'Pausar' : isCurrent ? 'Retomar' : 'Tocar'}
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
+              {loadingMore && (
+                <div className="flex justify-center items-center py-6">
+                  <div className="w-7 h-7 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              <div ref={feedSentinelRef} className="h-1 w-full" aria-hidden="true" />
             </div>
           )}
         </section>
@@ -884,4 +973,5 @@ export default function MusicPage() {
     </div>
   )
 }
+
 

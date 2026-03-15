@@ -223,7 +223,56 @@ export default function ChatPage() {
         reactions: msg.reactions ?? previous.reactions,
       })
     }
-    return sortMessagesChronologically(Array.from(mapping.values()))
+
+    const chronologicallySorted = sortMessagesChronologically(Array.from(mapping.values()))
+    if (chronologicallySorted.length <= 1) return chronologicallySorted
+
+    const mergedOutgoingEchoes: Message[] = []
+    const ownUserId = Number(currentUser?.id || 0)
+    const samePayload = (left: Message, right: Message) =>
+      Number(left.sender_id) === Number(right.sender_id) &&
+      Number(left.receiver_id) === Number(right.receiver_id) &&
+      (left.content || '').trim() === (right.content || '').trim() &&
+      (left.media_url || '') === (right.media_url || '') &&
+      (left.audio_url || '') === (right.audio_url || '')
+
+    const chooseMostCompleteMessage = (left: Message, right: Message) => {
+      if (right.is_read && !left.is_read) return right
+      if (right.is_delivered && !left.is_delivered) return right
+      if (!left.media_url && right.media_url) return right
+      if (!left.audio_url && right.audio_url) return right
+      const leftTime = getMessageTimestamp(left)
+      const rightTime = getMessageTimestamp(right)
+      if (rightTime > leftTime) return right
+      return Number(right.id) > Number(left.id) ? right : left
+    }
+
+    for (const nextMessage of chronologicallySorted) {
+      const previousMessage = mergedOutgoingEchoes[mergedOutgoingEchoes.length - 1]
+      if (!previousMessage) {
+        mergedOutgoingEchoes.push(nextMessage)
+        continue
+      }
+
+      const isOwnOutgoingPair =
+        ownUserId > 0 &&
+        Number(previousMessage.sender_id) === ownUserId &&
+        Number(nextMessage.sender_id) === ownUserId
+      const timestampDeltaMs = Math.abs(getMessageTimestamp(nextMessage) - getMessageTimestamp(previousMessage))
+      const isPotentialEchoDuplicate =
+        isOwnOutgoingPair &&
+        samePayload(previousMessage, nextMessage) &&
+        timestampDeltaMs <= 1500
+
+      if (isPotentialEchoDuplicate) {
+        mergedOutgoingEchoes[mergedOutgoingEchoes.length - 1] = chooseMostCompleteMessage(previousMessage, nextMessage)
+        continue
+      }
+
+      mergedOutgoingEchoes.push(nextMessage)
+    }
+
+    return mergedOutgoingEchoes
   }
   const appendUniqueMessages = (existing: Message[], incoming: Message[]) => {
     if (incoming.length === 0) return sortMessagesChronologically(existing)
@@ -422,10 +471,15 @@ export default function ChatPage() {
     setIsNearBottom(isNear)
   }
 
+  const effectiveKeyboardOffset = isComposerFocused && keyboardOffset > 36 ? keyboardOffset : 0
+  const shouldUseVisualViewportHeight = Boolean(
+    visualViewportHeight && (isComposerFocused || effectiveKeyboardOffset > 0)
+  )
+
   // Auto-scroll while the user is anchored at the bottom.
   useEffect(() => {
     if (messages.length === 0) return
-    const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+    const shouldStickToBottom = isNearBottom || isComposerFocused || effectiveKeyboardOffset > 0
     if (!shouldStickToBottom) return
 
     const behavior: ScrollBehavior = newMessagesCount > 0 ? 'smooth' : 'auto'
@@ -437,7 +491,7 @@ export default function ChatPage() {
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [messages.length, isNearBottom, isComposerFocused, keyboardOffset, newMessagesCount, scrollToBottom])
+  }, [messages.length, isNearBottom, isComposerFocused, effectiveKeyboardOffset, newMessagesCount, scrollToBottom])
 
   // Scroll listener
   useEffect(() => {
@@ -592,7 +646,16 @@ export default function ChatPage() {
       scrollToBottom('auto')
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [keyboardOffset, isNearBottom, isComposerFocused, scrollToBottom])
+  }, [effectiveKeyboardOffset, isNearBottom, isComposerFocused, scrollToBottom])
+
+  useEffect(() => {
+    if (isComposerFocused) return
+    const timer = window.setTimeout(() => {
+      setKeyboardOffset(0)
+      setVisualViewportCompensatesKeyboard(false)
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [isComposerFocused])
 
   // Detect touch/small-screen viewport to simplify fullscreen media controls on mobile.
   useEffect(() => {
@@ -748,13 +811,13 @@ export default function ChatPage() {
   }, [allImages, expandedImageIndex])
 
   const recipientNumericId = useMemo(() => Number(recipientId || 0), [recipientId])
-  const messageViewportBottomPadding = useMemo(
-    () => Math.max(112, keyboardOffset + composerHeight + 20),
-    [keyboardOffset, composerHeight]
-  )
+  const messageViewportBottomPadding = useMemo(() => {
+    const basePadding = Math.min(24, Math.max(16, Math.round(composerHeight * 0.2)))
+    return effectiveKeyboardOffset > 0 ? basePadding + 10 : basePadding
+  }, [effectiveKeyboardOffset, composerHeight])
   const floatingControlsBottom = useMemo(
-    () => Math.max(96, keyboardOffset + composerHeight + 12),
-    [keyboardOffset, composerHeight]
+    () => Math.max(96, effectiveKeyboardOffset + composerHeight + 12),
+    [effectiveKeyboardOffset, composerHeight]
   )
 
   const resolveConversationId = async () => {
@@ -996,7 +1059,7 @@ export default function ChatPage() {
       setMessages(mergedMessages)
 
       if (incomingMessages.length > 0) {
-        const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+        const shouldStickToBottom = isNearBottom || isComposerFocused || effectiveKeyboardOffset > 0
         if (shouldStickToBottom) {
           window.requestAnimationFrame(() => {
             scrollToBottom('auto')
@@ -1018,7 +1081,7 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Erro ao sincronizar mensagens recentes:', error)
     }
-  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom])
+  }, [recipientId, currentUser, isNearBottom, isComposerFocused, effectiveKeyboardOffset, scrollToBottom])
 
   // Load chat data once when recipient changes.
   useEffect(() => {
@@ -1150,7 +1213,7 @@ export default function ChatPage() {
 
       setMessages((prev) => appendUniqueMessages(prev, [normalizedMessage]))
 
-      const shouldStickToBottom = isNearBottom || isComposerFocused || keyboardOffset > 0
+      const shouldStickToBottom = isNearBottom || isComposerFocused || effectiveKeyboardOffset > 0
       if (shouldStickToBottom) {
         window.requestAnimationFrame(() => {
           scrollToBottom('smooth')
@@ -1242,7 +1305,7 @@ export default function ChatPage() {
       window.removeEventListener('ello:ws:message-updated', handleMessageUpdated)
       window.removeEventListener('ello:ws:message-deleted', handleMessageDeleted)
     }
-  }, [recipientId, currentUser, isNearBottom, isComposerFocused, keyboardOffset, scrollToBottom, syncLatestMessages])
+  }, [recipientId, currentUser, isNearBottom, isComposerFocused, effectiveKeyboardOffset, scrollToBottom, syncLatestMessages])
 
   // Handle scroll to load more messages
   useEffect(() => {
@@ -1924,7 +1987,11 @@ export default function ChatPage() {
   return (
     <div
       className="ello-app-viewport h-full flex flex-col min-h-0 bg-slate-950 overflow-hidden"
-      style={visualViewportHeight ? { height: `${visualViewportHeight}px` } : undefined}
+      style={
+        shouldUseVisualViewportHeight && visualViewportHeight
+          ? { height: `calc(${visualViewportHeight}px - var(--ello-nav-height, 80px))` }
+          : undefined
+      }
     >
       {/* Header */}
       <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-900/50 border-b border-slate-700/50 sticky top-0 z-40 flex-shrink-0">
@@ -2657,8 +2724,8 @@ export default function ChatPage() {
           paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
           marginBottom:
-            keyboardOffset > 0 && !visualViewportCompensatesKeyboard
-              ? `${keyboardOffset}px`
+            effectiveKeyboardOffset > 0 && !visualViewportCompensatesKeyboard
+              ? `${effectiveKeyboardOffset}px`
               : undefined,
           transition: 'margin-bottom 180ms ease-out',
         }}

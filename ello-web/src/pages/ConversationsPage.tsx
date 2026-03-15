@@ -308,7 +308,7 @@ export default function ConversationsPage() {
     const isLocation = /Lat:\s*[\d.-]+,\s*Lng:\s*[\d.-]+/i.test(message) || /Compartilhar\s+Localizacao/i.test(normalized)
 
     const cleaned = message
-      .replace(/[📍📌🗺️🧭]+/gu, ' ')
+      .replace(/(?:\u{1F4CD}|\u{1F4CC}|\u{1F5FA}\u{FE0F}?|\u{1F9ED})+/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim()
 
@@ -416,7 +416,7 @@ export default function ConversationsPage() {
       </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden">
         {/* Groups section */}
         {filteredGroups.length > 0 && (
           <div className="border-b border-slate-800">

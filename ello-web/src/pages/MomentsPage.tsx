@@ -1417,7 +1417,7 @@ export default function MomentsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -1427,11 +1427,11 @@ export default function MomentsPage() {
             <p className="text-gray-400">Nenhum moment encontrado</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-0">
             {moments.map((moment) => (
               <div
                 key={moment.id}
-                className="py-5 sm:py-6"
+                className="w-full py-5 sm:py-6 border-b border-slate-800/70 last:border-b-0"
               >
                 {/* Author Info */}
                 <div className="flex items-start justify-between gap-3 mb-4">
@@ -1532,10 +1532,10 @@ export default function MomentsPage() {
                   <p className="text-gray-200 mb-4 text-base sm:text-lg leading-relaxed break-words">{moment.content}</p>
                 )}
                 {moment.media_url && (
-                  <div
-                    className="relative mb-4 rounded-xl overflow-hidden border border-slate-800/80 bg-black cursor-zoom-in w-full max-w-2xl mx-auto"
+                  <button
+                    type="button"
+                    className="relative mb-4 rounded-xl overflow-hidden border border-slate-800/80 bg-black cursor-zoom-in w-full"
                     onClick={() => openMediaFullscreen(moment.id)}
-                    role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -1546,28 +1546,23 @@ export default function MomentsPage() {
                     aria-label="Abrir mídia em tela cheia"
                   >
                     {isVideoUrl(moment.media_url) ? (
-                      <div className="aspect-[4/5] sm:aspect-[1/1] w-full bg-black">
-                        <video
-                          src={resolveMediaUrl(moment.media_url)}
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                          className="w-full h-full object-contain bg-black"
-                        />
-                      </div>
+                      <video
+                        src={resolveMediaUrl(moment.media_url)}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        className="aspect-[4/5] sm:aspect-square w-full h-full object-cover bg-black"
+                      />
                     ) : (
-                      <div className="aspect-[4/5] sm:aspect-[1/1] w-full bg-black">
-                        <img
-                          src={resolveMediaUrl(moment.media_url)}
-                          alt="moment"
-                          className="w-full h-full object-contain bg-black"
-                        />
-                      </div>
+                      <img
+                        src={resolveMediaUrl(moment.media_url)}
+                        alt="moment"
+                        className="aspect-[4/5] sm:aspect-square w-full h-full object-cover bg-black"
+                      />
                     )}
-                  </div>
+                  </button>
                 )}
-
                 {/* Actions */}
                 <div className="flex flex-wrap items-center gap-5 sm:gap-8 text-gray-500 pt-2">
                   <button
@@ -1608,18 +1603,18 @@ export default function MomentsPage() {
 
       {selectedStory && (
         <div
-          className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-[90] bg-black"
           style={{ touchAction: 'none' }}
           {...storyViewerSwipeHandlers}
         >
           <button
             onClick={closeStoryViewer}
-            className="absolute top-4 right-4 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
+            className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] right-4 z-40 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition hidden sm:inline-flex"
           >
             <X size={22} />
           </button>
 
-          <div className="absolute top-4 right-16 z-40">
+          <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] right-4 sm:right-16 z-40">
             <button
               onClick={() => setStoryActionMenuOpen((prev) => !prev)}
               className="text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition"
@@ -1679,7 +1674,7 @@ export default function MomentsPage() {
 
           <button
             onClick={() => navigateToUserProfile(selectedStoryGroup?.userId)}
-            className="absolute top-4 left-4 z-40 text-white bg-black/40 px-3 py-2 rounded-xl hover:bg-black/60 transition flex items-center gap-2 max-w-[72vw]"
+            className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] left-4 z-40 text-white bg-black/40 px-3 py-2 rounded-xl hover:bg-black/60 transition flex items-center gap-2 max-w-[72vw]"
           >
             <img
               src={selectedStoryGroup?.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedStoryGroup?.author?.username || `story-user-${selectedStoryGroup?.userId}`}`}
@@ -1693,7 +1688,7 @@ export default function MomentsPage() {
             </div>
           </button>
 
-          <div className="relative w-full h-full overflow-hidden z-10">
+          <div className="absolute inset-0 z-10">
             {isVideoUrl(selectedStory.media_url) ? (
               <video
                 src={resolveMediaUrl(selectedStory.media_url)}
@@ -1701,38 +1696,20 @@ export default function MomentsPage() {
                 muted
                 loop
                 playsInline
-                aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-55"
+                controls
+                className="w-full h-full object-cover"
               />
             ) : (
               <img
                 src={resolveMediaUrl(selectedStory.media_url)}
-                alt="story background"
-                aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-55"
+                alt="story"
+                className="w-full h-full object-cover"
               />
             )}
-
-            <div className="absolute inset-0 flex items-center justify-center px-2 sm:px-4">
-              {isVideoUrl(selectedStory.media_url) ? (
-                <video
-                  src={resolveMediaUrl(selectedStory.media_url)}
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : (
-                <img
-                  src={resolveMediaUrl(selectedStory.media_url)}
-                  alt="story"
-                  className="max-w-full max-h-full object-contain"
-                />
-              )}
-            </div>
           </div>
 
           {selectedStory.text && !editingStoryActive && (
-            <div className="absolute bottom-28 left-4 right-4 text-center z-20">
+            <div className="absolute left-4 right-4 text-center z-20 bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
               <p className="inline-block max-w-xl px-3 py-2 rounded-xl bg-black/55 text-white text-sm break-words">
                 {selectedStory.text}
               </p>
@@ -1740,7 +1717,7 @@ export default function MomentsPage() {
           )}
 
           {editingStoryActive && selectedStory.user_id === user?.id && (
-            <div className="absolute bottom-28 left-4 right-4 z-20">
+            <div className="absolute left-4 right-4 z-20 bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
               <div className="max-w-xl mx-auto rounded-xl bg-black/65 border border-white/15 p-3 space-y-2">
                 <textarea
                   value={editingStoryText}
@@ -1770,7 +1747,7 @@ export default function MomentsPage() {
             </div>
           )}
 
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-5 z-20">
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-20">
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/55 backdrop-blur-md px-3 py-2">
             <button
               onClick={() => handleLikeStory(selectedStory.id)}
@@ -1813,7 +1790,7 @@ export default function MomentsPage() {
           </div>
 
           {showStoryCommentComposer && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[min(92vw,560px)] z-20">
+            <div className="absolute left-1/2 -translate-x-1/2 w-[min(92vw,560px)] z-20 bottom-[calc(5rem+env(safe-area-inset-bottom,0px))]">
               <div className="rounded-2xl border border-white/15 bg-black/70 backdrop-blur-md p-3">
                 <label className="block text-xs text-gray-300 mb-2">Comentário do story (vai para o chat)</label>
                 <div className="flex items-center gap-2">
@@ -2310,4 +2287,3 @@ export default function MomentsPage() {
     </div>
   )
 }
-

@@ -871,23 +871,26 @@ const CallScreen = () => {
     if (!activeCallId) return
 
     const title = activeCall?.user?.full_name || activeCall?.user?.username || 'Chamada em andamento'
+    const avatarUrl = activeCall?.user?.avatar_url || undefined
     void enableCallMode({
       callId: activeCallId,
       title,
       subtitle: callLabel,
       isVideo: isVideoCall,
+      avatarUrl,
     })
     void updateCallMode({
       callId: activeCallId,
       title,
       subtitle: callLabel,
       isVideo: isVideoCall,
+      avatarUrl,
     })
 
     return () => {
       void disableCallMode()
     }
-  }, [activeCall?.user?.full_name, activeCall?.user?.username, activeCallId, callLabel, isVideoCall])
+  }, [activeCall?.user?.avatar_url, activeCall?.user?.full_name, activeCall?.user?.username, activeCallId, callLabel, isVideoCall])
 
   useEffect(() => {
     const onResize = () => {

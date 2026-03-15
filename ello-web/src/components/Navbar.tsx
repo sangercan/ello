@@ -41,6 +41,7 @@ export default function Navbar() {
   const publisherCameraVideoRef = useRef<HTMLVideoElement | null>(null)
   const publisherCameraCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const publisherCameraStreamRef = useRef<MediaStream | null>(null)
+  const isScrollCollapsibleRoute = /^\/(moments|vibes)(?:\/|$)/.test(location.pathname)
 
   const handleLogout = () => {
     logout()
@@ -50,6 +51,11 @@ export default function Navbar() {
   const isActive = (path: string) => location.pathname === path
 
   useEffect(() => {
+    if (!isScrollCollapsibleRoute) {
+      setIsNavVisible(true)
+      return
+    }
+
     const getScrollTopFromTarget = (target: EventTarget | null | undefined) => {
       if (!target || target === window || target === document || target === document.body || target === document.documentElement) {
         return Math.max(
@@ -92,7 +98,7 @@ export default function Navbar() {
       window.removeEventListener('scroll', handleWindowScroll)
       document.removeEventListener('scroll', handleCapturedScroll, true)
     }
-  }, [open])
+  }, [open, isScrollCollapsibleRoute])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -573,7 +579,7 @@ export default function Navbar() {
 
   return (
     <nav ref={navRef} className={`sticky top-0 z-50 bg-gradient-to-b from-slate-900/98 to-slate-900/95 backdrop-blur-xl border-b border-slate-700/50 shadow-2xl transition-transform duration-300 ${
-      isNavVisible ? 'translate-y-0' : '-translate-y-full'
+      isScrollCollapsibleRoute && !isNavVisible ? '-translate-y-full' : 'translate-y-0'
     }`}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16 md:h-20">

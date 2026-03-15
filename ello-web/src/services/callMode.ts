@@ -13,6 +13,7 @@ export type CallModeOptions = {
   title?: string
   subtitle?: string
   isVideo?: boolean
+  avatarUrl?: string
 }
 
 let wakeLock: WakeLockSentinel | null = null

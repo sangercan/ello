@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.IBinder;
 import android.text.TextUtils;
@@ -22,6 +23,7 @@ public class CallForegroundService extends Service {
     public static final String EXTRA_CALL_ID = "extra_call_id";
     public static final String EXTRA_TITLE = "extra_title";
     public static final String EXTRA_SUBTITLE = "extra_subtitle";
+    public static final String EXTRA_AVATAR_URL = "extra_avatar_url";
     public static final String EXTRA_IS_VIDEO = "extra_is_video";
 
     private static final String CHANNEL_ID = "ello_ongoing_call";
@@ -34,6 +36,7 @@ public class CallForegroundService extends Service {
     private int callId = -1;
     private String title = DEFAULT_TITLE;
     private String subtitle = DEFAULT_SUBTITLE;
+    private String avatarUrl = "";
     private boolean isVideo = false;
 
     @Override
@@ -75,6 +78,11 @@ public class CallForegroundService extends Service {
             subtitle = subtitleRaw;
         }
 
+        if (intent.hasExtra(EXTRA_AVATAR_URL)) {
+            String avatarUrlRaw = intent.getStringExtra(EXTRA_AVATAR_URL);
+            avatarUrl = TextUtils.isEmpty(avatarUrlRaw) ? "" : avatarUrlRaw;
+        }
+
         if (intent.hasExtra(EXTRA_IS_VIDEO)) {
             isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, isVideo);
         }
@@ -102,7 +110,7 @@ public class CallForegroundService extends Service {
             ? (isVideo ? "Chamada de video ativa" : "Chamada de voz ativa")
             : subtitle;
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_ello)
             .setContentTitle(TextUtils.isEmpty(title) ? DEFAULT_TITLE : title)
             .setContentText(subtitleText)
@@ -112,8 +120,14 @@ public class CallForegroundService extends Service {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openCallIntent)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build();
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
+
+        Bitmap avatarBitmap = AvatarBitmapFetcher.load(avatarUrl, 128);
+        if (avatarBitmap != null) {
+            builder.setLargeIcon(avatarBitmap);
+        }
+
+        return builder.build();
     }
 
     private void startForegroundCompat(Notification notification) {

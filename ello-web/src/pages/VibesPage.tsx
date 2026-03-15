@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import apiClient from '@services/api'
 import { toast } from 'react-hot-toast'
 import type { Moment } from '@/types'
@@ -10,6 +10,7 @@ import { getMoodAvatarRingStyle } from '@/utils/mood'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 const VIBES_CACHE_KEY = 'ello:cache:vibes:v1'
 const getVibesCacheKey = (userId?: number | null) => `${VIBES_CACHE_KEY}:user:${userId ?? 'guest'}`
+const VIBES_PAGE_SIZE = 10
 
 type ContentComment = {
   id: number
@@ -59,6 +60,9 @@ export default function VibesPage() {
   const user = useAuthStore((state) => state.user)
   const [vibes, setVibes] = useState<Moment[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(1)
   const [selectedVibeForComments, setSelectedVibeForComments] = useState<Moment | null>(null)
   const [vibeComments, setVibeComments] = useState<ContentComment[]>([])
   const [vibeCommentsLoading, setVibeCommentsLoading] = useState(false)
@@ -80,14 +84,16 @@ export default function VibesPage() {
   const [editingCommentText, setEditingCommentText] = useState('')
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({})
   const visibilityRatiosRef = useRef<Map<number, number>>(new Map())
+  const feedSentinelRef = useRef<HTMLDivElement | null>(null)
+  const vibesRef = useRef<Moment[]>([])
 
-  const isVideoUrl = (url?: string) => {
+  const isVideoUrl = useCallback((url?: string) => {
     if (!url) return false
     const clean = url.toLowerCase().split('?')[0].split('#')[0]
     return ['.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv', '.3gp', '.m3u8'].some((ext) =>
       clean.endsWith(ext)
     )
-  }
+  }, [])
 
   const abbreviateStateOrProvince = (value: string) => {
     const normalized = value
@@ -133,7 +139,7 @@ export default function VibesPage() {
     return [city, state, country].filter(Boolean).join(', ')
   }
 
-  const normalizeVibes = (raw: any[]): Moment[] => {
+  const normalizeVibes = useCallback((raw: any[]): Moment[] => {
     return raw
       .map((v) => {
         const inferredUserId = Number(v.user_id || v.author_id || v.author?.id || 0) || 0
@@ -175,27 +181,22 @@ export default function VibesPage() {
         }
       })
       .filter((v) => isVideoUrl(v.media_url))
-  }
+  }, [isVideoUrl])
 
-  useEffect(() => {
-    const cacheKey = getVibesCacheKey(user?.id)
-    let hasHydratedCache = false
-    try {
-      const rawCache = window.sessionStorage.getItem(cacheKey)
-      if (rawCache) {
-        const parsed = JSON.parse(rawCache)
-        const cachedVibes = Array.isArray(parsed?.vibes) ? parsed.vibes : []
-        if (cachedVibes.length > 0) {
-          setVibes(cachedVibes)
-          setLoading(false)
-          hasHydratedCache = true
-        }
-      }
-    } catch {
-      // Ignore invalid cache.
-    }
-    void loadVibes(hasHydratedCache)
-  }, [user?.id])
+  const mergeUniqueVibes = useCallback((existing: Moment[], incoming: Moment[]) => {
+    if (incoming.length === 0) return existing
+    const existingIds = new Set(existing.map((item) => Number(item.id)))
+    const dedupedIncoming = incoming.filter((item) => !existingIds.has(Number(item.id)))
+    return [...existing, ...dedupedIncoming]
+  }, [])
+
+  const sortVibesByNewest = useCallback((list: Moment[]) => {
+    return [...list].sort((a, b) => {
+      const aTime = new Date(a.created_at || '').getTime()
+      const bTime = new Date(b.created_at || '').getTime()
+      return bTime - aTime
+    })
+  }, [])
 
   useEffect(() => {
     if (vibes.length === 0) return
@@ -206,6 +207,10 @@ export default function VibesPage() {
       // Ignore storage quota errors.
     }
   }, [vibes, user?.id])
+
+  useEffect(() => {
+    vibesRef.current = vibes
+  }, [vibes])
 
   useEffect(() => {
     if (vibes.length === 0) return
@@ -260,22 +265,89 @@ export default function VibesPage() {
     return () => observer.disconnect()
   }, [vibes])
 
-  const loadVibes = async (background = false) => {
+  const loadVibes = useCallback(async (pageToLoad: number, append: boolean, background = false) => {
     try {
-      if (!background && vibes.length === 0) {
+      if (append) {
+        setLoadingMore(true)
+      } else if (!background && vibesRef.current.length === 0) {
         setLoading(true)
       }
-      const response = await apiClient.getVibes(1, 12)
+      const response = await apiClient.getVibes(pageToLoad, VIBES_PAGE_SIZE)
       const list = Array.isArray(response.data) ? response.data : response.data?.data || []
-      setVibes(normalizeVibes(list))
+      const normalized = sortVibesByNewest(normalizeVibes(list))
+
+      if (append) {
+        setVibes((prev) => sortVibesByNewest(mergeUniqueVibes(prev, normalized)))
+      } else {
+        setVibes(normalized)
+      }
+
+      const hasFreshData =
+        !append ||
+        normalized.some((item) => !vibesRef.current.some((existing) => Number(existing.id) === Number(item.id)))
+      setHasMore(normalized.length >= VIBES_PAGE_SIZE && hasFreshData)
     } catch (error) {
       toast.error('Erro ao carregar vibes')
     } finally {
-      if (!background || vibes.length === 0) {
+      if (append) {
+        setLoadingMore(false)
+      } else if (!background || vibesRef.current.length === 0) {
         setLoading(false)
       }
     }
-  }
+  }, [mergeUniqueVibes, normalizeVibes, sortVibesByNewest])
+
+  useEffect(() => {
+    const cacheKey = getVibesCacheKey(user?.id)
+    let hasHydratedCache = false
+    try {
+      const rawCache = window.sessionStorage.getItem(cacheKey)
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        const cachedVibes = Array.isArray(parsed?.vibes) ? parsed.vibes : []
+        if (cachedVibes.length > 0) {
+          setVibes(cachedVibes)
+          setLoading(false)
+          hasHydratedCache = true
+        }
+      }
+    } catch {
+      // Ignore invalid cache.
+    }
+
+    setPage(1)
+    setHasMore(true)
+    void loadVibes(1, false, hasHydratedCache)
+  }, [user?.id, loadVibes])
+
+  const loadNextPage = useCallback(() => {
+    if (loading || loadingMore || !hasMore) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    void loadVibes(nextPage, true)
+  }, [hasMore, loadVibes, loading, loadingMore, page])
+
+  useEffect(() => {
+    const sentinel = feedSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0]
+        if (first?.isIntersecting) {
+          loadNextPage()
+        }
+      },
+      {
+        root: null,
+        rootMargin: '600px 0px',
+        threshold: 0,
+      },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadNextPage])
 
   const handleLikeVibe = async (vibeId: number) => {
     try {
@@ -834,8 +906,8 @@ export default function VibesPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-slate-950">
-      <div className="min-h-[100dvh] overflow-y-auto snap-y snap-mandatory">
+    <div className="h-[100dvh] overflow-x-hidden bg-slate-950">
+      <div className="h-[100dvh] overflow-y-auto overscroll-y-contain snap-y snap-mandatory">
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -847,8 +919,8 @@ export default function VibesPage() {
         ) : (
           <div>
             {vibes.map((vibe) => (
-              <section key={vibe.id} className="snap-start min-h-[100dvh]">
-                <div className="relative w-full h-full bg-black overflow-hidden">
+              <section key={vibe.id} className="snap-start snap-always h-[100dvh] flex justify-center bg-black">
+                <div className="relative w-full h-full bg-black overflow-hidden md:w-[min(56.25dvh,100vw)]">
                   <video
                     ref={(el) => {
                       videoRefs.current[vibe.id] = el
@@ -955,6 +1027,12 @@ export default function VibesPage() {
                 </div>
               </section>
             ))}
+            {loadingMore && (
+              <div className="h-24 flex items-center justify-center bg-black">
+                <div className="w-7 h-7 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            <div ref={feedSentinelRef} className="h-1 w-full" aria-hidden="true" />
           </div>
         )}
       </div>

@@ -1,13 +1,18 @@
 package com.ellosocial.app;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationManagerCompat;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class IncomingCallActivity extends AppCompatActivity {
     private static final int CALL_NOTIFICATION_BASE_ID = 700000;
@@ -15,6 +20,8 @@ public class IncomingCallActivity extends AppCompatActivity {
     private static final String DEFAULT_SUBTITLE = "Toque para atender";
 
     private Bundle callExtras = new Bundle();
+    private final ExecutorService avatarExecutor = Executors.newSingleThreadExecutor();
+    private volatile String requestedAvatarUrl = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +48,7 @@ public class IncomingCallActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        avatarExecutor.shutdownNow();
         CallModePlugin.applyCallWindowFlags(this, false);
         super.onDestroy();
     }
@@ -53,6 +61,7 @@ public class IncomingCallActivity extends AppCompatActivity {
     private void bindUi() {
         TextView titleView = findViewById(R.id.incomingCallTitle);
         TextView subtitleView = findViewById(R.id.incomingCallSubtitle);
+        ImageView avatarView = findViewById(R.id.incomingCallAvatar);
 
         String title = firstNonEmpty(
             valueFromExtras("title"),
@@ -69,9 +78,41 @@ public class IncomingCallActivity extends AppCompatActivity {
 
         titleView.setText(title);
         subtitleView.setText(subtitle);
+        bindCallerAvatar(avatarView);
 
         findViewById(R.id.answerCallButton).setOnClickListener(v -> dispatchAction(CallNotificationsPlugin.ACTION_ANSWER));
         findViewById(R.id.declineCallButton).setOnClickListener(v -> dispatchAction(CallNotificationsPlugin.ACTION_DECLINE));
+    }
+
+    private void bindCallerAvatar(@NonNull ImageView avatarView) {
+        final String avatarUrl = firstNonEmpty(
+            valueFromExtras("caller_avatar_url"),
+            valueFromExtras("caller_avatar"),
+            valueFromExtras("avatar_url"),
+            valueFromExtras("avatar"),
+            valueFromExtras("from_user_avatar_url")
+        );
+
+        avatarView.setImageResource(R.drawable.ic_stat_ello);
+        if (TextUtils.isEmpty(avatarUrl)) {
+            requestedAvatarUrl = "";
+            return;
+        }
+
+        final String requestUrl = avatarUrl.trim();
+        requestedAvatarUrl = requestUrl;
+
+        avatarExecutor.execute(() -> {
+            Bitmap bitmap = AvatarBitmapFetcher.load(requestUrl, 256);
+            runOnUiThread(() -> {
+                if (!TextUtils.equals(requestedAvatarUrl, requestUrl)) return;
+                if (bitmap != null) {
+                    avatarView.setImageBitmap(bitmap);
+                } else {
+                    avatarView.setImageResource(R.drawable.ic_stat_ello);
+                }
+            });
+        });
     }
 
     private void dispatchAction(@NonNull String action) {

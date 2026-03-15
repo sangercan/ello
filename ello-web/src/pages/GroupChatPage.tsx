@@ -175,6 +175,10 @@ export default function GroupChatPage() {
   const [visualViewportCompensatesKeyboard, setVisualViewportCompensatesKeyboard] = useState(false)
   const [isComposerFocused, setIsComposerFocused] = useState(false)
   const [composerHeight, setComposerHeight] = useState(88)
+  const effectiveKeyboardOffset = isComposerFocused && keyboardOffset > 36 ? keyboardOffset : 0
+  const shouldUseVisualViewportHeight = Boolean(
+    visualViewportHeight && (isComposerFocused || effectiveKeyboardOffset > 0)
+  )
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null)
   const [messageActionMenuId, setMessageActionMenuId] = useState<number | null>(null)
@@ -214,10 +218,10 @@ export default function GroupChatPage() {
     return currentUser.id === group.creator_id || members.some((m) => m.id === currentUser.id && m.is_admin)
   }, [currentUser, group, members])
 
-  const messageViewportBottomPadding = useMemo(
-    () => Math.max(112, keyboardOffset + composerHeight + 20),
-    [keyboardOffset, composerHeight]
-  )
+  const messageViewportBottomPadding = useMemo(() => {
+    const basePadding = Math.min(24, Math.max(16, Math.round(composerHeight * 0.2)))
+    return effectiveKeyboardOffset > 0 ? basePadding + 10 : basePadding
+  }, [effectiveKeyboardOffset, composerHeight])
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = messagesContainerRef.current
@@ -385,12 +389,21 @@ export default function GroupChatPage() {
   }, [])
 
   useEffect(() => {
-    if (!(keyboardOffset > 0 || isComposerFocused)) return
+    if (!(effectiveKeyboardOffset > 0 || isComposerFocused)) return
     const frame = window.requestAnimationFrame(() => {
       scrollToBottom('auto')
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [keyboardOffset, isComposerFocused, scrollToBottom])
+  }, [effectiveKeyboardOffset, isComposerFocused, scrollToBottom])
+
+  useEffect(() => {
+    if (isComposerFocused) return
+    const timer = window.setTimeout(() => {
+      setKeyboardOffset(0)
+      setVisualViewportCompensatesKeyboard(false)
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [isComposerFocused])
 
   const syncLatestMessages = useCallback(async () => {
     if (!groupId) return
@@ -409,7 +422,7 @@ export default function GroupChatPage() {
       const incomingCount = latestMessages.filter((msg) => !previousIds.has(Number(msg.id))).length
 
       setMessages(mergedMessages)
-      if (incomingCount > 0 || keyboardOffset > 0 || isComposerFocused) {
+      if (incomingCount > 0 || effectiveKeyboardOffset > 0 || isComposerFocused) {
         window.requestAnimationFrame(() => {
           scrollToBottom('auto')
         })
@@ -417,7 +430,7 @@ export default function GroupChatPage() {
     } catch (error) {
       console.error('Erro ao sincronizar mensagens do grupo:', error)
     }
-  }, [groupId, isComposerFocused, keyboardOffset, scrollToBottom])
+  }, [groupId, isComposerFocused, effectiveKeyboardOffset, scrollToBottom])
 
   useEffect(() => {
     if (!groupId) return
@@ -661,7 +674,11 @@ export default function GroupChatPage() {
   return (
     <div
       className="ello-app-viewport h-full bg-slate-950 flex flex-col overflow-hidden"
-      style={visualViewportHeight ? { height: `${visualViewportHeight}px` } : undefined}
+      style={
+        shouldUseVisualViewportHeight && visualViewportHeight
+          ? { height: `calc(${visualViewportHeight}px - var(--ello-nav-height, 80px))` }
+          : undefined
+      }
     >
       <div className="p-4 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
         <button onClick={() => navigate('/chat')} className="text-white/70 hover:text-white">
@@ -898,8 +915,8 @@ export default function GroupChatPage() {
           paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
           marginBottom:
-            keyboardOffset > 0 && !visualViewportCompensatesKeyboard
-              ? `${keyboardOffset}px`
+            effectiveKeyboardOffset > 0 && !visualViewportCompensatesKeyboard
+              ? `${effectiveKeyboardOffset}px`
               : undefined,
           transition: 'margin-bottom 180ms ease-out',
         }}

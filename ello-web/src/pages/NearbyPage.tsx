@@ -48,6 +48,9 @@ const normalizeForSearch = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
 
+const NEARBY_USERS_PAGE_SIZE = 24
+const NEARBY_PLACES_PAGE_SIZE = 12
+
 export default function NearbyPage() {
   const debugLog = (...args: any[]) => {
     if (import.meta.env.DEV) console.log(...args)
@@ -88,6 +91,10 @@ export default function NearbyPage() {
   const [expandedPost, setExpandedPost] = useState<NearbyPlacePost | null>(null)
   const [authorCache, setAuthorCache] = useState<Record<number, NearbyAuthorSummary>>({})
   const [authorLoading, setAuthorLoading] = useState(false)
+  const [visibleUsersCount, setVisibleUsersCount] = useState(NEARBY_USERS_PAGE_SIZE)
+  const [visiblePlacesCount, setVisiblePlacesCount] = useState(NEARBY_PLACES_PAGE_SIZE)
+  const usersFeedSentinelRef = useRef<HTMLDivElement | null>(null)
+  const placesFeedSentinelRef = useRef<HTMLDivElement | null>(null)
   const normalizedSearch = normalizeForSearch(searchQuery.trim().replace(/^@+/, ''))
   const isSearchingUsers = nearbyTab === 'users' && normalizedSearch.length > 0
   const isSearchingPlaces = nearbyTab === 'places' && normalizedSearch.length > 0
@@ -95,6 +102,10 @@ export default function NearbyPage() {
   const filteredPlaces = places.filter((place) =>
     !isSearchingPlaces || normalizeForSearch(place.location_label || '').includes(normalizedSearch)
   )
+  const visibleRegularNearbyUsers = regularNearbyUsers.slice(0, visibleUsersCount)
+  const visiblePlaces = filteredPlaces.slice(0, visiblePlacesCount)
+  const hasMoreUsers = visibleUsersCount < regularNearbyUsers.length
+  const hasMorePlaces = visiblePlacesCount < filteredPlaces.length
 
   const expandedPostAuthor = expandedPost ? authorCache[expandedPost.user_id] : undefined
 
@@ -140,6 +151,56 @@ export default function NearbyPage() {
       document.body.style.overflow = previousOverflow
     }
   }, [expandedPlace, expandedPost])
+
+  useEffect(() => {
+    setVisibleUsersCount(NEARBY_USERS_PAGE_SIZE)
+  }, [radiusKm, normalizedSearch, regularNearbyUsers.length])
+
+  useEffect(() => {
+    setVisiblePlacesCount(NEARBY_PLACES_PAGE_SIZE)
+  }, [radiusKm, normalizedSearch, filteredPlaces.length])
+
+  useEffect(() => {
+    if (nearbyTab !== 'users' || isSearchingUsers || !hasMoreUsers) return
+    const sentinel = usersFeedSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        setVisibleUsersCount((prev) => Math.min(prev + NEARBY_USERS_PAGE_SIZE, regularNearbyUsers.length))
+      },
+      {
+        root: null,
+        rootMargin: '220px 0px',
+        threshold: 0,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [nearbyTab, isSearchingUsers, hasMoreUsers, regularNearbyUsers.length])
+
+  useEffect(() => {
+    if (nearbyTab !== 'places' || isSearchingPlaces || !hasMorePlaces) return
+    const sentinel = placesFeedSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        setVisiblePlacesCount((prev) => Math.min(prev + NEARBY_PLACES_PAGE_SIZE, filteredPlaces.length))
+      },
+      {
+        root: null,
+        rootMargin: '260px 0px',
+        threshold: 0,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [nearbyTab, isSearchingPlaces, hasMorePlaces, filteredPlaces.length])
 
   const loadUserVisibilityStatus = async () => {
     try {
@@ -714,8 +775,9 @@ export default function NearbyPage() {
                 </div>
               </div>
             ) : (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredPlaces.map((place, index) => (
+                {visiblePlaces.map((place, index) => (
                   <article key={`${place.location_label}-${place.latitude}-${place.longitude}-${index}`} className="rounded-2xl border border-slate-800/80 bg-gradient-to-b from-slate-900/70 to-slate-950/80 p-4 shadow-lg shadow-black/20">
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="min-w-0">
@@ -755,6 +817,13 @@ export default function NearbyPage() {
                   </article>
                 ))}
               </div>
+              {hasMorePlaces && (
+                <div className="py-6 flex items-center justify-center">
+                  <Loader className="animate-spin text-primary" size={22} />
+                </div>
+              )}
+              <div ref={placesFeedSentinelRef} className="h-1 w-full" aria-hidden="true" />
+              </>
             )}
           </>
         ) : (
@@ -887,8 +956,9 @@ export default function NearbyPage() {
             </div>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            {regularNearbyUsers.map((user) => (
+            {visibleRegularNearbyUsers.map((user) => (
               <button
                 key={user.id}
                 onClick={() => navigate(`/profile/${user.id}`)}
@@ -946,6 +1016,13 @@ export default function NearbyPage() {
               </button>
             ))}
           </div>
+          {hasMoreUsers && (
+            <div className="py-6 flex items-center justify-center">
+              <Loader className="animate-spin text-primary" size={22} />
+            </div>
+          )}
+          <div ref={usersFeedSentinelRef} className="h-1 w-full" aria-hidden="true" />
+          </>
         )}
           </>
         )}
